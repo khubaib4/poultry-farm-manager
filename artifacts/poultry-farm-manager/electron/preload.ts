@@ -166,6 +166,18 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getAlerts: (farmId: number) =>
       ipcRenderer.invoke("dashboard:getAlerts", farmId),
   },
+  reports: {
+    getDailySummary: (farmId: number, date: string) =>
+      ipcRenderer.invoke("reports:getDailySummary", farmId, date),
+    getWeeklySummary: (farmId: number, startDate: string, endDate: string) =>
+      ipcRenderer.invoke("reports:getWeeklySummary", farmId, startDate, endDate),
+    getMonthlySummary: (farmId: number, month: number, year: number) =>
+      ipcRenderer.invoke("reports:getMonthlySummary", farmId, month, year),
+    getFlockReport: (flockId: number) =>
+      ipcRenderer.invoke("reports:getFlockReport", flockId),
+    getFinancialReport: (farmId: number, startDate: string, endDate: string) =>
+      ipcRenderer.invoke("reports:getFinancialReport", farmId, startDate, endDate),
+  },
   vaccinationSchedule: {
     create: (data: unknown) =>
       ipcRenderer.invoke("vaccinationSchedule:create", data),

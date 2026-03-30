@@ -34,6 +34,11 @@ import type {
   AddCustomVaccinationData,
   ComplianceStats,
   VaccinationExportItem,
+  DailyReportData,
+  WeeklyReportData,
+  MonthlyReportData,
+  FlockReportData,
+  FinancialReportData,
   UserData,
 } from "@/types/electron";
 
@@ -321,6 +326,23 @@ export const dashboard = {
 
   getAlerts: (farmId: number) =>
     invoke(() => getApi()!.dashboard.getAlerts(farmId)),
+};
+
+export const reports = {
+  getDailySummary: (farmId: number, date: string) =>
+    invoke<DailyReportData>(() => getApi()!.reports.getDailySummary(farmId, date)),
+
+  getWeeklySummary: (farmId: number, startDate: string, endDate: string) =>
+    invoke<WeeklyReportData>(() => getApi()!.reports.getWeeklySummary(farmId, startDate, endDate)),
+
+  getMonthlySummary: (farmId: number, month: number, year: number) =>
+    invoke<MonthlyReportData>(() => getApi()!.reports.getMonthlySummary(farmId, month, year)),
+
+  getFlockReport: (flockId: number) =>
+    invoke<FlockReportData>(() => getApi()!.reports.getFlockReport(flockId)),
+
+  getFinancialReport: (farmId: number, startDate: string, endDate: string) =>
+    invoke<FinancialReportData>(() => getApi()!.reports.getFinancialReport(farmId, startDate, endDate)),
 };
 
 export const isElectron = (): boolean => {

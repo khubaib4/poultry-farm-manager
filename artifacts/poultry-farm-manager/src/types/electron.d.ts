@@ -356,6 +356,199 @@ export interface VaccinationExportItem {
   notes: string;
 }
 
+export interface FarmInfo {
+  id: number;
+  name: string;
+  location: string | null;
+}
+
+export interface DailyReportData {
+  date: string;
+  farm: FarmInfo;
+  flocks: {
+    flockId: number;
+    batchName: string;
+    breed: string | null;
+    currentCount: number;
+    eggsGradeA: number;
+    eggsGradeB: number;
+    eggsCracked: number;
+    deaths: number;
+    deathCause: string | null;
+    feedConsumedKg: number;
+    waterConsumedLiters: number | null;
+    notes: string | null;
+  }[];
+  totals: {
+    birds: number;
+    eggsGradeA: number;
+    eggsGradeB: number;
+    eggsCracked: number;
+    eggsTotal: number;
+    deaths: number;
+    feedKg: number;
+    revenue: number;
+    expenses: number;
+  };
+  notes: string[];
+}
+
+export interface WeeklyReportData {
+  startDate: string;
+  endDate: string;
+  farm: FarmInfo;
+  dailyData: {
+    date: string;
+    eggsGradeA: number;
+    eggsGradeB: number;
+    eggsCracked: number;
+    eggsTotal: number;
+    deaths: number;
+    feedKg: number;
+  }[];
+  weeklyTotals: {
+    birds: number;
+    eggsGradeA: number;
+    eggsGradeB: number;
+    eggsCracked: number;
+    eggsTotal: number;
+    deaths: number;
+    feedKg: number;
+  };
+  averages: {
+    eggsPerDay: number;
+    mortalityRate: number;
+    feedPerBird: number;
+  };
+  financial: {
+    revenue: number;
+    expenses: number;
+    profit: number;
+  };
+}
+
+export interface MonthlyReportData {
+  month: number;
+  year: number;
+  startDate: string;
+  endDate: string;
+  farm: FarmInfo;
+  weeklyData: {
+    weekStart: string;
+    weekEnd: string;
+    eggsTotal: number;
+    deaths: number;
+    feedKg: number;
+    revenue: number;
+    expenses: number;
+  }[];
+  totals: {
+    birds: number;
+    eggsGradeA: number;
+    eggsGradeB: number;
+    eggsCracked: number;
+    eggsTotal: number;
+    deaths: number;
+    feedKg: number;
+  };
+  averages: {
+    eggsPerDay: number;
+    productionRate: number;
+  };
+  financial: {
+    revenue: number;
+    expenses: number;
+    profit: number;
+    expensesByCategory: { category: string; amount: number }[];
+  };
+  inventory: {
+    totalItems: number;
+    lowStock: number;
+    expiringSoon: number;
+  };
+  vaccination: {
+    complianceRate: number;
+    completed: number;
+    total: number;
+  };
+}
+
+export interface FlockReportData {
+  farm: FarmInfo;
+  flock: {
+    id: number;
+    batchName: string;
+    breed: string | null;
+    initialCount: number;
+    currentCount: number | null;
+    arrivalDate: string;
+    ageAtArrivalDays: number | null;
+    ageDays: number;
+    status: string | null;
+  };
+  stats: {
+    totalEggs: number;
+    totalEggsA: number;
+    totalEggsB: number;
+    totalCracked: number;
+    totalDeaths: number;
+    totalFeed: number;
+    mortalityRate: number;
+    productionRate: number;
+    feedConversionRatio: number;
+    daysTracked: number;
+  };
+  productionCurve: {
+    date: string;
+    eggs: number;
+    deaths: number;
+    feedKg: number;
+  }[];
+  vaccinations: {
+    total: number;
+    completed: number;
+    complianceRate: number;
+    records: {
+      vaccineName: string;
+      scheduledDate: string;
+      administeredDate: string | null;
+      status: string | null;
+    }[];
+  };
+}
+
+export interface FinancialReportData {
+  startDate: string;
+  endDate: string;
+  farm: FarmInfo;
+  revenue: {
+    total: number;
+    byGrade: { grade: string; eggs: number; revenue: number; pricePerEgg: number }[];
+  };
+  expenses: {
+    total: number;
+    byCategory: { category: string; amount: number }[];
+  };
+  profitLoss: {
+    profit: number;
+    margin: number;
+  };
+  metrics: {
+    revenuePerBird: number;
+    expensePerBird: number;
+    profitPerBird: number;
+    revenuePerEgg: number;
+    costPerEgg: number;
+    totalBirds: number;
+    totalEggs: number;
+  };
+  dailyTrend: {
+    date: string;
+    revenue: number;
+    expenses: number;
+  }[];
+}
+
 export interface VaccinationScheduleData {
   vaccineName: string;
   ageDays: number;
@@ -493,6 +686,13 @@ export interface ElectronAPI {
     getFarmStats: (farmId: number) => Promise<IpcResponse>;
     getWeeklyTrends: (farmId: number) => Promise<IpcResponse>;
     getAlerts: (farmId: number) => Promise<IpcResponse>;
+  };
+  reports: {
+    getDailySummary: (farmId: number, date: string) => Promise<IpcResponse<DailyReportData>>;
+    getWeeklySummary: (farmId: number, startDate: string, endDate: string) => Promise<IpcResponse<WeeklyReportData>>;
+    getMonthlySummary: (farmId: number, month: number, year: number) => Promise<IpcResponse<MonthlyReportData>>;
+    getFlockReport: (flockId: number) => Promise<IpcResponse<FlockReportData>>;
+    getFinancialReport: (farmId: number, startDate: string, endDate: string) => Promise<IpcResponse<FinancialReportData>>;
   };
   vaccinationSchedule: {
     create: (data: VaccinationScheduleData) => Promise<IpcResponse>;
