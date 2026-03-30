@@ -22,6 +22,8 @@ const routeTitles: Record<string, string> = {
   "/farm/finances": "Financial Overview",
   "/farm/finances/report": "P&L Report",
   "/farm/alerts": "Alerts & Notifications",
+  "/farm/vaccinations": "Vaccination Management",
+  "/farm/vaccinations/template": "Vaccination Schedule Template",
   "/farm/reports": "Reports",
   "/farm/settings": "Settings",
 };

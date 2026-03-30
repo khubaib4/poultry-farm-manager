@@ -24,6 +24,10 @@ import type {
   FarmAlert,
   VaccinationData,
   VaccinationScheduleData,
+  UpcomingVaccination,
+  CompletedVaccination,
+  CompleteVaccinationData,
+  SkipVaccinationData,
   UserData,
 } from "@/types/electron";
 
@@ -249,8 +253,23 @@ export const vaccinations = {
   getByFlock: (flockId: number) =>
     invoke(() => getApi()!.vaccinations.getByFlock(flockId)),
 
+  getUpcoming: (farmId: number, days?: number) =>
+    invoke<UpcomingVaccination[]>(() => getApi()!.vaccinations.getUpcoming(farmId, days)),
+
+  getCompleted: (farmId: number) =>
+    invoke<CompletedVaccination[]>(() => getApi()!.vaccinations.getCompleted(farmId)),
+
   update: (id: number, data: Partial<VaccinationData>) =>
     invoke(() => getApi()!.vaccinations.update(id, data)),
+
+  complete: (id: number, data: CompleteVaccinationData) =>
+    invoke(() => getApi()!.vaccinations.complete(id, data)),
+
+  skip: (id: number, data: SkipVaccinationData) =>
+    invoke(() => getApi()!.vaccinations.skip(id, data)),
+
+  reschedule: (id: number, newDate: string) =>
+    invoke(() => getApi()!.vaccinations.reschedule(id, newDate)),
 };
 
 export const vaccinationSchedule = {
@@ -264,6 +283,12 @@ export const vaccinationSchedule = {
 
   delete: (id: number) =>
     invoke(() => getApi()!.vaccinationSchedule.delete(id)),
+
+  resetToDefaults: () =>
+    invoke(() => getApi()!.vaccinationSchedule.resetToDefaults()),
+
+  generateForFlock: (flockId: number) =>
+    invoke(() => getApi()!.vaccinationSchedule.generateForFlock(flockId)),
 };
 
 export const dashboard = {

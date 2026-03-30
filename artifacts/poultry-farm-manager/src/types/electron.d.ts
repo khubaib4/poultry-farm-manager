@@ -212,6 +212,52 @@ export interface VaccinationData {
   status?: string;
 }
 
+export interface UpcomingVaccination {
+  id: number;
+  flockId: number | null;
+  vaccineName: string;
+  scheduledDate: string;
+  administeredDate: string | null;
+  administeredBy: string | null;
+  batchNumber: string | null;
+  notes: string | null;
+  status: string | null;
+  createdAt: string | null;
+  flockName: string;
+  flockBreed: string;
+  flockCurrentCount: number | null;
+  daysUntilDue: number;
+  flockAgeDays: number;
+  vaccAgeDays: number;
+}
+
+export interface CompletedVaccination {
+  id: number;
+  flockId: number | null;
+  vaccineName: string;
+  scheduledDate: string;
+  administeredDate: string | null;
+  administeredBy: string | null;
+  batchNumber: string | null;
+  notes: string | null;
+  status: string | null;
+  createdAt: string | null;
+  flockName: string;
+}
+
+export interface CompleteVaccinationData {
+  administeredDate: string;
+  administeredBy?: string;
+  batchNumber?: string;
+  notes?: string;
+}
+
+export interface SkipVaccinationData {
+  reason: string;
+  notes?: string;
+  rescheduleDate?: string;
+}
+
 export interface VaccinationScheduleData {
   vaccineName: string;
   ageDays: number;
@@ -333,7 +379,12 @@ export interface ElectronAPI {
   vaccinations: {
     create: (data: VaccinationData) => Promise<IpcResponse>;
     getByFlock: (flockId: number) => Promise<IpcResponse>;
+    getUpcoming: (farmId: number, days?: number) => Promise<IpcResponse<UpcomingVaccination[]>>;
+    getCompleted: (farmId: number) => Promise<IpcResponse<CompletedVaccination[]>>;
     update: (id: number, data: Partial<VaccinationData>) => Promise<IpcResponse>;
+    complete: (id: number, data: CompleteVaccinationData) => Promise<IpcResponse>;
+    skip: (id: number, data: SkipVaccinationData) => Promise<IpcResponse>;
+    reschedule: (id: number, newDate: string) => Promise<IpcResponse>;
   };
   dashboard: {
     getFarmStats: (farmId: number) => Promise<IpcResponse>;
@@ -345,6 +396,8 @@ export interface ElectronAPI {
     getAll: () => Promise<IpcResponse>;
     update: (id: number, data: Partial<VaccinationScheduleData>) => Promise<IpcResponse>;
     delete: (id: number) => Promise<IpcResponse>;
+    resetToDefaults: () => Promise<IpcResponse>;
+    generateForFlock: (flockId: number) => Promise<IpcResponse>;
   };
 }
 

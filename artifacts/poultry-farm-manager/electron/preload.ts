@@ -135,8 +135,18 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("vaccinations:create", data),
     getByFlock: (flockId: number) =>
       ipcRenderer.invoke("vaccinations:getByFlock", flockId),
+    getUpcoming: (farmId: number, days?: number) =>
+      ipcRenderer.invoke("vaccinations:getUpcoming", farmId, days),
+    getCompleted: (farmId: number) =>
+      ipcRenderer.invoke("vaccinations:getCompleted", farmId),
     update: (id: number, data: unknown) =>
       ipcRenderer.invoke("vaccinations:update", id, data),
+    complete: (id: number, data: unknown) =>
+      ipcRenderer.invoke("vaccinations:complete", id, data),
+    skip: (id: number, data: unknown) =>
+      ipcRenderer.invoke("vaccinations:skip", id, data),
+    reschedule: (id: number, newDate: string) =>
+      ipcRenderer.invoke("vaccinations:reschedule", id, newDate),
   },
   dashboard: {
     getFarmStats: (farmId: number) =>
@@ -154,5 +164,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("vaccinationSchedule:update", id, data),
     delete: (id: number) =>
       ipcRenderer.invoke("vaccinationSchedule:delete", id),
+    resetToDefaults: () =>
+      ipcRenderer.invoke("vaccinationSchedule:resetToDefaults"),
+    generateForFlock: (flockId: number) =>
+      ipcRenderer.invoke("vaccinationSchedule:generateForFlock", flockId),
   },
 });

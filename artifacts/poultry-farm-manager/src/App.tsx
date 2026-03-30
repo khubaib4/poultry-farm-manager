@@ -31,6 +31,8 @@ import InventoryPage from "@/pages/farm/InventoryPage";
 import AddInventoryItemPage from "@/pages/farm/AddInventoryItemPage";
 import EditInventoryItemPage from "@/pages/farm/EditInventoryItemPage";
 import AlertsPage from "@/pages/farm/AlertsPage";
+import VaccinationSchedulePage from "@/pages/farm/VaccinationSchedulePage";
+import VaccinationTemplatePage from "@/pages/farm/VaccinationTemplatePage";
 import PlaceholderPage from "@/pages/PlaceholderPage";
 
 function AuthRedirect(): React.ReactElement {
@@ -81,7 +83,8 @@ export default function App(): React.ReactElement {
           <Route path="/farm/inventory" element={<FarmLayout><InventoryPage /></FarmLayout>} />
           <Route path="/farm/inventory/new" element={<FarmLayout><AddInventoryItemPage /></FarmLayout>} />
           <Route path="/farm/inventory/:itemId/edit" element={<FarmLayout><EditInventoryItemPage /></FarmLayout>} />
-          <Route path="/farm/vaccinations" element={<FarmLayout><PlaceholderPage title="Vaccinations" description="Schedule and track vaccination programs." /></FarmLayout>} />
+          <Route path="/farm/vaccinations" element={<FarmLayout><VaccinationSchedulePage /></FarmLayout>} />
+          <Route path="/farm/vaccinations/template" element={<FarmLayout><VaccinationTemplatePage /></FarmLayout>} />
           <Route path="/farm/expenses" element={<FarmLayout><ExpensesPage /></FarmLayout>} />
           <Route path="/farm/expenses/new" element={<FarmLayout><AddExpensePage /></FarmLayout>} />
           <Route path="/farm/expenses/:expenseId/edit" element={<FarmLayout><EditExpensePage /></FarmLayout>} />

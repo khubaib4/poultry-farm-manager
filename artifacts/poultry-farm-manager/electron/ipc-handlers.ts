@@ -1573,6 +1573,9 @@ export function registerIpcHandlers(): void {
     "vaccinations:create",
     wrapHandler((_e: unknown, data: { flockId: number; vaccineName: string; scheduledDate: string; administeredDate?: string; administeredBy?: string; batchNumber?: string; notes?: string; status?: string }) => {
       requireAuth();
+      const flock = db.select().from(schema.flocks).where(eq(schema.flocks.id, data.flockId)).get();
+      if (!flock) throw new Error("Flock not found");
+      requireFarmAccess(flock.farmId!);
       return db.insert(schema.vaccinations).values(data).returning().get();
     })
   );
@@ -1581,6 +1584,9 @@ export function registerIpcHandlers(): void {
     "vaccinations:getByFlock",
     wrapHandler((_e: unknown, flockId: number) => {
       requireAuth();
+      const flock = db.select().from(schema.flocks).where(eq(schema.flocks.id, flockId)).get();
+      if (!flock) throw new Error("Flock not found");
+      requireFarmAccess(flock.farmId!);
       return db
         .select()
         .from(schema.vaccinations)
@@ -1590,12 +1596,151 @@ export function registerIpcHandlers(): void {
   );
 
   ipcMain.handle(
+    "vaccinations:getUpcoming",
+    wrapHandler((_e: unknown, farmId: number, days: number = 30) => {
+      requireFarmAccess(farmId);
+      const today = new Date();
+      const todayStr = today.toISOString().split("T")[0];
+      const futureDate = new Date(today.getTime() + days * 86400000).toISOString().split("T")[0];
+
+      const rows = db.select({
+        vaccination: schema.vaccinations,
+        flock: schema.flocks,
+      })
+        .from(schema.vaccinations)
+        .innerJoin(schema.flocks, eq(schema.vaccinations.flockId, schema.flocks.id))
+        .where(and(
+          eq(schema.flocks.farmId, farmId),
+          eq(schema.flocks.status, "active"),
+          eq(schema.vaccinations.status, "pending"),
+          lte(schema.vaccinations.scheduledDate, futureDate)
+        ))
+        .all();
+
+      return rows.map(row => {
+        const v = row.vaccination;
+        const f = row.flock;
+        const daysUntilDue = Math.floor((new Date(v.scheduledDate).getTime() - today.getTime()) / 86400000);
+        const arrivalDate = new Date(f.arrivalDate);
+        const ageAtArrival = f.ageAtArrivalDays || 0;
+        const flockAgeDays = Math.floor((today.getTime() - arrivalDate.getTime()) / 86400000) + ageAtArrival;
+        const vaccAgeDays = Math.floor((new Date(v.scheduledDate).getTime() - arrivalDate.getTime()) / 86400000) + ageAtArrival;
+
+        return {
+          ...v,
+          flockName: f.batchName,
+          flockBreed: f.breed,
+          flockCurrentCount: f.currentCount,
+          daysUntilDue,
+          flockAgeDays,
+          vaccAgeDays,
+        };
+      }).sort((a, b) => a.daysUntilDue - b.daysUntilDue);
+    })
+  );
+
+  ipcMain.handle(
+    "vaccinations:getCompleted",
+    wrapHandler((_e: unknown, farmId: number) => {
+      requireFarmAccess(farmId);
+      const rows = db.select({
+        vaccination: schema.vaccinations,
+        flock: schema.flocks,
+      })
+        .from(schema.vaccinations)
+        .innerJoin(schema.flocks, eq(schema.vaccinations.flockId, schema.flocks.id))
+        .where(and(
+          eq(schema.flocks.farmId, farmId),
+          sql`${schema.vaccinations.status} IN ('completed', 'skipped')`
+        ))
+        .all();
+
+      return rows.map(row => ({
+        ...row.vaccination,
+        flockName: row.flock.batchName,
+      })).sort((a, b) => (b.administeredDate || b.scheduledDate).localeCompare(a.administeredDate || a.scheduledDate));
+    })
+  );
+
+  function requireVaccinationAccess(vaccId: number) {
+    const vacc = db.select().from(schema.vaccinations).where(eq(schema.vaccinations.id, vaccId)).get();
+    if (!vacc) throw new Error("Vaccination not found");
+    if (vacc.flockId) {
+      const flock = db.select().from(schema.flocks).where(eq(schema.flocks.id, vacc.flockId)).get();
+      if (flock) requireFarmAccess(flock.farmId!);
+    }
+    return vacc;
+  }
+
+  ipcMain.handle(
     "vaccinations:update",
     wrapHandler((_e: unknown, id: number, data: Partial<{ vaccineName: string; scheduledDate: string; administeredDate: string; administeredBy: string; batchNumber: string; notes: string; status: string }>) => {
-      requireAuth();
+      requireVaccinationAccess(id);
       const result = db
         .update(schema.vaccinations)
         .set(data)
+        .where(eq(schema.vaccinations.id, id))
+        .returning()
+        .get();
+      if (!result) throw new Error("Vaccination not found");
+      return result;
+    })
+  );
+
+  ipcMain.handle(
+    "vaccinations:complete",
+    wrapHandler((_e: unknown, id: number, data: { administeredDate: string; administeredBy?: string; batchNumber?: string; notes?: string }) => {
+      requireVaccinationAccess(id);
+      const result = db.update(schema.vaccinations)
+        .set({
+          status: "completed",
+          administeredDate: data.administeredDate,
+          administeredBy: data.administeredBy || null,
+          batchNumber: data.batchNumber || null,
+          notes: data.notes || null,
+        })
+        .where(eq(schema.vaccinations.id, id))
+        .returning()
+        .get();
+      if (!result) throw new Error("Vaccination not found");
+      return result;
+    })
+  );
+
+  ipcMain.handle(
+    "vaccinations:skip",
+    wrapHandler((_e: unknown, id: number, data: { reason: string; notes?: string; rescheduleDate?: string }) => {
+      const vacc = requireVaccinationAccess(id);
+
+      db.update(schema.vaccinations)
+        .set({
+          status: "skipped",
+          notes: [data.reason, data.notes].filter(Boolean).join(" — "),
+        })
+        .where(eq(schema.vaccinations.id, id))
+        .run();
+
+      if (data.rescheduleDate) {
+        const rescheduled = db.insert(schema.vaccinations).values({
+          flockId: vacc.flockId,
+          vaccineName: vacc.vaccineName,
+          scheduledDate: data.rescheduleDate,
+          status: "pending",
+          notes: `Rescheduled from ${vacc.scheduledDate}`,
+        }).returning().get();
+        return rescheduled;
+      }
+
+      return db.select().from(schema.vaccinations).where(eq(schema.vaccinations.id, id)).get();
+    })
+  );
+
+  ipcMain.handle(
+    "vaccinations:reschedule",
+    wrapHandler((_e: unknown, id: number, newDate: string) => {
+      requireVaccinationAccess(id);
+      const result = db.update(schema.vaccinations)
+        .set({ scheduledDate: newDate })
         .where(eq(schema.vaccinations.id, id))
         .returning()
         .get();
@@ -1620,7 +1765,7 @@ export function registerIpcHandlers(): void {
     "vaccinationSchedule:getAll",
     wrapHandler(() => {
       requireAuth();
-      return db.select().from(schema.vaccinationSchedule).all();
+      return db.select().from(schema.vaccinationSchedule).orderBy(schema.vaccinationSchedule.ageDays).all();
     })
   );
 
@@ -1647,6 +1792,68 @@ export function registerIpcHandlers(): void {
         .where(eq(schema.vaccinationSchedule.id, id))
         .run();
       return { id };
+    })
+  );
+
+  ipcMain.handle(
+    "vaccinationSchedule:resetToDefaults",
+    wrapHandler(() => {
+      requireAuth();
+      db.delete(schema.vaccinationSchedule).run();
+      const defaults = [
+        { vaccineName: "Marek's Disease", ageDays: 1, route: "Injection", isMandatory: 1 },
+        { vaccineName: "Newcastle + IB", ageDays: 7, route: "Eye drop", isMandatory: 1 },
+        { vaccineName: "Gumboro (IBD)", ageDays: 14, route: "Drinking water", isMandatory: 1 },
+        { vaccineName: "Newcastle + IB", ageDays: 21, route: "Drinking water", isMandatory: 1 },
+        { vaccineName: "Gumboro (IBD)", ageDays: 28, route: "Drinking water", isMandatory: 1 },
+        { vaccineName: "Fowl Pox", ageDays: 35, route: "Wing web", isMandatory: 1 },
+        { vaccineName: "Newcastle", ageDays: 42, route: "Drinking water", isMandatory: 1 },
+        { vaccineName: "Infectious Coryza", ageDays: 56, route: "Injection", isMandatory: 0 },
+        { vaccineName: "Newcastle + IB", ageDays: 70, route: "Drinking water", isMandatory: 1 },
+        { vaccineName: "Newcastle + IB + EDS", ageDays: 112, route: "Injection", isMandatory: 1 },
+      ];
+      for (const d of defaults) {
+        db.insert(schema.vaccinationSchedule).values(d).run();
+      }
+      return db.select().from(schema.vaccinationSchedule).orderBy(schema.vaccinationSchedule.ageDays).all();
+    })
+  );
+
+  ipcMain.handle(
+    "vaccinationSchedule:generateForFlock",
+    wrapHandler((_e: unknown, flockId: number) => {
+      requireAuth();
+      const flock = db.select().from(schema.flocks).where(eq(schema.flocks.id, flockId)).get();
+      if (!flock) throw new Error("Flock not found");
+      requireFarmAccess(flock.farmId!);
+
+      db.delete(schema.vaccinations)
+        .where(and(
+          eq(schema.vaccinations.flockId, flockId),
+          eq(schema.vaccinations.status, "pending")
+        ))
+        .run();
+
+      const schedules = db.select().from(schema.vaccinationSchedule).all();
+      const arrivalMs = new Date(flock.arrivalDate).getTime();
+      const ageAtArrival = flock.ageAtArrivalDays || 0;
+      const generated = [];
+
+      for (const sched of schedules) {
+        const daysUntilVacc = sched.ageDays - ageAtArrival;
+        if (daysUntilVacc >= 0) {
+          const scheduledDate = new Date(arrivalMs + daysUntilVacc * 86400000).toISOString().split("T")[0];
+          const v = db.insert(schema.vaccinations).values({
+            flockId,
+            vaccineName: sched.vaccineName,
+            scheduledDate,
+            status: "pending",
+          }).returning().get();
+          generated.push(v);
+        }
+      }
+
+      return generated;
     })
   );
 

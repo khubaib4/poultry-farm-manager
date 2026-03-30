@@ -1,0 +1,182 @@
+OBJECTIVE: Build vaccination scheduling system with automatic reminders based on flock age
+
+REQUIREMENTS:
+- Define vaccination schedule templates (vaccines by flock age)
+- Auto-generate vaccination schedule when flock is created
+- Show upcoming vaccinations on dashboard
+- Vaccination reminders/alerts
+- Mark vaccinations as completed or skipped
+
+FILES TO CREATE/MODIFY:
+
+1. src/pages/farm/VaccinationSchedulePage.tsx
+   - Route: /farm/vaccinations
+   - Header: "Vaccination Management"
+   - Tabs: "Upcoming" | "Completed" | "Schedule Template"
+   
+   - Upcoming Tab:
+     * List of vaccinations due in next 30 days
+     * Grouped by flock
+     * Show: vaccine name, flock name, due date, flock age at due date
+     * Actions: Mark Complete, Skip, Reschedule
+     * Filter by flock
+   
+   - Completed Tab:
+     * History of administered vaccinations
+     * Show: vaccine, flock, scheduled date, actual date, administered by
+     * Filter by date range, flock
+   
+   - Schedule Template Tab:
+     * Default vaccination schedule for new flocks
+     * Table: Vaccine Name, Age (days), Route, Mandatory, Notes
+     * Add/Edit/Delete vaccines in template
+     * This is used when creating new flocks
+
+2. src/pages/farm/VaccinationTemplatePage.tsx
+   - Route: /farm/vaccinations/template
+   - Manage the default vaccination schedule
+   - Form to add vaccine:
+     * Vaccine Name (required)
+     * Age in Days (required, when to administer)
+     * Route (dropdown): Eye drop, Drinking water, Injection, Wing web, Spray
+     * Is Mandatory (checkbox)
+     * Notes (optional)
+   - Table of existing vaccines in schedule
+   - Edit/Delete actions
+   - "Reset to Defaults" button (standard layer schedule)
+
+3. src/components/vaccinations/UpcomingVaccinationCard.tsx
+   - Card for single upcoming vaccination
+   - Shows: vaccine name, flock, days until due
+   - Color coding:
+     * Red: Overdue
+     * Orange: Due today or tomorrow
+     * Yellow: Due within 7 days
+     * Green: Due in 7+ days
+   - Action buttons: Complete, Skip
+
+4. src/components/vaccinations/VaccinationList.tsx
+   - List of vaccination cards
+   - Grouped by urgency or by flock
+   - Empty state when no upcoming
+
+5. src/components/vaccinations/CompleteVaccinationModal.tsx
+   - Modal to mark vaccination as complete
+   - Fields:
+     * Administered Date (default today)
+     * Administered By (text)
+     * Batch Number (optional)
+     * Notes (optional)
+   - Save button
+
+6. src/components/vaccinations/SkipVaccinationModal.tsx
+   - Modal to skip/reschedule vaccination
+   - Fields:
+     * Reason (dropdown): Not needed, Rescheduled, Flock issue, Other
+     * Reschedule to (optional date)
+     * Notes (optional)
+   - Save button
+
+7. src/components/vaccinations/VaccineTemplateForm.tsx
+   - Form for adding/editing vaccine in template
+   - Fields: name, age_days, route, is_mandatory, notes
+   - Used in template page
+
+8. electron/ipc-handlers.ts (add handlers)
+   - vaccinations.getUpcoming(farmId, days):
+     * Get vaccinations due within X days
+     * Join with flock data
+     * Calculate days until due
+   
+   - vaccinations.getByFlock(flockId):
+     * Get all vaccinations for a flock
+     * Include status (pending, completed, skipped)
+   
+   - vaccinations.complete(vaccinationId, data):
+     * Mark as completed
+     * Record administered_date, administered_by, batch_number, notes
+   
+   - vaccinations.skip(vaccinationId, data):
+     * Mark as skipped
+     * Record reason, notes
+     * Optionally reschedule to new date
+   
+   - vaccinations.reschedule(vaccinationId, newDate):
+     * Change scheduled_date
+   
+   - vaccinationSchedule.getTemplate(farmId):
+     * Get farm's vaccination template
+     * If none, return defaults
+   
+   - vaccinationSchedule.addToTemplate(farmId, data):
+     * Add vaccine to template
+   
+   - vaccinationSchedule.updateTemplate(templateId, data):
+     * Update vaccine in template
+   
+   - vaccinationSchedule.removeFromTemplate(templateId):
+     * Remove vaccine from template
+   
+   - vaccinationSchedule.resetToDefaults(farmId):
+     * Reset template to standard layer schedule
+   
+   - vaccinationSchedule.generateForFlock(flockId):
+     * Generate vaccinations for flock based on template
+     * Calculate due dates from flock arrival_date + age_at_arrival + vaccine.age_days
+
+9. src/lib/api.ts (add vaccination functions)
+   - getUpcomingVaccinations(farmId, days)
+   - getVaccinationsByFlock(flockId)
+   - completeVaccination(id, data)
+   - skipVaccination(id, data)
+   - rescheduleVaccination(id, newDate)
+   - getVaccinationTemplate(farmId)
+   - addToTemplate(farmId, data)
+   - updateTemplate(id, data)
+   - removeFromTemplate(id)
+   - resetTemplateToDefaults(farmId)
+
+10. src/hooks/useVaccinations.ts
+    - Custom hook for vaccination data
+    - Return: { upcoming, overdue, completedRecent, isLoading }
+
+11. src/App.tsx (add routes)
+    - /farm/vaccinations - VaccinationSchedulePage
+    - /farm/vaccinations/template - VaccinationTemplatePage
+
+12. Update sidebar navigation
+    - Add "Vaccinations" menu item with syringe icon
+    - Show badge if overdue vaccinations exist
+
+13. Update FarmDashboard.tsx
+    - Show upcoming vaccinations in alerts panel
+    - Link to vaccination page
+
+DEFAULT VACCINATION SCHEDULE (Layers):
+| Age (Days) | Vaccine | Route | Mandatory |
+|------------|---------|-------|-----------|
+| 1 | Marek's Disease | Injection | Yes |
+| 7 | Newcastle + IB | Eye drop | Yes |
+| 14 | Gumboro (IBD) | Drinking water | Yes |
+| 21 | Newcastle + IB | Drinking water | Yes |
+| 28 | Gumboro (IBD) | Drinking water | Yes |
+| 35 | Fowl Pox | Wing web | Yes |
+| 42 | Newcastle | Drinking water | Yes |
+| 56 | Infectious Coryza | Injection | No |
+| 70 | Newcastle + IB | Drinking water | Yes |
+| 112 | Newcastle + IB + EDS | Injection | Yes |
+
+CALCULATION FOR DUE DATE:
+- Flock current age = (today - arrival_date) + age_at_arrival_days
+- Vaccination due date = arrival_date + (vaccine.age_days - age_at_arrival_days)
+- Days until due = due_date - today
+
+UI/UX REQUIREMENTS:
+- Clear visual urgency indicators
+- Quick actions to complete/skip
+- Calendar view option (future enhancement)
+- Mobile-friendly cards
+- Confirmation before skip
+- Toast notifications
+
+OUTPUT: Vaccination schedule is auto-generated for new flocks. Upcoming vaccinations appear on dashboard and alerts. Users can complete, skip, or reschedule vaccinations.

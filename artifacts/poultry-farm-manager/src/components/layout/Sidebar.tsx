@@ -2,6 +2,7 @@ import React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAlerts } from "@/hooks/useAlerts";
+import { useVaccinations } from "@/hooks/useVaccinations";
 import {
   LayoutDashboard,
   Building2,
@@ -40,7 +41,7 @@ const farmNavItems: NavItem[] = [
   { label: "Daily Entry", path: "/farm/daily-entry", icon: <PlusCircle className="h-5 w-5" /> },
   { label: "Flocks", path: "/farm/flocks", icon: <Bird className="h-5 w-5" /> },
   { label: "Inventory", path: "/farm/inventory", icon: <Package className="h-5 w-5" />, badgeKey: "inventory" },
-  { label: "Vaccinations", path: "/farm/vaccinations", icon: <Syringe className="h-5 w-5" /> },
+  { label: "Vaccinations", path: "/farm/vaccinations", icon: <Syringe className="h-5 w-5" />, badgeKey: "vaccinations" },
   { label: "Expenses", path: "/farm/expenses", icon: <Receipt className="h-5 w-5" /> },
   { label: "Revenue", path: "/farm/revenue", icon: <TrendingUp className="h-5 w-5" /> },
   { label: "Finances", path: "/farm/finances", icon: <DollarSign className="h-5 w-5" /> },
@@ -60,10 +61,12 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps): React.Re
   const location = useLocation();
   const navigate = useNavigate();
   const { lowStock, activeCount, criticalCount } = useAlerts();
+  const { overdue } = useVaccinations();
 
   const navItems = user?.type === "owner" ? ownerNavItems : farmNavItems;
 
   const lowStockActiveCount = lowStock.filter(a => !a.isDismissed).length;
+  const overdueVaccCount = overdue.length;
 
   function getBadge(item: NavItem): React.ReactNode {
     if (!item.badgeKey) return null;
@@ -72,6 +75,9 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps): React.Re
     }
     if (item.badgeKey === "alerts" && activeCount > 0) {
       return <AlertBadge count={activeCount} hasCritical={criticalCount > 0} />;
+    }
+    if (item.badgeKey === "vaccinations" && overdueVaccCount > 0) {
+      return <AlertBadge count={overdueVaccCount} hasCritical />;
     }
     return null;
   }
