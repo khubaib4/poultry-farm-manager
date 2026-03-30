@@ -1,0 +1,70 @@
+Prompt 1.6: Create First Farm (Owner Flow)
+OBJECTIVE: Allow owners to create their first farm after registration
+
+REQUIREMENTS:
+- After owner registration, redirect to "Add Farm" page if no farms exist
+- Farm creation form with all required fields
+- Generate farm login credentials
+- Show success message with farm credentials
+
+FILES TO CREATE/MODIFY:
+
+1. src/pages/owner/AddFarmPage.tsx
+   - Form to create new farm
+   - Fields:
+     * Farm Name (required)
+     * Location/Address (required)
+     * Capacity (number of birds, required)
+     * Farm Login Username (auto-generate or manual)
+     * Farm Login Password (generate strong password with copy button)
+   - Validation using zod
+   - On success, show modal with farm credentials to save
+   - Button to copy credentials
+   - "Add Another Farm" or "Go to Dashboard" buttons
+
+2. src/pages/owner/FarmsListPage.tsx
+   - List all farms owned by current owner
+   - Cards showing: farm name, location, capacity, status
+   - "Add New Farm" button
+   - Click card to view farm details
+   - Quick actions: Edit, View Dashboard, Delete
+
+3. src/components/farms/FarmCard.tsx
+   - Card component showing farm summary
+   - Props: farm data
+   - Shows: name, location, capacity, created date
+   - Status badge (active/inactive)
+
+4. src/components/farms/FarmCredentialsModal.tsx
+   - Modal shown after farm creation
+   - Display username and password prominently
+   - Warning: "Save these credentials, password cannot be recovered"
+   - Copy buttons for each field
+   - Checkbox: "I have saved these credentials"
+   - Done button (disabled until checkbox checked)
+
+5. electron/ipc-handlers.ts (modify)
+   - farms.create: hash password, save farm, return farm with plain password (only during creation)
+   - farms.getAll: return all farms for owner
+   - farms.update: update farm details (not password)
+   - farms.resetPassword: generate new password, return it
+   - farms.delete: soft delete (set is_active = 0)
+
+6. src/lib/utils.ts
+   - generateUsername(farmName): create username from farm name
+   - generatePassword(): create secure random password (12 chars)
+   - copyToClipboard(text): copy text to clipboard
+
+7. src/App.tsx (modify)
+   - After owner login, check if they have farms
+   - If no farms, redirect to /owner/add-farm
+   - Otherwise, go to /owner/dashboard
+
+VALIDATION RULES:
+- Farm name: 3-50 characters, unique per owner
+- Location: 5-200 characters
+- Capacity: positive integer, max 1,000,000
+- Username: 4-20 characters, alphanumeric + underscore, unique globally
+- Password: auto-generated, 12 characters with mixed case, numbers, symbols
+
+OUTPUT: New owner can create their first farm, sees credentials modal, and credentials are saved to database with hashed password.

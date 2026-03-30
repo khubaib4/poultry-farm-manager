@@ -125,6 +125,8 @@ export interface ElectronAPI {
     getById: (id: number) => Promise<IpcResponse>;
     update: (id: number, data: Partial<FarmData>) => Promise<IpcResponse>;
     delete: (id: number) => Promise<IpcResponse>;
+    resetPassword: (id: number, newPassword: string) => Promise<IpcResponse>;
+    checkUsername: (username: string) => Promise<IpcResponse<{ available: boolean }>>;
   };
   users: {
     create: (data: UserData) => Promise<IpcResponse>;

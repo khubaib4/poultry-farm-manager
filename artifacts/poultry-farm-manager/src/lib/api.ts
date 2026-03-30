@@ -62,6 +62,12 @@ export const farms = {
     invoke(() => getApi()!.farms.update(id, data)),
 
   delete: (id: number) => invoke(() => getApi()!.farms.delete(id)),
+
+  resetPassword: (id: number, newPassword: string) =>
+    invoke(() => getApi()!.farms.resetPassword(id, newPassword)),
+
+  checkUsername: (username: string) =>
+    invoke<{ available: boolean }>(() => getApi()!.farms.checkUsername(username)),
 };
 
 export const users = {

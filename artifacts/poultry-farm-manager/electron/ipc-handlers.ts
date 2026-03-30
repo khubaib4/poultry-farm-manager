@@ -182,6 +182,18 @@ export function registerIpcHandlers(): void {
     wrapHandler((_e: unknown, data: { ownerId: number; name: string; location?: string; capacity?: number; loginUsername: string; loginPassword: string }) => {
       const session = requireOwner();
       if (session.id !== data.ownerId) throw new Error("Access denied");
+      const existingName = db
+        .select()
+        .from(schema.farms)
+        .where(and(eq(schema.farms.ownerId, data.ownerId), eq(schema.farms.name, data.name)))
+        .get();
+      if (existingName) throw new Error("A farm with this name already exists");
+      const existingUsername = db
+        .select()
+        .from(schema.farms)
+        .where(eq(schema.farms.loginUsername, data.loginUsername))
+        .get();
+      if (existingUsername) throw new Error("This username is already taken");
       const hash = bcrypt.hashSync(data.loginPassword, 10);
       const result = db
         .insert(schema.farms)
@@ -231,14 +243,13 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(
     "farms:update",
-    wrapHandler((_e: unknown, id: number, data: Partial<{ name: string; location: string; capacity: number; loginUsername: string; loginPassword: string; isActive: number }>) => {
+    wrapHandler((_e: unknown, id: number, data: Partial<{ name: string; location: string; capacity: number; loginUsername: string; isActive: number }>) => {
       requireFarmAccess(id);
       const updates: Record<string, unknown> = {};
       if (data.name !== undefined) updates.name = data.name;
       if (data.location !== undefined) updates.location = data.location;
       if (data.capacity !== undefined) updates.capacity = data.capacity;
       if (data.loginUsername !== undefined) updates.loginUsername = data.loginUsername;
-      if (data.loginPassword !== undefined) updates.loginPasswordHash = bcrypt.hashSync(data.loginPassword, 10);
       if (data.isActive !== undefined) updates.isActive = data.isActive;
       const result = db
         .update(schema.farms)
@@ -261,6 +272,32 @@ export function registerIpcHandlers(): void {
         .where(eq(schema.farms.id, id))
         .run();
       return { id };
+    })
+  );
+
+  ipcMain.handle(
+    "farms:resetPassword",
+    wrapHandler((_e: unknown, id: number, newPassword: string) => {
+      requireFarmAccess(id);
+      const hash = bcrypt.hashSync(newPassword, 10);
+      db.update(schema.farms)
+        .set({ loginPasswordHash: hash })
+        .where(eq(schema.farms.id, id))
+        .run();
+      return { id };
+    })
+  );
+
+  ipcMain.handle(
+    "farms:checkUsername",
+    wrapHandler((_e: unknown, username: string) => {
+      requireAuth();
+      const existing = db
+        .select()
+        .from(schema.farms)
+        .where(eq(schema.farms.loginUsername, username))
+        .get();
+      return { available: !existing };
     })
   );
 

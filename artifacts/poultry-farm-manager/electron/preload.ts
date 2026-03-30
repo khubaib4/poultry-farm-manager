@@ -22,6 +22,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     update: (id: number, data: unknown) =>
       ipcRenderer.invoke("farms:update", id, data),
     delete: (id: number) => ipcRenderer.invoke("farms:delete", id),
+    resetPassword: (id: number, newPassword: string) =>
+      ipcRenderer.invoke("farms:resetPassword", id, newPassword),
+    checkUsername: (username: string) =>
+      ipcRenderer.invoke("farms:checkUsername", username),
   },
   users: {
     create: (data: unknown) => ipcRenderer.invoke("users:create", data),
