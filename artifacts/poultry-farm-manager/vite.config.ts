@@ -1,42 +1,23 @@
 import { fileURLToPath } from "url";
 import { resolve, dirname } from "path";
-import { defineConfig, externalizeDepsPlugin } from "electron-vite";
+import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 export default defineConfig({
-  main: {
-    plugins: [externalizeDepsPlugin()],
-    build: {
-      lib: {
-        entry: resolve(__dirname, "electron/main.ts"),
-      },
+  root: resolve(__dirname, "."),
+  base: "/poultry-farm-manager/",
+  plugins: [react()],
+  resolve: {
+    alias: {
+      "@": resolve(__dirname, "src"),
     },
   },
-  preload: {
-    plugins: [externalizeDepsPlugin()],
-    build: {
-      lib: {
-        entry: resolve(__dirname, "electron/preload.ts"),
-      },
-    },
-  },
-  renderer: {
-    root: resolve(__dirname, "."),
-    build: {
-      rollupOptions: {
-        input: {
-          index: resolve(__dirname, "index.html"),
-        },
-      },
-    },
-    resolve: {
-      alias: {
-        "@": resolve(__dirname, "src"),
-      },
-    },
-    plugins: [react()],
+  server: {
+    host: "0.0.0.0",
+    port: parseInt(process.env.PORT || "5173"),
+    allowedHosts: true,
   },
 });

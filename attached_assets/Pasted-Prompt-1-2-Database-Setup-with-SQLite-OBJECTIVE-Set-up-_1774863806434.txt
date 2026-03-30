@@ -1,0 +1,145 @@
+Prompt 1.2: Database Setup with SQLite
+OBJECTIVE: Set up SQLite database with Drizzle ORM for the Poultry Farm Management System
+
+REQUIREMENTS:
+- Use better-sqlite3 for SQLite (runs in Electron main process)
+- Use Drizzle ORM for type-safe database queries
+- Database file location: app userData folder (persistent across updates)
+
+PACKAGES TO INSTALL:
+- better-sqlite3
+- drizzle-orm
+- drizzle-kit (dev dependency)
+
+FILES TO CREATE/MODIFY:
+
+1. electron/database.ts
+   - Initialize SQLite connection
+   - Use app.getPath('userData') for database file location
+   - Database filename: poultry-farm.db
+   - Export db instance
+
+2. drizzle/schema.ts
+   - Define all tables as per schema below
+
+3. drizzle/migrations/ (folder)
+   - Generate initial migration
+
+4. drizzle.config.ts
+   - Configure Drizzle Kit for SQLite
+
+5. electron/main.ts
+   - Import and initialize database on app ready
+   - Run migrations automatically on startup
+
+DATABASE SCHEMA TO CREATE:
+
+TABLE: owners
+- id: INTEGER PRIMARY KEY AUTOINCREMENT
+- name: TEXT NOT NULL
+- email: TEXT UNIQUE
+- phone: TEXT
+- password_hash: TEXT NOT NULL
+- created_at: DATETIME DEFAULT CURRENT_TIMESTAMP
+- updated_at: DATETIME DEFAULT CURRENT_TIMESTAMP
+
+TABLE: farms
+- id: INTEGER PRIMARY KEY AUTOINCREMENT
+- owner_id: INTEGER REFERENCES owners(id)
+- name: TEXT NOT NULL
+- location: TEXT
+- capacity: INTEGER
+- login_username: TEXT UNIQUE NOT NULL
+- login_password_hash: TEXT NOT NULL
+- is_active: INTEGER DEFAULT 1 (boolean)
+- created_at: DATETIME DEFAULT CURRENT_TIMESTAMP
+
+TABLE: users (for farm-level users)
+- id: INTEGER PRIMARY KEY AUTOINCREMENT
+- farm_id: INTEGER REFERENCES farms(id)
+- name: TEXT NOT NULL
+- role: TEXT NOT NULL (manager/worker)
+- password_hash: TEXT NOT NULL
+- is_active: INTEGER DEFAULT 1
+- created_at: DATETIME DEFAULT CURRENT_TIMESTAMP
+
+TABLE: flocks
+- id: INTEGER PRIMARY KEY AUTOINCREMENT
+- farm_id: INTEGER REFERENCES farms(id)
+- batch_name: TEXT NOT NULL
+- breed: TEXT
+- initial_count: INTEGER NOT NULL
+- current_count: INTEGER NOT NULL
+- arrival_date: DATE NOT NULL
+- age_at_arrival_days: INTEGER DEFAULT 0
+- status: TEXT DEFAULT 'active' (active/culled/sold)
+- created_at: DATETIME DEFAULT CURRENT_TIMESTAMP
+
+TABLE: daily_entries
+- id: INTEGER PRIMARY KEY AUTOINCREMENT
+- flock_id: INTEGER REFERENCES flocks(id)
+- entry_date: DATE NOT NULL
+- deaths: INTEGER DEFAULT 0
+- death_cause: TEXT
+- eggs_grade_a: INTEGER DEFAULT 0
+- eggs_grade_b: INTEGER DEFAULT 0
+- eggs_cracked: INTEGER DEFAULT 0
+- feed_consumed_kg: REAL DEFAULT 0
+- water_consumed_liters: REAL
+- notes: TEXT
+- recorded_by: INTEGER REFERENCES users(id)
+- created_at: DATETIME DEFAULT CURRENT_TIMESTAMP
+- UNIQUE(flock_id, entry_date)
+
+TABLE: egg_prices
+- id: INTEGER PRIMARY KEY AUTOINCREMENT
+- farm_id: INTEGER REFERENCES farms(id)
+- grade: TEXT NOT NULL (A/B/cracked)
+- price_per_egg: REAL NOT NULL
+- price_per_tray: REAL NOT NULL
+- effective_date: DATE NOT NULL
+- created_at: DATETIME DEFAULT CURRENT_TIMESTAMP
+
+TABLE: expenses
+- id: INTEGER PRIMARY KEY AUTOINCREMENT
+- farm_id: INTEGER REFERENCES farms(id)
+- category: TEXT NOT NULL (feed/medicine/labor/utilities/equipment/misc)
+- description: TEXT
+- amount: REAL NOT NULL
+- expense_date: DATE NOT NULL
+- supplier: TEXT
+- receipt_ref: TEXT
+- created_at: DATETIME DEFAULT CURRENT_TIMESTAMP
+
+TABLE: inventory
+- id: INTEGER PRIMARY KEY AUTOINCREMENT
+- farm_id: INTEGER REFERENCES farms(id)
+- item_type: TEXT NOT NULL (feed/medicine/equipment)
+- item_name: TEXT NOT NULL
+- quantity: REAL NOT NULL
+- unit: TEXT NOT NULL
+- min_threshold: REAL
+- expiry_date: DATE
+- last_updated: DATETIME DEFAULT CURRENT_TIMESTAMP
+
+TABLE: vaccinations
+- id: INTEGER PRIMARY KEY AUTOINCREMENT
+- flock_id: INTEGER REFERENCES flocks(id)
+- vaccine_name: TEXT NOT NULL
+- scheduled_date: DATE NOT NULL
+- administered_date: DATE
+- administered_by: TEXT
+- batch_number: TEXT
+- notes: TEXT
+- status: TEXT DEFAULT 'pending' (pending/completed/skipped)
+- created_at: DATETIME DEFAULT CURRENT_TIMESTAMP
+
+TABLE: vaccination_schedule (template)
+- id: INTEGER PRIMARY KEY AUTOINCREMENT
+- vaccine_name: TEXT NOT NULL
+- age_days: INTEGER NOT NULL
+- is_mandatory: INTEGER DEFAULT 1
+- route: TEXT
+- notes: TEXT
+
+OUTPUT: Database initializes on app start, creates tables if they don't exist. Console log should confirm "Database initialized successfully"

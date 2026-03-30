@@ -1,0 +1,12 @@
+kind = "web"
+previewPath = "/poultry-farm-manager/"
+title = "Poultry Farm Manager"
+version = "1.0.0"
+
+[[services]]
+localPort = 5173
+name = "Web Preview"
+paths = ["/poultry-farm-manager"]
+
+[services.development]
+run = "pnpm --filter @workspace/poultry-farm-manager run dev:web"
