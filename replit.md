@@ -48,6 +48,25 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 - `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
 - `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
 
+## Electron Desktop App
+
+### `artifacts/poultry-farm-manager` (`@workspace/poultry-farm-manager`)
+
+Electron + React + TypeScript desktop app for poultry farm management.
+
+- **Entry config**: `electron.vite.config.ts` (electron-vite requires this naming)
+- **Electron main**: `electron/main.ts` — creates BrowserWindow (1280×800, min 1024×768), loads renderer
+- **Preload**: `electron/preload.ts` — IPC bridge via `contextBridge` (exposes `window.api`)
+- **React renderer**: `src/` — React 18, Tailwind CSS (v3), shadcn/ui design tokens
+- **Build output**: `out/` (main, preload, renderer sub-dirs)
+- **Windows installer**: `pnpm run dist` — uses electron-builder → NSIS `.exe` installer, output to `release/`
+- **Dev**: `pnpm --filter @workspace/poultry-farm-manager run dev`
+- **Build**: `pnpm --filter @workspace/poultry-farm-manager run build`
+- **Dist**: `pnpm --filter @workspace/poultry-farm-manager run dist`
+- **Tailwind config**: `tailwind.config.js` with full shadcn/ui CSS variable color system
+- **Path alias**: `@/` maps to `src/`
+- **Note**: `electron` binary download requires running `node node_modules/electron/install.js` in the package dir after first install (workspace `onlyBuiltDependencies` includes `electron`)
+
 ## Packages
 
 ### `artifacts/api-server` (`@workspace/api-server`)

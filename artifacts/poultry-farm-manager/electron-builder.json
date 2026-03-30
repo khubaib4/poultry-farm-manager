@@ -1,0 +1,29 @@
+{
+  "appId": "com.poultry-farm-manager.app",
+  "productName": "Poultry Farm Manager",
+  "copyright": "Copyright © 2024",
+  "directories": {
+    "buildResources": "resources",
+    "output": "release"
+  },
+  "files": [
+    "out/**/*"
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      }
+    ]
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "allowElevation": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Poultry Farm Manager"
+  },
+  "publish": null
+}
