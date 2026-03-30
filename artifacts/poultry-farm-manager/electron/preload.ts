@@ -158,6 +158,18 @@ contextBridge.exposeInMainWorld("electronAPI", {
     exportHistory: (farmId: number, filters: unknown) =>
       ipcRenderer.invoke("vaccinations:exportHistory", farmId, filters),
   },
+  owner: {
+    getDashboardStats: (ownerId: number) =>
+      ipcRenderer.invoke("owner:getDashboardStats", ownerId),
+    getFarmsOverview: (ownerId: number) =>
+      ipcRenderer.invoke("owner:getFarmsOverview", ownerId),
+    getFarmComparison: (ownerId: number, farmIds: number[], startDate: string, endDate: string) =>
+      ipcRenderer.invoke("owner:getFarmComparison", ownerId, farmIds, startDate, endDate),
+    getConsolidatedAlerts: (ownerId: number) =>
+      ipcRenderer.invoke("owner:getConsolidatedAlerts", ownerId),
+    getRecentActivity: (ownerId: number, limit: number) =>
+      ipcRenderer.invoke("owner:getRecentActivity", ownerId, limit),
+  },
   dashboard: {
     getFarmStats: (farmId: number) =>
       ipcRenderer.invoke("dashboard:getFarmStats", farmId),

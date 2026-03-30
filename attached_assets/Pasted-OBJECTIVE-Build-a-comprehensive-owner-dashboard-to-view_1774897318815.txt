@@ -1,0 +1,169 @@
+OBJECTIVE: Build a comprehensive owner dashboard to view and compare all farms at a glance
+
+REQUIREMENTS:
+- Owner can see all their farms in one view
+- Key metrics aggregated across all farms
+- Compare farm performance side by side
+- Quick access to any farm
+- Alerts from all farms consolidated
+
+FILES TO CREATE/MODIFY:
+
+1. src/pages/owner/OwnerDashboard.tsx
+   - Route: /owner/dashboard
+   - Header: "Welcome, {Owner Name}" with today's date
+   
+   - Row 1 - Global Summary Cards (4 cards):
+     * Total Birds (all farms combined)
+     * Today's Total Eggs (all farms)
+     * Total Revenue This Month (all farms)
+     * Total Profit This Month (all farms)
+   
+   - Row 2 - Farms Overview Grid:
+     * Card for each farm showing:
+       - Farm name and location
+       - Total birds
+       - Today's eggs
+       - Today's entry status (X of Y flocks done)
+       - Performance indicator (good/warning/critical)
+       - Quick actions: View Dashboard, Add Entry
+     * "Add New Farm" card at the end
+   
+   - Row 3 - Performance Comparison Chart:
+     * Bar or line chart comparing farms
+     * Metrics: Production rate, mortality rate, profit margin
+     * Toggle between different metrics
+   
+   - Row 4 - Consolidated Alerts:
+     * All alerts from all farms
+     * Grouped by farm
+     * Priority sorted (critical first)
+     * Click to navigate to specific farm
+   
+   - Row 5 - Recent Activity:
+     * Recent entries across all farms
+     * Recent expenses
+     * Recent vaccinations completed
+
+2. src/components/owner/FarmOverviewCard.tsx
+   - Card showing single farm summary
+   - Props: farm data with stats
+   - Shows: name, birds, eggs today, status
+   - Color-coded border based on performance
+   - Click to go to farm dashboard
+   - Dropdown menu: View, Edit, Reports
+
+3. src/components/owner/GlobalStatsCard.tsx
+   - Large stat card for owner dashboard
+   - Shows aggregated metric across all farms
+   - Trend indicator vs last period
+   - Click to see breakdown by farm
+
+4. src/components/owner/FarmComparisonChart.tsx
+   - Chart comparing multiple farms
+   - Props: farms data, metric to compare
+   - Bar chart with farm names on X axis
+   - Metric selector dropdown
+   - Metrics: eggs/day, birds, revenue, profit, mortality
+
+5. src/components/owner/FarmComparisonTable.tsx
+   - Table view of farm comparison
+   - Columns: Farm, Birds, Eggs Today, Revenue (MTD), Expenses (MTD), Profit, Status
+   - Sortable columns
+   - Export to Excel button
+
+6. src/components/owner/ConsolidatedAlerts.tsx
+   - All alerts from all farms
+   - Grouped by farm with farm name header
+   - Collapsible groups
+   - "View All" link per farm
+   - Dismiss options
+
+7. src/components/owner/RecentActivityFeed.tsx
+   - Timeline of recent activity
+   - Shows: entries, expenses, vaccinations
+   - Farm name badge on each item
+   - Timestamp
+   - Click to view details
+
+8. src/pages/owner/FarmComparisonPage.tsx
+   - Route: /owner/compare
+   - Dedicated page for detailed farm comparison
+   - Select farms to compare (checkboxes)
+   - Side-by-side metrics
+   - Charts for each metric
+   - Date range selector
+   - Export comparison report
+
+9. electron/ipc-handlers.ts (add handlers)
+   - owner.getDashboardStats(ownerId):
+     * Aggregate stats across all farms
+     * Return: totalBirds, totalEggsToday, revenueMonth, profitMonth
+   
+   - owner.getFarmsOverview(ownerId):
+     * Get all farms with summary stats
+     * Include today's entry status
+     * Include performance indicators
+   
+   - owner.getFarmComparison(ownerId, farmIds, startDate, endDate):
+     * Get comparison data for selected farms
+     * Return metrics for each farm
+   
+   - owner.getConsolidatedAlerts(ownerId):
+     * Get all alerts from all farms
+     * Group by farm
+     * Sort by priority
+   
+   - owner.getRecentActivity(ownerId, limit):
+     * Get recent activity across farms
+     * Mix of entries, expenses, vaccinations
+
+10. src/lib/api.ts (add owner functions)
+    - getOwnerDashboardStats(ownerId)
+    - getFarmsOverview(ownerId)
+    - getFarmComparison(ownerId, farmIds, startDate, endDate)
+    - getConsolidatedAlerts(ownerId)
+    - getRecentActivity(ownerId, limit)
+
+11. src/hooks/useOwnerDashboard.ts
+    - Hook for owner dashboard data
+    - Auto-refresh every 5 minutes
+    - Return: { stats, farms, alerts, activity, isLoading }
+
+12. src/App.tsx (update routes)
+    - /owner/dashboard - OwnerDashboard
+    - /owner/compare - FarmComparisonPage
+    - Ensure owner routes are protected for owner role
+
+13. Update owner sidebar navigation
+    - Dashboard (home icon)
+    - All Farms (building icon)
+    - Compare Farms (bar-chart icon)
+    - Reports (file-text icon)
+    - Settings (gear icon)
+
+PERFORMANCE INDICATORS:
+- Good (Green): Production >85%, Mortality <0.5%, Profit margin >20%
+- Warning (Yellow): Production 70-85%, Mortality 0.5-1%, Profit margin 10-20%
+- Critical (Red): Production <70%, Mortality >1%, Profit margin <10%
+
+COMPARISON METRICS:
+- Total Birds
+- Eggs Per Day (average)
+- Production Rate %
+- Mortality Rate %
+- Revenue (period)
+- Expenses (period)
+- Profit (period)
+- Profit Margin %
+- Feed Conversion Ratio
+
+UI/UX REQUIREMENTS:
+- Dashboard loads fast (optimize queries)
+- Responsive grid layout
+- Visual hierarchy (most important info first)
+- Easy navigation between farms
+- Refresh button
+- Date context (showing "as of today" or specific date)
+
+OUTPUT: Owner can see all farms at a glance, compare performance, and quickly identify farms needing attention. Consolidated alerts help prioritize actions.

@@ -1,141 +1,96 @@
-# Workspace
+# Overview
 
-## Overview
+This project is a pnpm workspace monorepo utilizing TypeScript, designed for a poultry farm management system. It comprises a desktop application (Electron + React) for farm operations and an Express API server for backend services. The system aims to provide comprehensive tools for managing flocks, daily entries, expenses, revenue, inventory, vaccinations, and financial reporting, offering a robust solution for poultry farm owners.
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+The project's vision is to streamline farm management processes, improve efficiency, and provide actionable insights through data-driven reporting.
 
-## Stack
+# User Preferences
 
-- **Monorepo tool**: pnpm workspaces
-- **Node.js version**: 24
-- **Package manager**: pnpm
-- **TypeScript version**: 5.9
-- **API framework**: Express 5
-- **Database**: PostgreSQL + Drizzle ORM
-- **Validation**: Zod (`zod/v4`), `drizzle-zod`
-- **API codegen**: Orval (from OpenAPI spec)
-- **Build**: esbuild (CJS bundle)
+I prefer clear, concise explanations and direct answers.
+I like an iterative development approach, where features are built and reviewed incrementally.
+Please ask for my confirmation before implementing any major architectural changes or significant feature modifications.
+I expect the agent to prioritize the use of established patterns and best practices.
+Do not make changes to files outside the explicitly requested scope.
+I prefer detailed explanations for complex solutions or decisions.
+I like functional programming paradigms where appropriate, especially for data transformation and utility functions.
+Ensure all code is well-documented, especially public interfaces and complex logic.
 
-## Structure
+# System Architecture
 
-```text
-artifacts-monorepo/
-├── artifacts/              # Deployable applications
-│   └── api-server/         # Express API server
-├── lib/                    # Shared libraries
-│   ├── api-spec/           # OpenAPI spec + Orval codegen config
-│   ├── api-client-react/   # Generated React Query hooks
-│   ├── api-zod/            # Generated Zod schemas from OpenAPI
-│   └── db/                 # Drizzle ORM schema + DB connection
-├── scripts/                # Utility scripts (single workspace package)
-│   └── src/                # Individual .ts scripts, run via `pnpm --filter @workspace/scripts run <script>`
-├── pnpm-workspace.yaml     # pnpm workspace (artifacts/*, lib/*, lib/integrations/*, scripts)
-├── tsconfig.base.json      # Shared TS options (composite, bundler resolution, es2022)
-├── tsconfig.json           # Root TS project references
-└── package.json            # Root package with hoisted devDeps
-```
+The project is structured as a pnpm workspace monorepo, facilitating shared libraries and modular development.
 
-## TypeScript & Composite Projects
+**Monorepo Structure:**
+- `artifacts/`: Deployable applications (e.g., `api-server`, `poultry-farm-manager`).
+- `lib/`: Shared libraries (`api-spec`, `api-client-react`, `api-zod`, `db`).
+- `scripts/`: Utility scripts.
 
-Every package extends `tsconfig.base.json` which sets `composite: true`. The root `tsconfig.json` lists all packages as project references. This means:
+**Core Technologies:**
+- **Node.js**: 24
+- **TypeScript**: 5.9
+- **Package Manager**: pnpm
+- **API Framework**: Express 5
+- **Desktop Application Framework**: Electron with React 18
+- **Database**: PostgreSQL with Drizzle ORM for the API server, SQLite with Drizzle ORM for the Electron app.
+- **Validation**: Zod (v4), `drizzle-zod`.
+- **API Codegen**: Orval (from OpenAPI spec).
+- **Build Tool**: esbuild.
 
-- **Always typecheck from the root** — run `pnpm run typecheck` (which runs `tsc --build --emitDeclarationOnly`). This builds the full dependency graph so that cross-package imports resolve correctly. Running `tsc` inside a single package will fail if its dependencies haven't been built yet.
-- **`emitDeclarationOnly`** — we only emit `.d.ts` files during typecheck; actual JS bundling is handled by esbuild/tsx/vite...etc, not `tsc`.
-- **Project references** — when package A depends on package B, A's `tsconfig.json` must list B in its `references` array. `tsc --build` uses this to determine build order and skip up-to-date packages.
+**TypeScript & Composite Projects:**
+- All packages extend a base `tsconfig.base.json` with `composite: true`.
+- The root `tsconfig.json` lists all packages as project references, enabling cross-package type-checking and dependency resolution.
+- `emitDeclarationOnly` is used for type-checking, with actual JS bundling handled by esbuild.
 
-## Root Scripts
+**Electron Desktop Application (`poultry-farm-manager`):**
+- **UI/UX**: React 18, Tailwind CSS v3, shadcn/ui for design tokens. Responsive design with desktop-first approach.
+- **Routing**: `react-router-dom` v7 with `HashRouter` for navigation within the app, implementing role-based access control for routes.
+- **State Management**: Zustand for authentication, React Context for shared state.
+- **Authentication**: Supports Owner (email/password) and Farm (username/password) login modes, with session persistence via `electron-store`. Server-side auth guards protect IPC handlers.
+- **Key Features:**
+    - **Flock Management**: CRUD operations, auto-vaccination scheduling, status tracking, computed stats (age, mortality, production).
+    - **Daily Entry**: Record mortality, egg production, feed consumption, water, notes. Enforces one entry per flock per day.
+    - **Farm Dashboard**: Live stats (total birds, today's eggs, deaths, feed), performance metrics (production rate, mortality, FCR), entry status, and alerts panel. Auto-refreshes.
+    - **Expenses**: Full CRUD for expense tracking across categories. Filtering, monthly summaries, supplier autocomplete.
+    - **Revenue**: Tracks revenue from egg production against prices. Summaries, charts, and daily revenue tables.
+    - **Financial Dashboard & P&L**: Comprehensive profit/loss reporting, financial trend charts, expense/revenue breakdown, per-unit metrics. Print and CSV export.
+    - **Inventory Management**: Full CRUD for feed, medicine, and equipment. Stock status, low stock alerts, transaction history.
+    - **Vaccination Management**: Automated scheduling based on flock age, upcoming/completed tracking, template management, and detailed history with compliance stats.
+    - **Report Generation**: Five types of reports (Daily Summary, Weekly Performance, Monthly Summary, Flock Performance, Financial Report) with configurable parameters. Export to PDF, Excel, and Print.
+    - **Low Stock Alerts**: Centralized system for low stock, expiring items, and overdue vaccinations, with severity levels and dismissal management.
+    - **Egg Pricing**: Manages egg prices by grade with effective dates and history.
+    - **Owner Dashboard**: Comprehensive multi-farm overview at `/owner/dashboard`. Global summary cards (Total Birds, Today's Eggs, Revenue, Profit) with trend indicators. Farm overview grid with per-farm stats (birds, eggs, production rate, mortality, profit margin), color-coded performance indicators (good/warning/critical), and entry status tracking. Farm comparison chart (recharts bar chart with metric selector: production rate, mortality, profit margin, birds, eggs, revenue, expenses, profit). Consolidated alerts grouped by farm with severity (critical/warning/info). Recent activity feed (entries, expenses, vaccinations) across all farms.
+    - **Farm Comparison**: Dedicated comparison page at `/owner/compare`. Select farms via checkboxes, date range selector, bar chart comparison by metric, sortable comparison table with all KPIs, Excel export. IPC: `owner:getDashboardStats`, `owner:getFarmsOverview`, `owner:getFarmComparison`, `owner:getConsolidatedAlerts`, `owner:getRecentActivity`. Components: `src/components/owner/` (GlobalStatsCard, FarmOverviewCard, FarmComparisonChart, FarmComparisonTable, ConsolidatedAlerts, RecentActivityFeed). Hook: `src/hooks/useOwnerDashboard.ts` (auto-refresh every 5 minutes). Pages: `src/pages/owner/OwnerDashboardPage.tsx`, `src/pages/owner/FarmComparisonPage.tsx`. Performance thresholds: Good (production >85%, mortality <0.5%, profit margin >20%), Warning (70-85%, 0.5-1%, 10-20%), Critical (<70%, >1%, <10%).
 
-- `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
-- `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
+**API Server (`api-server`):**
+- Express 5 server handling API requests.
+- Uses `@workspace/api-zod` for request/response validation and `@workspace/db` for database interactions.
+- Routes are organized in `src/routes/` and mounted under `/api`.
 
-## Electron Desktop App
+**Database Layer (`lib/db`):**
+- Uses Drizzle ORM. PostgreSQL for the API server, SQLite for the Electron app.
+- Exports a Drizzle client instance and schema models.
+- Drizzle Kit is used for migrations.
 
-### `artifacts/poultry-farm-manager` (`@workspace/poultry-farm-manager`)
+**API Specification and Codegen (`lib/api-spec`):**
+- Contains the OpenAPI 3.1 spec (`openapi.yaml`) and Orval configuration.
+- Generates React Query hooks for client-side API interaction (`lib/api-client-react`) and Zod schemas for validation (`lib/api-zod`).
 
-Electron + React + TypeScript desktop app for poultry farm management.
+# External Dependencies
 
-- **Entry config**: `electron.vite.config.ts` (electron-vite requires this naming)
-- **Electron main**: `electron/main.ts` — creates BrowserWindow (1280×800, min 1024×768), loads renderer
-- **Preload**: `electron/preload.ts` — IPC bridge via `contextBridge` (exposes `window.electronAPI`)
-- **React renderer**: `src/` — React 18, Tailwind CSS (v3), shadcn/ui design tokens
-- **Routing**: `react-router-dom` v7 with `HashRouter`
-  - Public: `/login`, `/register`
-  - Owner routes: `/owner/dashboard`, `/owner/farms`, `/owner/reports`, `/owner/settings`
-  - Farm routes: `/farm/dashboard`, `/farm/daily-entry`, `/farm/daily-entry/history`, `/farm/flocks`, `/farm/flocks/new`, `/farm/flocks/:flockId`, `/farm/flocks/:flockId/edit`, `/farm/flocks/:flockId/vaccinations`, `/farm/pricing`, `/farm/inventory`, `/farm/inventory/new`, `/farm/inventory/:itemId/edit`, `/farm/alerts`, `/farm/vaccinations`, `/farm/vaccinations/template`, `/farm/vaccinations/history`, `/farm/expenses`, `/farm/expenses/new`, `/farm/expenses/:expenseId/edit`, `/farm/revenue`, `/farm/finances`, `/farm/finances/report`, `/farm/reports`, `/farm/settings`
-- **Auth**: Two login modes (Owner email/password, Farm username/password), session persisted via `electron-store`, server-side auth guards on all IPC handlers, role-based route protection
-- **Layout**: `AppLayout` with collapsible sidebar (240px/60px), header with farm selector (owner), breadcrumb navigation
-- **State**: Zustand auth store (`src/stores/authStore.ts`) + React context (`src/contexts/AuthContext.tsx`)
-- **Validation**: Zod for registration/farm/flock creation forms
-- **Flock Management**: Full CRUD with auto-vaccination scheduling on creation, computed stats (age, mortality rate, production rate), status changes (active→culled/sold), delete guard (blocks if daily entries exist), breed selector with common layer breeds + custom option
-- **Farm Dashboard**: Live stats dashboard with 4 key metric cards (total birds, today's eggs, deaths, feed), 3 performance cards (production rate, daily mortality, FCR with good/warning/critical thresholds), entry status widget (progress bar, pending flocks), alerts panel (overdue vaccinations, low inventory, high mortality, price reminders), active flocks grid with entry status. Auto-refreshes every 5 minutes. IPC: `dashboard:getFarmStats`, `dashboard:getWeeklyTrends`, `dashboard:getAlerts`. Components: `src/components/dashboard/` (StatCard, PerformanceCard, FlockMiniCard, AlertsPanel, EntryStatusWidget). Hooks: `src/hooks/useDashboardData.ts`. Calculations: `src/lib/calculations.ts`.
-- **Expenses**: Full CRUD expense tracking with 6 categories (feed, medicine, labor, utilities, equipment, misc). Filter by date range, category, search. Monthly summary card with category breakdown bars. Supplier autocomplete from previous entries. Add/edit forms with validation (amount 1-10M PKR, no future dates, description 3-200 chars). Delete with confirmation. "Save & Add Another" flow. Category icons with color coding. Responsive table (desktop) and card (mobile) views. IPC: `expenses:create`, `expenses:getByFarm` (with filters), `expenses:getById`, `expenses:update`, `expenses:delete`, `expenses:getSummary`, `expenses:getSuppliers`. Components: `src/components/expenses/` (CategoryIcon, ExpenseForm, ExpenseTable, ExpenseSummaryCard). Pages: ExpensesPage, AddExpensePage, EditExpensePage. Routes: `/farm/expenses`, `/farm/expenses/new`, `/farm/expenses/:expenseId/edit`. Schema: `expenses` table with notes column (auto-migrated for existing DBs).
-- **Financial Dashboard & P&L**: Comprehensive profit/loss reporting at `/farm/finances` and `/farm/finances/report`. Dashboard: 4 key financial cards (total revenue, total expenses, net profit/loss, profit margin %), multi-line trend chart (revenue/expenses/profit with daily/weekly/monthly toggle), expense breakdown donut chart by category (interactive hover), revenue breakdown donut chart by egg grade, quick stats grid (revenue/expense/profit per bird, cost/revenue per egg, current birds). P&L Report: formal accounting statement format with revenue section (by grade), expenses section (by category: feed, medicine, labor, utilities, equipment, misc), gross profit/loss + margin. Export: Print + CSV export. Period selectors: This Month, Last Month, This Quarter, This Year, Custom Range. IPC: `financial:getProfitLoss`, `financial:getFinancialTrends`, `financial:getPerBirdMetrics`, `financial:getPerEggMetrics`. Components: `src/components/financial/` (ProfitLossCard, FinancialTrendChart, ExpensePieChart, RevenuePieChart, QuickStatsGrid, PLStatement). Hook: `src/hooks/useFinancialData.ts`. Sidebar: "Finances" with dollar-sign icon.
-- **Revenue**: Revenue tracking from egg production × prices. Auto-calculates daily revenue using price active on each date (finds most recent egg_prices record <= date). Summary cards (total revenue, total eggs, avg price/egg, profit/loss). Stacked bar chart (recharts) showing daily revenue by grade. Revenue by grade breakdown card with percentages. Profit & Loss summary (revenue - expenses). Daily revenue table with per-grade qty/revenue columns and totals footer. Date range filter with quick presets (Today, This Week, This Month, Last Month) + custom range. Warning when no egg prices set. IPC: `revenue:getDailySummary`, `revenue:getTotalRevenue`, `revenue:getRevenueVsExpenses`. Components: `src/components/revenue/` (RevenueSummaryCards, RevenueByGradeCard, RevenueChart, DailyRevenueTable). Route: `/farm/revenue`. Dependencies: `recharts`.
-- **Inventory Management**: Full CRUD inventory tracking for feed, medicine, and equipment. Summary cards (feed stock total, medicine item count, low stock count, expiring within 30 days). Filterable tabs (All, Feed, Medicine, Equipment) with search. Responsive table (desktop) and card (mobile) views with status badges (OK/green, Low/yellow, Out of Stock/red, Expired/red). Quick actions: Add Stock and Reduce Stock via modals. Add Stock modal: quantity, purchase date, supplier, cost, new expiry date (medicine). Reduce Stock modal: quantity, reason (Used/Damaged/Expired/Other), date, notes. Validation on both client and server (quantity > 0, reduce ≤ current stock). Transaction history logged for every add/reduce. All handlers enforce farm-level access control via `requireFarmAccess`. IPC: `inventory:create` (with initial-stock transaction), `inventory:getByFarm` (with type filter), `inventory:getById` (with transactions), `inventory:update`, `inventory:delete` (cascade transactions), `inventory:addStock`, `inventory:reduceStock`, `inventory:getLowStockItems`, `inventory:getExpiringItems`. Components: `src/components/inventory/` (InventoryTable, InventoryCard, AddStockModal, ReduceStockModal, StockStatusBadge). Pages: InventoryPage, AddInventoryItemPage, EditInventoryItemPage. Routes: `/farm/inventory`, `/farm/inventory/new`, `/farm/inventory/:itemId/edit`.
-- **Vaccination Management**: Full vaccination scheduling system with auto-generated schedules based on flock age. Two pages: VaccinationSchedulePage (`/farm/vaccinations`) with Upcoming/Completed tabs, and VaccinationTemplatePage (`/farm/vaccinations/template`) for managing the default vaccination schedule. Upcoming tab: lists vaccinations due within 60 days, grouped by urgency (overdue/due now/due soon/upcoming) or by flock, with flock filter dropdown. Color-coded cards (red overdue, orange due now, amber due soon, green scheduled). Quick actions: Complete (opens modal with date, administered by, batch #, notes) and Skip (modal with reason dropdown, optional reschedule date, notes). Completed tab: searchable table of completed/skipped vaccinations with flock name, dates, administered by, batch #. Template page: full CRUD for vaccination schedule template (vaccine name, age in days, route dropdown, mandatory checkbox, notes). "Reset to Defaults" button restores standard 10-vaccine layer schedule (Marek's, Newcastle, Gumboro, Fowl Pox, Infectious Coryza, etc.). Auto-generates vaccinations when flocks are created. Sidebar badge shows overdue vaccination count. All vaccination record handlers enforce farm-level access via `requireVaccinationAccess()`. IPC: `vaccinations:create`, `vaccinations:getByFlock`, `vaccinations:getUpcoming`, `vaccinations:getCompleted`, `vaccinations:update`, `vaccinations:complete`, `vaccinations:skip`, `vaccinations:reschedule`, `vaccinationSchedule:create`, `vaccinationSchedule:getAll`, `vaccinationSchedule:update`, `vaccinationSchedule:delete`, `vaccinationSchedule:resetToDefaults`, `vaccinationSchedule:generateForFlock`. Components: `src/components/vaccinations/` (UpcomingVaccinationCard, VaccinationList, CompleteVaccinationModal, SkipVaccinationModal, VaccineTemplateForm, VaccinationTimeline, VaccinationHistoryTable, VaccinationComplianceCard, AddCustomVaccinationModal, ExportVaccinationModal). Hooks: `src/hooks/useVaccinations.ts`, `src/hooks/useVaccinationHistory.ts`. **Vaccination History & Tracking** (Phase 2): VaccinationHistoryPage (`/farm/vaccinations/history`) with paginated history table, sortable columns, flock/date/status/search filters, compliance stats summary cards, and export button. FlockVaccinationPage (`/farm/flocks/:flockId/vaccinations`) with timeline view (vertical line with color-coded nodes: green completed, red skipped, orange overdue, gray pending, click to expand details) and table view toggle, compliance badge, "Add Custom Vaccination" button, "Regenerate Schedule" button, CSV export. Export modal supports CSV (downloadable spreadsheet) and PDF (print-ready HTML report via new window). All export HTML is XSS-safe (escapeHtml on all interpolated values). FlockDetailPage updated with compliance badge and "View Full Vaccination Record" link. Additional IPC: `vaccinations:getHistory` (paginated, filtered), `vaccinations:getByFlockDetailed` (compliance calc, age-at-vaccination), `vaccinations:addCustom` (server-side validation), `vaccinations:getComplianceStats`, `vaccinations:exportHistory`. Export utilities: `src/lib/exportUtils.ts`.
-- **Report Generation**: 5 report types accessible at `/farm/reports`. Report selection UI with configuration panel (date/range/month/flock selectors). Reports: Daily Summary (flock breakdown, totals, eggs by grade, feed, financial), Weekly Performance (daily breakdown table, production averages, mortality, financial summary), Monthly Summary (weekly breakdown, production stats, financial with expense categories, inventory status, vaccination compliance), Flock Performance (lifetime stats, production curve bar chart, feed conversion ratio, vaccination records), Financial Report (revenue by grade, expense by category with bar visualization, P&L statement, per-unit metrics). Export: PDF (jspdf + jspdf-autotable with professional formatting, headers, footers, page numbers), Excel (xlsx/SheetJS with multiple sheets, column widths), Print (Ctrl+P shortcut). ExportButtons component with loading states and toast notifications. Files named `{Farm}_{Type}_{Range}.pdf/.xlsx`. IPC: `reports:getDailySummary`, `reports:getWeeklySummary`, `reports:getMonthlySummary`, `reports:getFlockReport`, `reports:getFinancialReport`. Components: `src/components/reports/` (ReportTypeCard, ReportConfigPanel, ReportHeader, ReportFooter, DailySummaryReport, WeeklyReport, MonthlyReport, FlockReport, FinancialReport). Hook: `src/hooks/useReportData.ts`. Page: ReportsPage. Route: `/farm/reports`.
-- **Low Stock Alerts**: Centralized alert system for low stock, expiring items, and overdue vaccinations. Alerts computed on-the-fly from inventory and vaccination data. Dismissal persisted via `dismissed_alerts` table (key: `alertType:referenceId`). Severity levels: critical (out of stock / expired / >7 days overdue), warning (low stock / expiring within 7 days / overdue), info (expiring within 30 days / due today). Header bell icon with AlertsDropdown showing latest 5 active alerts with count badge (pulses on critical). Sidebar badges on Inventory (low stock count) and Alerts (total active count). Full Alerts page with tabs (Active/Dismissed/All), type filters (Low Stock/Expiring/Vaccinations), dismiss/undismiss/re-enable all, refresh button. Auto-refreshes every 5 minutes via `useAlerts` hook. IPC: `alerts:getAll`, `alerts:dismiss`, `alerts:undismiss`, `alerts:clearDismissed`. Components: `src/components/alerts/` (AlertBadge, AlertsDropdown, LowStockAlert, LowStockAlertsList). Hook: `src/hooks/useAlerts.ts`. Page: AlertsPage. Route: `/farm/alerts`.
-- **Egg Pricing**: Set/manage egg prices by grade (A, B, Cracked) with PKR currency. Per-egg and per-tray pricing (auto-calculated ×30). Price history tracking with effective dates. Revenue calculator widget. Current prices card with staleness warning (>30 days). IPC: `eggPrices:createBatch`, `eggPrices:getCurrentPrices`, `eggPrices:getHistory`, `eggPrices:getPriceOnDate`. Components: `src/components/pricing/` (CurrentPricesCard, UpdatePricesModal, PriceHistoryTable, RevenueCalculator). Hook: `src/hooks/useCurrentPrices.ts`.
-- **Daily Entry**: Record daily mortality (with cause), egg production (3 grades with egg/tray unit toggle), feed consumption (kg/bags unit toggle), water, notes. One entry per flock per day enforced. Auto-updates flock `currentCount` on create/update/delete (stock adjustment). Warnings for high mortality (>0.5%), low production (<70%), unusual feed. Date navigation (prev/next/today). Flock selector with completion badges. Edit/delete existing entries. History page with date range/flock filters, summary stats, CSV export. All IPC handlers have farm-level access control.
-- **Build output**: `out/` (main, preload, renderer sub-dirs)
-- **Windows installer**: `pnpm run dist` — uses electron-builder → NSIS `.exe` installer, output to `release/`
-- **Dev**: `pnpm --filter @workspace/poultry-farm-manager run dev`
-- **Build**: `pnpm --filter @workspace/poultry-farm-manager run build`
-- **Dist**: `pnpm --filter @workspace/poultry-farm-manager run dist`
-- **Tailwind config**: `tailwind.config.js` with full shadcn/ui CSS variable color system
-- **Path alias**: `@/` maps to `src/`
-- **Database**: SQLite via `better-sqlite3` + Drizzle ORM
-  - Schema: `drizzle/schema.ts` — 12 tables (owners, farms, users, flocks, daily_entries, egg_prices, expenses, inventory, inventory_transactions, dismissed_alerts, vaccinations, vaccination_schedule)
-  - Migrations: `drizzle/migrations/` — auto-run on app startup
-  - DB file location: Electron `userData` directory (`poultry-farm.db`)
-  - `electron/database.ts` — initializes DB, runs migrations, fallback to manual CREATE TABLE
-  - `pnpm run db:generate` — generate new migration from schema changes
-- **Web preview**: `pnpm run dev:web` — serves the React UI in browser (for development without Electron)
-- **Note**: `electron` and `better-sqlite3` binaries require native builds (workspace `onlyBuiltDependencies` includes both)
-
-## Packages
-
-### `artifacts/api-server` (`@workspace/api-server`)
-
-Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` for request and response validation and `@workspace/db` for persistence.
-
-- Entry: `src/index.ts` — reads `PORT`, starts Express
-- App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`
-- Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health` (full path: `/api/health`)
-- Depends on: `@workspace/db`, `@workspace/api-zod`
-- `pnpm --filter @workspace/api-server run dev` — run the dev server
-- `pnpm --filter @workspace/api-server run build` — production esbuild bundle (`dist/index.cjs`)
-- Build bundles an allowlist of deps (express, cors, pg, drizzle-orm, zod, etc.) and externalizes the rest
-
-### `lib/db` (`@workspace/db`)
-
-Database layer using Drizzle ORM with PostgreSQL. Exports a Drizzle client instance and schema models.
-
-- `src/index.ts` — creates a `Pool` + Drizzle instance, exports schema
-- `src/schema/index.ts` — barrel re-export of all models
-- `src/schema/<modelname>.ts` — table definitions with `drizzle-zod` insert schemas (no models definitions exist right now)
-- `drizzle.config.ts` — Drizzle Kit config (requires `DATABASE_URL`, automatically provided by Replit)
-- Exports: `.` (pool, db, schema), `./schema` (schema only)
-
-Production migrations are handled by Replit when publishing. In development, we just use `pnpm --filter @workspace/db run push`, and we fallback to `pnpm --filter @workspace/db run push-force`.
-
-### `lib/api-spec` (`@workspace/api-spec`)
-
-Owns the OpenAPI 3.1 spec (`openapi.yaml`) and the Orval config (`orval.config.ts`). Running codegen produces output into two sibling packages:
-
-1. `lib/api-client-react/src/generated/` — React Query hooks + fetch client
-2. `lib/api-zod/src/generated/` — Zod schemas
-
-Run codegen: `pnpm --filter @workspace/api-spec run codegen`
-
-### `lib/api-zod` (`@workspace/api-zod`)
-
-Generated Zod schemas from the OpenAPI spec (e.g. `HealthCheckResponse`). Used by `api-server` for response validation.
-
-### `lib/api-client-react` (`@workspace/api-client-react`)
-
-Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHealthCheck`, `healthCheck`).
-
-### `scripts` (`@workspace/scripts`)
-
-Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.
+- **PostgreSQL**: Primary database for the API server.
+- **SQLite**: Local database for the Electron desktop application (`better-sqlite3`).
+- **Drizzle ORM**: Object-relational mapper for database interactions.
+- **Express**: Web application framework for the API server.
+- **React**: Frontend library for the desktop application.
+- **Electron**: Framework for building cross-platform desktop applications.
+- **Tailwind CSS**: Utility-first CSS framework for styling.
+- **Note**: No shadcn/ui — plain Tailwind CSS only.
+- **Zod**: Schema declaration and validation library.
+- **Orval**: OpenAPI client code generator.
+- **`react-router-dom`**: For client-side routing in the React application.
+- **Zustand**: State management library.
+- **`electron-store`**: Simple data persistence for Electron apps.
+- **`recharts`**: Charting library for React.
+- **`jspdf` and `jspdf-autotable`**: For generating PDF reports.
+- **`xlsx/SheetJS`**: For generating Excel reports.
+- **`pnpm`**: Package manager used across the monorepo.
+- **`esbuild`**: Fast JavaScript bundler.

@@ -32,7 +32,8 @@ interface NavItem {
 const ownerNavItems: NavItem[] = [
   { label: "Dashboard", path: "/owner/dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
   { label: "All Farms", path: "/owner/farms", icon: <Building2 className="h-5 w-5" /> },
-  { label: "Reports", path: "/owner/reports", icon: <BarChart3 className="h-5 w-5" /> },
+  { label: "Compare Farms", path: "/owner/compare", icon: <BarChart3 className="h-5 w-5" /> },
+  { label: "Reports", path: "/owner/reports", icon: <Receipt className="h-5 w-5" /> },
   { label: "Settings", path: "/owner/settings", icon: <Settings className="h-5 w-5" /> },
 ];
 

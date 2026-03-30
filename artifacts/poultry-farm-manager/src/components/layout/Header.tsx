@@ -8,6 +8,7 @@ import AlertsDropdown from "@/components/alerts/AlertsDropdown";
 const routeTitles: Record<string, string> = {
   "/owner/dashboard": "Dashboard",
   "/owner/farms": "All Farms",
+  "/owner/compare": "Compare Farms",
   "/owner/reports": "Reports",
   "/owner/settings": "Settings",
   "/farm/dashboard": "Dashboard",

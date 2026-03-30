@@ -40,6 +40,11 @@ import type {
   FlockReportData,
   FinancialReportData,
   UserData,
+  OwnerDashboardStats,
+  FarmOverview,
+  FarmComparisonData,
+  OwnerAlert,
+  RecentActivity,
 } from "@/types/electron";
 
 function getApi() {
@@ -343,6 +348,23 @@ export const reports = {
 
   getFinancialReport: (farmId: number, startDate: string, endDate: string) =>
     invoke<FinancialReportData>(() => getApi()!.reports.getFinancialReport(farmId, startDate, endDate)),
+};
+
+export const owner = {
+  getDashboardStats: (ownerId: number) =>
+    invoke<OwnerDashboardStats>(() => getApi()!.owner.getDashboardStats(ownerId)),
+
+  getFarmsOverview: (ownerId: number) =>
+    invoke<FarmOverview[]>(() => getApi()!.owner.getFarmsOverview(ownerId)),
+
+  getFarmComparison: (ownerId: number, farmIds: number[], startDate: string, endDate: string) =>
+    invoke<FarmComparisonData[]>(() => getApi()!.owner.getFarmComparison(ownerId, farmIds, startDate, endDate)),
+
+  getConsolidatedAlerts: (ownerId: number) =>
+    invoke<OwnerAlert[]>(() => getApi()!.owner.getConsolidatedAlerts(ownerId)),
+
+  getRecentActivity: (ownerId: number, limit: number = 20) =>
+    invoke<RecentActivity[]>(() => getApi()!.owner.getRecentActivity(ownerId, limit)),
 };
 
 export const isElectron = (): boolean => {

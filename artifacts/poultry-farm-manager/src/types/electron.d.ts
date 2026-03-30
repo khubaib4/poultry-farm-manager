@@ -549,6 +549,70 @@ export interface FinancialReportData {
   }[];
 }
 
+export interface OwnerDashboardStats {
+  totalBirds: number;
+  totalEggsToday: number;
+  revenueMonth: number;
+  profitMonth: number;
+  totalFarms: number;
+  totalBirdsChange: number;
+  totalEggsTrend: number;
+  revenueTrend: number;
+  profitTrend: number;
+}
+
+export interface FarmOverview {
+  id: number;
+  name: string;
+  location: string | null;
+  capacity: number | null;
+  isActive: number;
+  totalBirds: number;
+  totalFlocks: number;
+  eggsToday: number;
+  flocksWithEntriesToday: number;
+  productionRate: number;
+  mortalityRate: number;
+  profitMargin: number;
+  revenueMonth: number;
+  expensesMonth: number;
+  profitMonth: number;
+  performance: "good" | "warning" | "critical";
+}
+
+export interface FarmComparisonData {
+  farmId: number;
+  farmName: string;
+  totalBirds: number;
+  avgEggsPerDay: number;
+  productionRate: number;
+  mortalityRate: number;
+  revenue: number;
+  expenses: number;
+  profit: number;
+  profitMargin: number;
+}
+
+export interface OwnerAlert {
+  farmId: number;
+  farmName: string;
+  type: string;
+  severity: "critical" | "warning" | "info";
+  message: string;
+  referenceId: number;
+  date: string;
+}
+
+export interface RecentActivity {
+  id: number;
+  farmId: number;
+  farmName: string;
+  type: "entry" | "expense" | "vaccination";
+  description: string;
+  date: string;
+  amount?: number;
+}
+
 export interface VaccinationScheduleData {
   vaccineName: string;
   ageDays: number;
@@ -681,6 +745,13 @@ export interface ElectronAPI {
     addCustom: (flockId: number, data: AddCustomVaccinationData) => Promise<IpcResponse>;
     getComplianceStats: (farmId: number) => Promise<IpcResponse<ComplianceStats>>;
     exportHistory: (farmId: number, filters: { flockId?: number; startDate?: string; endDate?: string; status?: string }) => Promise<IpcResponse<VaccinationExportItem[]>>;
+  };
+  owner: {
+    getDashboardStats: (ownerId: number) => Promise<IpcResponse<OwnerDashboardStats>>;
+    getFarmsOverview: (ownerId: number) => Promise<IpcResponse<FarmOverview[]>>;
+    getFarmComparison: (ownerId: number, farmIds: number[], startDate: string, endDate: string) => Promise<IpcResponse<FarmComparisonData[]>>;
+    getConsolidatedAlerts: (ownerId: number) => Promise<IpcResponse<OwnerAlert[]>>;
+    getRecentActivity: (ownerId: number, limit: number) => Promise<IpcResponse<RecentActivity[]>>;
   };
   dashboard: {
     getFarmStats: (farmId: number) => Promise<IpcResponse>;

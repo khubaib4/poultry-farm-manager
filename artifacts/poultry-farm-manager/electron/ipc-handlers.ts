@@ -1,5 +1,5 @@
 import { ipcMain } from "electron";
-import { eq, and, gte, lte, sql, sum, like, desc, isNotNull } from "drizzle-orm";
+import { eq, and, gte, lte, sql, sum, like, desc, isNotNull, inArray } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import Store from "electron-store";
 import { getDatabase } from "./database";
@@ -2756,6 +2756,317 @@ export function registerIpcHandlers(): void {
         },
         dailyTrend: dailyFinancial,
       };
+    })
+  );
+
+  function getOwnerFarms(ownerId: number) {
+    return db.select().from(schema.farms).where(and(eq(schema.farms.ownerId, ownerId), eq(schema.farms.isActive, 1))).all();
+  }
+
+  function getFarmStats(farmId: number, today: string, monthStart: string, monthEnd: string) {
+    const activeFlocks = db.select().from(schema.flocks).where(and(eq(schema.flocks.farmId, farmId), eq(schema.flocks.status, "active"))).all();
+    const totalBirds = activeFlocks.reduce((s, f) => s + (f.currentCount || 0), 0);
+    const totalFlocks = activeFlocks.length;
+    const initialBirds = activeFlocks.reduce((s, f) => s + (f.initialCount || 0), 0);
+
+    const todayEntries = db.select().from(schema.dailyEntries)
+      .where(and(eq(schema.dailyEntries.entryDate, today)))
+      .all()
+      .filter(e => activeFlocks.some(f => f.id === e.flockId));
+
+    const eggsToday = todayEntries.reduce((s, e) => s + (e.eggsGradeA || 0) + (e.eggsGradeB || 0) + (e.eggsCracked || 0), 0);
+    const flocksWithEntriesToday = new Set(todayEntries.map(e => e.flockId)).size;
+
+    const allEntries = db.select().from(schema.dailyEntries)
+      .where(and(gte(schema.dailyEntries.entryDate, monthStart), lte(schema.dailyEntries.entryDate, monthEnd)))
+      .all()
+      .filter(e => activeFlocks.some(f => f.id === e.flockId));
+
+    const totalDeaths = allEntries.reduce((s, e) => s + (e.deaths || 0), 0);
+    const mortalityRate = initialBirds > 0 ? Math.round((totalDeaths / initialBirds) * 10000) / 100 : 0;
+
+    const totalEggsMonth = allEntries.reduce((s, e) => s + (e.eggsGradeA || 0) + (e.eggsGradeB || 0) + (e.eggsCracked || 0), 0);
+    const daysInMonth = allEntries.length > 0 ? new Set(allEntries.map(e => e.entryDate)).size : 1;
+    const avgEggsPerDay = Math.round(totalEggsMonth / daysInMonth);
+    const productionRate = totalBirds > 0 ? Math.round((avgEggsPerDay / totalBirds) * 10000) / 100 : 0;
+
+    const monthExpenses = db.select({ total: sql<number>`COALESCE(SUM(${schema.expenses.amount}), 0)` })
+      .from(schema.expenses)
+      .where(and(eq(schema.expenses.farmId, farmId), gte(schema.expenses.expenseDate, monthStart), lte(schema.expenses.expenseDate, monthEnd)))
+      .get();
+
+    const totalEggsA = allEntries.reduce((s, e) => s + (e.eggsGradeA || 0), 0);
+    const totalEggsB = allEntries.reduce((s, e) => s + (e.eggsGradeB || 0), 0);
+    const totalCracked = allEntries.reduce((s, e) => s + (e.eggsCracked || 0), 0);
+
+    const prices = db.select().from(schema.eggPrices)
+      .where(and(eq(schema.eggPrices.farmId, farmId), lte(schema.eggPrices.effectiveDate, monthEnd)))
+      .all();
+    const getPrice = (grade: string) => {
+      const sorted = [...prices].filter(p => p.grade === grade).sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate));
+      return sorted.length > 0 ? sorted[0].pricePerEgg : 0;
+    };
+    const revenueMonth = Math.round((totalEggsA * getPrice("A") + totalEggsB * getPrice("B") + totalCracked * getPrice("Cracked")) * 100) / 100;
+    const expensesMonth = monthExpenses?.total || 0;
+    const profitMonth = Math.round((revenueMonth - expensesMonth) * 100) / 100;
+    const profitMargin = revenueMonth > 0 ? Math.round((profitMonth / revenueMonth) * 10000) / 100 : 0;
+
+    let performance: "good" | "warning" | "critical" = "good";
+    if (productionRate < 70 || mortalityRate > 1 || profitMargin < 10) performance = "critical";
+    else if (productionRate < 85 || mortalityRate > 0.5 || profitMargin < 20) performance = "warning";
+
+    return {
+      totalBirds, totalFlocks, eggsToday, flocksWithEntriesToday, productionRate, mortalityRate,
+      profitMargin, revenueMonth, expensesMonth, profitMonth, performance, avgEggsPerDay,
+      totalEggsA, totalEggsB, totalCracked, initialBirds,
+    };
+  }
+
+  ipcMain.handle("owner:getDashboardStats",
+    wrapHandler((_e: unknown, ownerId: number) => {
+      const session = requireOwner();
+      if (session.id !== ownerId) throw new Error("Access denied");
+
+      const today = new Date().toISOString().split("T")[0];
+      const now = new Date();
+      const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+      const monthEnd = today;
+
+      const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+      const prevMonthStart = `${prevMonthEnd.getFullYear()}-${String(prevMonthEnd.getMonth() + 1).padStart(2, "0")}-01`;
+      const prevMonthEndStr = prevMonthEnd.toISOString().split("T")[0];
+
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split("T")[0];
+
+      const ownerFarms = getOwnerFarms(ownerId);
+
+      let totalBirds = 0, totalEggsToday = 0, revenueMonth = 0, profitMonth = 0;
+      let prevRevenueMonth = 0, prevProfitMonth = 0, totalEggsYesterday = 0;
+      let totalInitialBirds = 0;
+
+      for (const farm of ownerFarms) {
+        const stats = getFarmStats(farm.id, today, monthStart, monthEnd);
+        totalBirds += stats.totalBirds;
+        totalEggsToday += stats.eggsToday;
+        revenueMonth += stats.revenueMonth;
+        profitMonth += stats.profitMonth;
+        totalInitialBirds += stats.initialBirds;
+
+        const prevStats = getFarmStats(farm.id, yesterdayStr, prevMonthStart, prevMonthEndStr);
+        prevRevenueMonth += prevStats.revenueMonth;
+        prevProfitMonth += prevStats.profitMonth;
+        totalEggsYesterday += prevStats.eggsToday;
+      }
+
+      const totalBirdsChange = totalInitialBirds > 0 ? Math.round(((totalBirds - totalInitialBirds) / totalInitialBirds) * 10000) / 100 : 0;
+
+      return {
+        totalBirds,
+        totalEggsToday,
+        revenueMonth: Math.round(revenueMonth * 100) / 100,
+        profitMonth: Math.round(profitMonth * 100) / 100,
+        totalFarms: ownerFarms.length,
+        totalBirdsChange,
+        totalEggsTrend: totalEggsYesterday > 0 ? Math.round(((totalEggsToday - totalEggsYesterday) / totalEggsYesterday) * 10000) / 100 : 0,
+        revenueTrend: prevRevenueMonth > 0 ? Math.round(((revenueMonth - prevRevenueMonth) / prevRevenueMonth) * 10000) / 100 : 0,
+        profitTrend: prevProfitMonth > 0 ? Math.round(((profitMonth - prevProfitMonth) / prevProfitMonth) * 10000) / 100 : 0,
+      };
+    })
+  );
+
+  ipcMain.handle("owner:getFarmsOverview",
+    wrapHandler((_e: unknown, ownerId: number) => {
+      const session = requireOwner();
+      if (session.id !== ownerId) throw new Error("Access denied");
+
+      const today = new Date().toISOString().split("T")[0];
+      const now = new Date();
+      const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+
+      const ownerFarms = getOwnerFarms(ownerId);
+      return ownerFarms.map(farm => {
+        const stats = getFarmStats(farm.id, today, monthStart, today);
+        return {
+          id: farm.id,
+          name: farm.name,
+          location: farm.location,
+          capacity: farm.capacity,
+          isActive: farm.isActive ?? 1,
+          ...stats,
+        };
+      });
+    })
+  );
+
+  ipcMain.handle("owner:getFarmComparison",
+    wrapHandler((_e: unknown, ownerId: number, farmIds: number[], startDate: string, endDate: string) => {
+      const session = requireOwner();
+      if (session.id !== ownerId) throw new Error("Access denied");
+
+      const ownerFarms = getOwnerFarms(ownerId);
+      const validFarmIds = farmIds.length > 0 ? farmIds : ownerFarms.map(f => f.id);
+
+      return validFarmIds.map(farmId => {
+        const farm = ownerFarms.find(f => f.id === farmId);
+        if (!farm) return null;
+
+        const stats = getFarmStats(farmId, endDate, startDate, endDate);
+        return {
+          farmId: farm.id,
+          farmName: farm.name,
+          totalBirds: stats.totalBirds,
+          avgEggsPerDay: stats.avgEggsPerDay,
+          productionRate: stats.productionRate,
+          mortalityRate: stats.mortalityRate,
+          revenue: stats.revenueMonth,
+          expenses: stats.expensesMonth,
+          profit: stats.profitMonth,
+          profitMargin: stats.profitMargin,
+        };
+      }).filter(Boolean);
+    })
+  );
+
+  ipcMain.handle("owner:getConsolidatedAlerts",
+    wrapHandler((_e: unknown, ownerId: number) => {
+      const session = requireOwner();
+      if (session.id !== ownerId) throw new Error("Access denied");
+
+      const ownerFarms = getOwnerFarms(ownerId);
+      const today = new Date().toISOString().split("T")[0];
+      const alerts: Array<{ farmId: number; farmName: string; type: string; severity: "critical" | "warning" | "info"; message: string; referenceId: number; date: string }> = [];
+
+      for (const farm of ownerFarms) {
+        const activeFlocks = db.select().from(schema.flocks).where(and(eq(schema.flocks.farmId, farm.id), eq(schema.flocks.status, "active"))).all();
+
+        for (const flock of activeFlocks) {
+          const recentEntries = db.select().from(schema.dailyEntries)
+            .where(and(eq(schema.dailyEntries.flockId, flock.id), gte(schema.dailyEntries.entryDate, (() => { const d = new Date(); d.setDate(d.getDate() - 3); return d.toISOString().split("T")[0]; })())))
+            .all();
+          const recentDeaths = recentEntries.reduce((s, e) => s + (e.deaths || 0), 0);
+          if (recentDeaths > 0) {
+            alerts.push({ farmId: farm.id, farmName: farm.name, type: "mortality", severity: recentDeaths > 5 ? "critical" : "warning", message: `${flock.batchName}: ${recentDeaths} deaths in last 3 days`, referenceId: flock.id, date: today });
+          }
+        }
+
+        const lowStock = db.select().from(schema.inventory)
+          .where(and(eq(schema.inventory.farmId, farm.id)))
+          .all()
+          .filter(i => i.minThreshold != null && i.quantity <= i.minThreshold);
+        for (const item of lowStock) {
+          alerts.push({ farmId: farm.id, farmName: farm.name, type: "low_stock", severity: item.quantity <= 0 ? "critical" : "warning", message: `${item.itemName}: ${item.quantity} ${item.unit} remaining`, referenceId: item.id, date: today });
+        }
+
+        const upcomingVax = db.select().from(schema.vaccinations)
+          .innerJoin(schema.flocks, eq(schema.vaccinations.flockId, schema.flocks.id))
+          .where(and(eq(schema.flocks.farmId, farm.id), eq(schema.vaccinations.status, "pending"), lte(schema.vaccinations.scheduledDate, today)))
+          .all();
+        for (const v of upcomingVax) {
+          alerts.push({ farmId: farm.id, farmName: farm.name, type: "vaccination_overdue", severity: "critical", message: `${v.vaccinations.vaccineName} overdue for ${v.flocks.batchName}`, referenceId: v.vaccinations.id, date: v.vaccinations.scheduledDate });
+        }
+      }
+
+      alerts.sort((a, b) => {
+        const sev = { critical: 0, warning: 1, info: 2 };
+        return sev[a.severity] - sev[b.severity];
+      });
+
+      return alerts;
+    })
+  );
+
+  ipcMain.handle("owner:getRecentActivity",
+    wrapHandler((_e: unknown, ownerId: number, limit: number = 20) => {
+      const session = requireOwner();
+      if (session.id !== ownerId) throw new Error("Access denied");
+
+      const ownerFarms = getOwnerFarms(ownerId);
+      const farmIds = ownerFarms.map(f => f.id);
+      const farmMap = Object.fromEntries(ownerFarms.map(f => [f.id, f.name]));
+      if (farmIds.length === 0) return [];
+
+      const activities: Array<{ id: number; farmId: number; farmName: string; type: "entry" | "expense" | "vaccination"; description: string; date: string; amount?: number }> = [];
+
+      const recentEntries = db.select({
+        id: schema.dailyEntries.id,
+        flockId: schema.dailyEntries.flockId,
+        entryDate: schema.dailyEntries.entryDate,
+        eggsA: schema.dailyEntries.eggsGradeA,
+        eggsB: schema.dailyEntries.eggsGradeB,
+        cracked: schema.dailyEntries.eggsCracked,
+        deaths: schema.dailyEntries.deaths,
+        farmId: schema.flocks.farmId,
+        batchName: schema.flocks.batchName,
+      })
+        .from(schema.dailyEntries)
+        .innerJoin(schema.flocks, eq(schema.dailyEntries.flockId, schema.flocks.id))
+        .where(inArray(schema.flocks.farmId, farmIds))
+        .orderBy(desc(schema.dailyEntries.entryDate))
+        .limit(limit)
+        .all();
+
+      for (const e of recentEntries) {
+        const eggs = (e.eggsA || 0) + (e.eggsB || 0) + (e.cracked || 0);
+        activities.push({
+          id: e.id,
+          farmId: e.farmId!,
+          farmName: farmMap[e.farmId!] || "Unknown",
+          type: "entry",
+          description: `${e.batchName}: ${eggs} eggs, ${e.deaths || 0} deaths`,
+          date: e.entryDate,
+        });
+      }
+
+      const recentExpenses = db.select()
+        .from(schema.expenses)
+        .where(inArray(schema.expenses.farmId, farmIds))
+        .orderBy(desc(schema.expenses.expenseDate))
+        .limit(limit)
+        .all();
+
+      for (const e of recentExpenses) {
+        activities.push({
+          id: e.id,
+          farmId: e.farmId!,
+          farmName: farmMap[e.farmId!] || "Unknown",
+          type: "expense",
+          description: `${e.category}: ${e.description || "Expense"}`,
+          date: e.expenseDate,
+          amount: e.amount,
+        });
+      }
+
+      const recentVax = db.select({
+        id: schema.vaccinations.id,
+        vaccineName: schema.vaccinations.vaccineName,
+        administeredDate: schema.vaccinations.administeredDate,
+        scheduledDate: schema.vaccinations.scheduledDate,
+        status: schema.vaccinations.status,
+        farmId: schema.flocks.farmId,
+        batchName: schema.flocks.batchName,
+      })
+        .from(schema.vaccinations)
+        .innerJoin(schema.flocks, eq(schema.vaccinations.flockId, schema.flocks.id))
+        .where(and(inArray(schema.flocks.farmId, farmIds), eq(schema.vaccinations.status, "completed")))
+        .orderBy(desc(schema.vaccinations.administeredDate))
+        .limit(limit)
+        .all();
+
+      for (const v of recentVax) {
+        activities.push({
+          id: v.id,
+          farmId: v.farmId!,
+          farmName: farmMap[v.farmId!] || "Unknown",
+          type: "vaccination",
+          description: `${v.vaccineName} completed for ${v.batchName}`,
+          date: v.administeredDate || v.scheduledDate,
+        });
+      }
+
+      activities.sort((a, b) => b.date.localeCompare(a.date));
+      return activities.slice(0, limit);
     })
   );
 }

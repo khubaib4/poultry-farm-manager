@@ -11,6 +11,8 @@ import AppLayout from "@/components/layout/AppLayout";
 import LoginPage from "@/pages/LoginPage";
 import RegisterOwnerPage from "@/pages/RegisterOwnerPage";
 import OwnerDashboard from "@/pages/OwnerDashboard";
+import OwnerDashboardPage from "@/pages/owner/OwnerDashboardPage";
+import FarmComparisonPage from "@/pages/owner/FarmComparisonPage";
 import FarmDashboard from "@/pages/FarmDashboard";
 import AddFarmPage from "@/pages/owner/AddFarmPage";
 import FarmsListPage from "@/pages/owner/FarmsListPage";
@@ -70,9 +72,10 @@ export default function App(): React.ReactElement {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterOwnerPage />} />
 
-          <Route path="/owner/dashboard" element={<OwnerLayout><OwnerDashboard /></OwnerLayout>} />
+          <Route path="/owner/dashboard" element={<OwnerLayout><OwnerDashboardPage /></OwnerLayout>} />
           <Route path="/owner/farms" element={<OwnerLayout><FarmsListPage /></OwnerLayout>} />
           <Route path="/owner/add-farm" element={<OwnerLayout><AddFarmPage /></OwnerLayout>} />
+          <Route path="/owner/compare" element={<OwnerLayout><FarmComparisonPage /></OwnerLayout>} />
           <Route path="/owner/reports" element={<OwnerLayout><PlaceholderPage title="Reports" description="View analytics and reports across all farms." /></OwnerLayout>} />
           <Route path="/owner/settings" element={<OwnerLayout><PlaceholderPage title="Settings" description="Manage your account settings." /></OwnerLayout>} />
 
