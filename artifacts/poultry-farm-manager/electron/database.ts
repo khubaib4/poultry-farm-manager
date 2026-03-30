@@ -114,6 +114,7 @@ function createTablesManually(): void {
       expense_date TEXT NOT NULL,
       supplier TEXT,
       receipt_ref TEXT,
+      notes TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -152,6 +153,8 @@ function createTablesManually(): void {
     );
   `);
   console.log("Database initialized successfully (tables created manually)");
+
+  try { sqlite.exec("ALTER TABLE expenses ADD COLUMN notes TEXT"); } catch { /* column already exists */ }
 }
 
 export function getDatabase(): typeof db {

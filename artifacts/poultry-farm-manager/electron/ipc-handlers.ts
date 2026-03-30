@@ -1,5 +1,5 @@
 import { ipcMain } from "electron";
-import { eq, and, gte, lte, sql, sum } from "drizzle-orm";
+import { eq, and, gte, lte, sql, sum, like, desc, isNotNull } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import Store from "electron-store";
 import { getDatabase } from "./database";
@@ -787,31 +787,67 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(
     "expenses:create",
-    wrapHandler((_e: unknown, data: { farmId: number; category: string; description?: string; amount: number; expenseDate: string; supplier?: string; receiptRef?: string }) => {
+    wrapHandler((_e: unknown, data: { farmId: number; category: string; description: string; amount: number; expenseDate: string; supplier?: string; receiptRef?: string; notes?: string }) => {
       requireFarmAccess(data.farmId);
+      if (!data.category || !data.description || !data.amount || !data.expenseDate) {
+        throw new Error("Category, description, amount, and date are required");
+      }
+      if (data.amount <= 0 || data.amount > 10000000) {
+        throw new Error("Amount must be between 1 and 10,000,000 PKR");
+      }
+      if (data.description.length < 3 || data.description.length > 200) {
+        throw new Error("Description must be 3-200 characters");
+      }
+      const today = new Date().toISOString().split("T")[0];
+      if (data.expenseDate > today) {
+        throw new Error("Expense date cannot be in the future");
+      }
       return db.insert(schema.expenses).values(data).returning().get();
     })
   );
 
   ipcMain.handle(
     "expenses:getByFarm",
-    wrapHandler((_e: unknown, farmId: number, startDate?: string, endDate?: string) => {
+    wrapHandler((_e: unknown, farmId: number, filters?: { startDate?: string; endDate?: string; category?: string; search?: string }) => {
       requireFarmAccess(farmId);
       const conditions = [eq(schema.expenses.farmId, farmId)];
-      if (startDate) conditions.push(gte(schema.expenses.expenseDate, startDate));
-      if (endDate) conditions.push(lte(schema.expenses.expenseDate, endDate));
+      if (filters?.startDate) conditions.push(gte(schema.expenses.expenseDate, filters.startDate));
+      if (filters?.endDate) conditions.push(lte(schema.expenses.expenseDate, filters.endDate));
+      if (filters?.category) conditions.push(eq(schema.expenses.category, filters.category));
+      if (filters?.search) conditions.push(like(schema.expenses.description, `%${filters.search}%`));
       return db
         .select()
         .from(schema.expenses)
         .where(and(...conditions))
+        .orderBy(desc(schema.expenses.expenseDate), desc(schema.expenses.id))
         .all();
     })
   );
 
   ipcMain.handle(
-    "expenses:update",
-    wrapHandler((_e: unknown, id: number, data: Partial<{ category: string; description: string; amount: number; expenseDate: string; supplier: string; receiptRef: string }>) => {
+    "expenses:getById",
+    wrapHandler((_e: unknown, id: number) => {
       requireAuth();
+      const result = db.select().from(schema.expenses).where(eq(schema.expenses.id, id)).get();
+      if (!result) throw new Error("Expense not found");
+      return result;
+    })
+  );
+
+  ipcMain.handle(
+    "expenses:update",
+    wrapHandler((_e: unknown, id: number, data: Partial<{ category: string; description: string; amount: number; expenseDate: string; supplier: string; receiptRef: string; notes: string }>) => {
+      requireAuth();
+      if (data.amount !== undefined && (data.amount <= 0 || data.amount > 10000000)) {
+        throw new Error("Amount must be between 1 and 10,000,000 PKR");
+      }
+      if (data.description !== undefined && (data.description.length < 3 || data.description.length > 200)) {
+        throw new Error("Description must be 3-200 characters");
+      }
+      if (data.expenseDate) {
+        const today = new Date().toISOString().split("T")[0];
+        if (data.expenseDate > today) throw new Error("Expense date cannot be in the future");
+      }
       const result = db
         .update(schema.expenses)
         .set(data)
@@ -827,8 +863,47 @@ export function registerIpcHandlers(): void {
     "expenses:delete",
     wrapHandler((_e: unknown, id: number) => {
       requireAuth();
+      const expense = db.select().from(schema.expenses).where(eq(schema.expenses.id, id)).get();
+      if (!expense) throw new Error("Expense not found");
       db.delete(schema.expenses).where(eq(schema.expenses.id, id)).run();
       return { id };
+    })
+  );
+
+  ipcMain.handle(
+    "expenses:getSummary",
+    wrapHandler((_e: unknown, farmId: number, startDate: string, endDate: string) => {
+      requireFarmAccess(farmId);
+      const rows = db.select().from(schema.expenses)
+        .where(and(
+          eq(schema.expenses.farmId, farmId),
+          gte(schema.expenses.expenseDate, startDate),
+          lte(schema.expenses.expenseDate, endDate)
+        ))
+        .all();
+      const byCategory: Record<string, number> = {};
+      let total = 0;
+      for (const row of rows) {
+        byCategory[row.category] = (byCategory[row.category] || 0) + row.amount;
+        total += row.amount;
+      }
+      return { total, byCategory, count: rows.length };
+    })
+  );
+
+  ipcMain.handle(
+    "expenses:getSuppliers",
+    wrapHandler((_e: unknown, farmId: number) => {
+      requireFarmAccess(farmId);
+      const rows = db.select({ supplier: schema.expenses.supplier })
+        .from(schema.expenses)
+        .where(and(
+          eq(schema.expenses.farmId, farmId),
+          isNotNull(schema.expenses.supplier)
+        ))
+        .all();
+      const unique = [...new Set(rows.map(r => r.supplier).filter(Boolean))];
+      return unique.sort();
     })
   );
 

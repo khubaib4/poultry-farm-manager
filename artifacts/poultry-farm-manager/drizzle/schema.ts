@@ -93,6 +93,7 @@ export const expenses = sqliteTable("expenses", {
   expenseDate: text("expense_date").notNull(),
   supplier: text("supplier"),
   receiptRef: text("receipt_ref"),
+  notes: text("notes"),
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 });
 

@@ -53,11 +53,25 @@ export interface EggPriceData {
 export interface ExpenseData {
   farmId: number;
   category: string;
-  description?: string;
+  description: string;
   amount: number;
   expenseDate: string;
   supplier?: string;
   receiptRef?: string;
+  notes?: string;
+}
+
+export interface ExpenseFilters {
+  startDate?: string;
+  endDate?: string;
+  category?: string;
+  search?: string;
+}
+
+export interface ExpenseSummary {
+  total: number;
+  byCategory: Record<string, number>;
+  count: number;
 }
 
 export interface InventoryData {
@@ -164,9 +178,12 @@ export interface ElectronAPI {
   };
   expenses: {
     create: (data: ExpenseData) => Promise<IpcResponse>;
-    getByFarm: (farmId: number, startDate?: string, endDate?: string) => Promise<IpcResponse>;
+    getByFarm: (farmId: number, filters?: ExpenseFilters) => Promise<IpcResponse>;
+    getById: (id: number) => Promise<IpcResponse>;
     update: (id: number, data: Partial<ExpenseData>) => Promise<IpcResponse>;
     delete: (id: number) => Promise<IpcResponse>;
+    getSummary: (farmId: number, startDate: string, endDate: string) => Promise<IpcResponse<ExpenseSummary>>;
+    getSuppliers: (farmId: number) => Promise<IpcResponse<string[]>>;
   };
   inventory: {
     create: (data: InventoryData) => Promise<IpcResponse>;

@@ -7,6 +7,8 @@ import type {
   DailyEntryData,
   EggPriceData,
   ExpenseData,
+  ExpenseFilters,
+  ExpenseSummary,
   InventoryData,
   VaccinationData,
   VaccinationScheduleData,
@@ -143,13 +145,22 @@ export const expenses = {
   create: (data: ExpenseData) =>
     invoke(() => getApi()!.expenses.create(data)),
 
-  getByFarm: (farmId: number, startDate?: string, endDate?: string) =>
-    invoke(() => getApi()!.expenses.getByFarm(farmId, startDate, endDate)),
+  getByFarm: (farmId: number, filters?: ExpenseFilters) =>
+    invoke(() => getApi()!.expenses.getByFarm(farmId, filters)),
+
+  getById: (id: number) =>
+    invoke(() => getApi()!.expenses.getById(id)),
 
   update: (id: number, data: Partial<ExpenseData>) =>
     invoke(() => getApi()!.expenses.update(id, data)),
 
   delete: (id: number) => invoke(() => getApi()!.expenses.delete(id)),
+
+  getSummary: (farmId: number, startDate: string, endDate: string) =>
+    invoke<ExpenseSummary>(() => getApi()!.expenses.getSummary(farmId, startDate, endDate)),
+
+  getSuppliers: (farmId: number) =>
+    invoke<string[]>(() => getApi()!.expenses.getSuppliers(farmId)),
 };
 
 export const inventory = {

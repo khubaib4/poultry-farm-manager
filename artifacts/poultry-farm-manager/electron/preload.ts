@@ -75,11 +75,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   expenses: {
     create: (data: unknown) => ipcRenderer.invoke("expenses:create", data),
-    getByFarm: (farmId: number, startDate?: string, endDate?: string) =>
-      ipcRenderer.invoke("expenses:getByFarm", farmId, startDate, endDate),
+    getByFarm: (farmId: number, filters?: unknown) =>
+      ipcRenderer.invoke("expenses:getByFarm", farmId, filters),
+    getById: (id: number) => ipcRenderer.invoke("expenses:getById", id),
     update: (id: number, data: unknown) =>
       ipcRenderer.invoke("expenses:update", id, data),
     delete: (id: number) => ipcRenderer.invoke("expenses:delete", id),
+    getSummary: (farmId: number, startDate: string, endDate: string) =>
+      ipcRenderer.invoke("expenses:getSummary", farmId, startDate, endDate),
+    getSuppliers: (farmId: number) =>
+      ipcRenderer.invoke("expenses:getSuppliers", farmId),
   },
   inventory: {
     create: (data: unknown) => ipcRenderer.invoke("inventory:create", data),

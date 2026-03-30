@@ -14,6 +14,7 @@ const routeTitles: Record<string, string> = {
   "/farm/inventory": "Inventory",
   "/farm/vaccinations": "Vaccinations",
   "/farm/expenses": "Expenses",
+  "/farm/expenses/new": "Add Expense",
   "/farm/reports": "Reports",
   "/farm/settings": "Settings",
 };
