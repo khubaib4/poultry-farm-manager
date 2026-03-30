@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { isElectron, revenue as revenueApi } from "@/lib/api";
 import { AlertTriangle } from "lucide-react";
+import { formatCurrency } from "@/lib/utils";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import RevenueSummaryCards from "@/components/revenue/RevenueSummaryCards";
 import RevenueByGradeCard from "@/components/revenue/RevenueByGradeCard";
@@ -190,16 +191,16 @@ export default function RevenuePage(): React.ReactElement {
               <div className="grid grid-cols-3 gap-4">
                 <div className="text-center">
                   <p className="text-xs text-gray-500 mb-1">Revenue</p>
-                  <p className="text-lg font-bold text-green-600">{profitData.revenue > 0 ? "+" : ""}{profitData.revenue.toLocaleString("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 })}</p>
+                  <p className="text-lg font-bold text-green-600">{profitData.revenue > 0 ? "+" : ""}{formatCurrency(profitData.revenue)}</p>
                 </div>
                 <div className="text-center">
                   <p className="text-xs text-gray-500 mb-1">Expenses</p>
-                  <p className="text-lg font-bold text-red-600">-{profitData.expenses.toLocaleString("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 })}</p>
+                  <p className="text-lg font-bold text-red-600">-{formatCurrency(profitData.expenses)}</p>
                 </div>
                 <div className="text-center">
                   <p className="text-xs text-gray-500 mb-1">Net Profit</p>
                   <p className={`text-lg font-bold ${profitData.profit >= 0 ? "text-green-600" : "text-red-600"}`}>
-                    {profitData.profit >= 0 ? "+" : ""}{profitData.profit.toLocaleString("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 })}
+                    {profitData.profit >= 0 ? "+" : ""}{formatCurrency(profitData.profit)}
                   </p>
                 </div>
               </div>

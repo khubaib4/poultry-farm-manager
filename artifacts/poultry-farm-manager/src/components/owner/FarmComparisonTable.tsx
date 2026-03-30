@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { ArrowUpDown, Download } from "lucide-react";
+import { formatCurrency } from "@/lib/utils";
 import type { FarmComparisonData } from "@/types/electron";
 
 interface FarmComparisonTableProps {
@@ -82,9 +83,9 @@ export default function FarmComparisonTable({ data, onExport }: FarmComparisonTa
                 <td className="px-3 py-3 text-sm text-slate-700">{farm.avgEggsPerDay.toLocaleString()}</td>
                 <td className={`px-3 py-3 text-sm font-medium ${statusColor(farm.productionRate, [70, 85])}`}>{farm.productionRate}%</td>
                 <td className={`px-3 py-3 text-sm font-medium ${farm.mortalityRate <= 0.5 ? "text-green-600" : farm.mortalityRate <= 1 ? "text-amber-600" : "text-red-600"}`}>{farm.mortalityRate}%</td>
-                <td className="px-3 py-3 text-sm text-slate-700">₦{farm.revenue.toLocaleString()}</td>
-                <td className="px-3 py-3 text-sm text-slate-700">₦{farm.expenses.toLocaleString()}</td>
-                <td className={`px-3 py-3 text-sm font-medium ${farm.profit >= 0 ? "text-green-600" : "text-red-600"}`}>₦{farm.profit.toLocaleString()}</td>
+                <td className="px-3 py-3 text-sm text-gray-700">{formatCurrency(farm.revenue)}</td>
+                <td className="px-3 py-3 text-sm text-gray-700">{formatCurrency(farm.expenses)}</td>
+                <td className={`px-3 py-3 text-sm font-medium ${farm.profit >= 0 ? "text-green-600" : "text-red-600"}`}>{formatCurrency(farm.profit)}</td>
                 <td className={`px-3 py-3 text-sm font-medium ${statusColor(farm.profitMargin, [10, 20])}`}>{farm.profitMargin}%</td>
               </tr>
             ))}

@@ -2,6 +2,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { isElectron } from "@/lib/api";
+import { formatCurrency } from "@/lib/utils";
 import { useOwnerDashboard } from "@/hooks/useOwnerDashboard";
 import GlobalStatsCard from "@/components/owner/GlobalStatsCard";
 import FarmOverviewCard from "@/components/owner/FarmOverviewCard";
@@ -118,7 +119,7 @@ export default function OwnerDashboardPage(): React.ReactElement {
         />
         <GlobalStatsCard
           title="Revenue (Month)"
-          value={`₦${(stats?.revenueMonth || 0).toLocaleString()}`}
+          value={formatCurrency(stats?.revenueMonth || 0)}
           trend={stats?.revenueTrend}
           trendLabel="vs last month"
           icon={<DollarSign className="h-6 w-6 text-green-600" />}
@@ -126,7 +127,7 @@ export default function OwnerDashboardPage(): React.ReactElement {
         />
         <GlobalStatsCard
           title="Profit (Month)"
-          value={`₦${(stats?.profitMonth || 0).toLocaleString()}`}
+          value={formatCurrency(stats?.profitMonth || 0)}
           trend={stats?.profitTrend}
           trendLabel="vs last month"
           icon={<TrendingUp className="h-6 w-6 text-purple-600" />}

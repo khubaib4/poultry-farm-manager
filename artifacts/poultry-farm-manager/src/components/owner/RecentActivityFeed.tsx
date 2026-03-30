@@ -1,5 +1,6 @@
 import React from "react";
 import { Egg, Receipt, Syringe, Clock } from "lucide-react";
+import { formatCurrency } from "@/lib/utils";
 import type { RecentActivity } from "@/types/electron";
 
 interface RecentActivityFeedProps {
@@ -57,7 +58,7 @@ export default function RecentActivityFeed({ activities }: RecentActivityFeedPro
                   </span>
                   <span className="text-xs text-slate-400">{formatDate(activity.date)}</span>
                   {activity.amount !== undefined && (
-                    <span className="text-xs font-medium text-slate-600">₦{activity.amount.toLocaleString()}</span>
+                    <span className="text-xs font-medium text-gray-600">{formatCurrency(activity.amount)}</span>
                   )}
                 </div>
               </div>
