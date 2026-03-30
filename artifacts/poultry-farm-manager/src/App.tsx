@@ -18,6 +18,8 @@ import FlocksPage from "@/pages/farm/FlocksPage";
 import AddFlockPage from "@/pages/farm/AddFlockPage";
 import FlockDetailPage from "@/pages/farm/FlockDetailPage";
 import EditFlockPage from "@/pages/farm/EditFlockPage";
+import DailyEntryPage from "@/pages/farm/DailyEntryPage";
+import DailyEntryHistoryPage from "@/pages/farm/DailyEntryHistoryPage";
 import PlaceholderPage from "@/pages/PlaceholderPage";
 
 function AuthRedirect(): React.ReactElement {
@@ -59,7 +61,8 @@ export default function App(): React.ReactElement {
           <Route path="/owner/settings" element={<OwnerLayout><PlaceholderPage title="Settings" description="Manage your account settings." /></OwnerLayout>} />
 
           <Route path="/farm/dashboard" element={<FarmLayout><FarmDashboard /></FarmLayout>} />
-          <Route path="/farm/daily-entry" element={<FarmLayout><PlaceholderPage title="Daily Entry" description="Record daily egg production, mortality, and feed data." /></FarmLayout>} />
+          <Route path="/farm/daily-entry" element={<FarmLayout><DailyEntryPage /></FarmLayout>} />
+          <Route path="/farm/daily-entry/history" element={<FarmLayout><DailyEntryHistoryPage /></FarmLayout>} />
           <Route path="/farm/flocks" element={<FarmLayout><FlocksPage /></FarmLayout>} />
           <Route path="/farm/flocks/new" element={<FarmLayout><AddFlockPage /></FarmLayout>} />
           <Route path="/farm/flocks/:flockId" element={<FarmLayout><FlockDetailPage /></FarmLayout>} />

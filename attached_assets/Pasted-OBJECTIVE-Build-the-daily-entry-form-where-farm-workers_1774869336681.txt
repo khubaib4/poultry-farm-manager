@@ -1,0 +1,151 @@
+OBJECTIVE: Build the daily entry form where farm workers record mortality, egg production, and feed consumption each day
+
+REQUIREMENTS:
+- One entry per flock per day (prevent duplicates)
+- Auto-show previous day's stock as reference
+- Entry for: deaths, eggs by grade, feed consumed
+- Toggle between egg count units (individual vs tray of 30)
+- Auto-calculate new stock after deaths
+- Notes field for observations
+- Edit existing entries (same day or past)
+
+FILES TO CREATE/MODIFY:
+
+1. src/pages/farm/DailyEntryPage.tsx
+   - Route: /farm/daily-entry
+   - Date picker at top (default: today, can select past dates)
+   - If multiple active flocks, show flock selector tabs or dropdown
+   - For each flock, show entry form or existing entry summary
+   - Visual indicator if entry already exists for selected date
+   - "Entry Complete" badge for flocks with entries
+
+2. src/components/daily-entry/DailyEntryForm.tsx
+   - Props: flockId, date, existingEntry (if editing)
+   - Header showing:
+     * Flock name and age
+     * Opening Stock (previous day's closing stock or current_count)
+   
+   - SECTION 1: Mortality
+     * Deaths count input (number, min 0, max = opening stock)
+     * Death cause dropdown (optional):
+       - Disease
+       - Heat stress
+       - Predator
+       - Injury
+       - Unknown
+       - Other (with text input)
+     * Show calculated: "Closing Stock: XXX" in real-time
+   
+   - SECTION 2: Egg Production
+     * Unit toggle: "Count as Eggs" | "Count as Trays (30 eggs)"
+     * Three inputs based on unit:
+       - Grade A: [number] eggs/trays
+       - Grade B: [number] eggs/trays
+       - Cracked: [number] eggs/trays
+     * Show total eggs in real-time
+     * Show production rate: (total eggs / closing stock) × 100
+   
+   - SECTION 3: Feed Consumption
+     * Feed consumed input (number, decimal allowed)
+     * Unit selector: kg | bags
+     * If bags, also input bag weight (default 50kg) for conversion
+     * Show feed per bird: (total kg / closing stock)
+   
+   - SECTION 4: Additional (collapsible)
+     * Water consumed (liters, optional)
+     * Notes textarea (optional)
+   
+   - Footer:
+     * "Save Entry" button
+     * "Save & Add Next Flock" button (if multiple flocks)
+     * "Clear Form" button
+
+3. src/components/daily-entry/EntryPreview.tsx
+   - Summary card shown before saving
+   - Display all entered values
+   - Highlight any warnings:
+     * High mortality (> 0.5% of stock)
+     * Low production (< 70%)
+     * Unusual feed consumption
+
+4. src/components/daily-entry/ExistingEntryCard.tsx
+   - Show when entry already exists for date
+   - Display summary of recorded values
+   - "Edit Entry" button
+   - "Delete Entry" button (with confirmation)
+
+5. src/components/daily-entry/FlockSelector.tsx
+   - Tabs or dropdown to switch between active flocks
+   - Show entry status icon for each flock (✓ complete, ○ pending)
+   - Badge showing how many flocks still need entry
+
+6. src/pages/farm/DailyEntryHistoryPage.tsx
+   - Route: /farm/daily-entry/history
+   - Table view of all past entries
+   - Filters: date range, flock
+   - Columns: date, flock, deaths, eggs (A/B/C), feed, notes
+   - Click row to edit entry
+   - Export to CSV button
+
+7. electron/ipc-handlers.ts (add handlers)
+   - dailyEntries.create(data): 
+     * Validate flock belongs to current farm
+     * Check no duplicate entry for flock+date
+     * Update flock current_count (subtract deaths)
+     * Save entry
+   - dailyEntries.update(id, data):
+     * Recalculate stock if deaths changed
+     * Adjust flock current_count accordingly
+   - dailyEntries.delete(id):
+     * Add deaths back to flock current_count
+     * Delete entry
+   - dailyEntries.getByFlockAndDate(flockId, date): return entry or null
+   - dailyEntries.getByFlock(flockId, startDate?, endDate?): return entries
+   - dailyEntries.getByFarm(farmId, date): return all entries for date
+   - dailyEntries.getPreviousDayStock(flockId, date): return closing stock
+
+8. src/lib/api.ts (add daily entry functions)
+   - createDailyEntry(data)
+   - updateDailyEntry(id, data)
+   - deleteDailyEntry(id)
+   - getDailyEntryByFlockAndDate(flockId, date)
+   - getDailyEntriesByFlock(flockId, startDate?, endDate?)
+   - getDailyEntriesByFarm(farmId, date)
+   - getPreviousDayStock(flockId, date)
+
+9. src/stores/dailyEntryStore.ts (Zustand store)
+   - State: currentDate, selectedFlockId, entries, isLoading
+   - Actions: setDate, setFlock, loadEntries, saveEntry
+
+10. src/lib/utils.ts (add helpers)
+    - convertTraysToEggs(trays): trays × 30
+    - convertBagsToKg(bags, bagWeight): bags × bagWeight
+    - calculateProductionRate(eggs, birdCount)
+    - calculateFeedPerBird(feedKg, birdCount)
+
+11. src/App.tsx (add routes)
+    - /farm/daily-entry - DailyEntryPage
+    - /farm/daily-entry/history - DailyEntryHistoryPage
+
+VALIDATION RULES:
+- Date: required, cannot be future, cannot be before flock arrival date
+- Deaths: required, 0 to opening stock
+- Eggs (each grade): required, 0 or positive integer
+- Feed: required, positive number
+- Only one entry per flock per day (unique constraint)
+
+STOCK CALCULATION LOGIC:
+- Opening Stock = flock.current_count (which reflects all previous deaths)
+- When entry saved: flock.current_count -= deaths
+- When entry updated: flock.current_count += old_deaths - new_deaths
+- When entry deleted: flock.current_count += deleted_deaths
+
+UI/UX REQUIREMENTS:
+- Large, touch-friendly inputs (farm workers may use on tablet)
+- Real-time calculations as user types
+- Clear visual feedback for warnings
+- Quick date navigation (< Previous Day | Today | Next Day >)
+- Remember last used egg unit preference
+- Auto-focus on first empty field
+
+OUTPUT: Farm workers can record daily entries for each flock. Stock automatically updates based on mortality. Entries can be viewed, edited, and deleted. Previous entries are accessible via history page.

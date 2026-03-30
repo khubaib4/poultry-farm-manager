@@ -61,12 +61,13 @@ Electron + React + TypeScript desktop app for poultry farm management.
 - **Routing**: `react-router-dom` v7 with `HashRouter`
   - Public: `/login`, `/register`
   - Owner routes: `/owner/dashboard`, `/owner/farms`, `/owner/reports`, `/owner/settings`
-  - Farm routes: `/farm/dashboard`, `/farm/daily-entry`, `/farm/flocks`, `/farm/flocks/new`, `/farm/flocks/:flockId`, `/farm/flocks/:flockId/edit`, `/farm/inventory`, `/farm/vaccinations`, `/farm/expenses`, `/farm/reports`, `/farm/settings`
+  - Farm routes: `/farm/dashboard`, `/farm/daily-entry`, `/farm/daily-entry/history`, `/farm/flocks`, `/farm/flocks/new`, `/farm/flocks/:flockId`, `/farm/flocks/:flockId/edit`, `/farm/inventory`, `/farm/vaccinations`, `/farm/expenses`, `/farm/reports`, `/farm/settings`
 - **Auth**: Two login modes (Owner email/password, Farm username/password), session persisted via `electron-store`, server-side auth guards on all IPC handlers, role-based route protection
 - **Layout**: `AppLayout` with collapsible sidebar (240px/60px), header with farm selector (owner), breadcrumb navigation
 - **State**: Zustand auth store (`src/stores/authStore.ts`) + React context (`src/contexts/AuthContext.tsx`)
 - **Validation**: Zod for registration/farm/flock creation forms
 - **Flock Management**: Full CRUD with auto-vaccination scheduling on creation, computed stats (age, mortality rate, production rate), status changes (active→culled/sold), delete guard (blocks if daily entries exist), breed selector with common layer breeds + custom option
+- **Daily Entry**: Record daily mortality (with cause), egg production (3 grades with egg/tray unit toggle), feed consumption (kg/bags unit toggle), water, notes. One entry per flock per day enforced. Auto-updates flock `currentCount` on create/update/delete (stock adjustment). Warnings for high mortality (>0.5%), low production (<70%), unusual feed. Date navigation (prev/next/today). Flock selector with completion badges. Edit/delete existing entries. History page with date range/flock filters, summary stats, CSV export. All IPC handlers have farm-level access control.
 - **Build output**: `out/` (main, preload, renderer sub-dirs)
 - **Windows installer**: `pnpm run dist` — uses electron-builder → NSIS `.exe` installer, output to `release/`
 - **Dev**: `pnpm --filter @workspace/poultry-farm-manager run dev`

@@ -78,6 +78,39 @@ export function generateBatchName(existingNames: string[]): string {
   return `${prefix}${String(next).padStart(3, "0")}`;
 }
 
+export function convertTraysToEggs(trays: number): number {
+  return Math.round(trays * 30);
+}
+
+export function convertBagsToKg(bags: number, bagWeight: number = 50): number {
+  return bags * bagWeight;
+}
+
+export function calculateProductionRate(eggs: number, birdCount: number): number {
+  if (birdCount <= 0) return 0;
+  return Math.round((eggs / birdCount) * 100 * 100) / 100;
+}
+
+export function calculateFeedPerBird(feedKg: number, birdCount: number): number {
+  if (birdCount <= 0) return 0;
+  return Math.round((feedKg / birdCount) * 1000) / 1000;
+}
+
+export function formatDateForDisplay(dateStr: string): string {
+  const date = new Date(dateStr + "T00:00:00");
+  return date.toLocaleDateString("en-US", { weekday: "short", year: "numeric", month: "short", day: "numeric" });
+}
+
+export function getTodayString(): string {
+  return new Date().toISOString().split("T")[0];
+}
+
+export function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split("T")[0];
+}
+
 export async function copyToClipboard(text: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text);

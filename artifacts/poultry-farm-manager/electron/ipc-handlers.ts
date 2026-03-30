@@ -570,58 +570,134 @@ export function registerIpcHandlers(): void {
     })
   );
 
+  function requireDailyEntryAccess(entryId: number) {
+    const entry = db.select().from(schema.dailyEntries).where(eq(schema.dailyEntries.id, entryId)).get();
+    if (!entry) throw new Error("Daily entry not found");
+    const flock = db.select().from(schema.flocks).where(eq(schema.flocks.id, entry.flockId!)).get();
+    if (!flock) throw new Error("Flock not found");
+    requireFarmAccess(flock.farmId!);
+    return { entry, flock };
+  }
+
   ipcMain.handle(
     "dailyEntries:create",
-    wrapHandler((_e: unknown, data: { flockId: number; entryDate: string; deaths?: number; deathCause?: string; eggsGradeA?: number; eggsGradeB?: number; eggsCracked?: number; feedConsumedKg?: number; waterConsumedLiters?: number; notes?: string; recordedBy?: number }) => {
-      requireAuth();
-      return db.insert(schema.dailyEntries).values(data).returning().get();
-    })
-  );
-
-  ipcMain.handle(
-    "dailyEntries:getByFlock",
-    wrapHandler((_e: unknown, flockId: number, startDate?: string, endDate?: string) => {
-      requireAuth();
-      const conditions = [eq(schema.dailyEntries.flockId, flockId)];
-      if (startDate) conditions.push(gte(schema.dailyEntries.entryDate, startDate));
-      if (endDate) conditions.push(lte(schema.dailyEntries.entryDate, endDate));
-      return db
-        .select()
-        .from(schema.dailyEntries)
-        .where(and(...conditions))
-        .all();
-    })
-  );
-
-  ipcMain.handle(
-    "dailyEntries:getByDate",
-    wrapHandler((_e: unknown, flockId: number, date: string) => {
-      requireAuth();
-      return db
-        .select()
-        .from(schema.dailyEntries)
-        .where(
-          and(
-            eq(schema.dailyEntries.flockId, flockId),
-            eq(schema.dailyEntries.entryDate, date)
-          )
-        )
-        .get();
+    wrapHandler((_e: unknown, data: { flockId: number; entryDate: string; deaths?: number; deathCause?: string; eggsGradeA?: number; eggsGradeB?: number; eggsCracked?: number; feedConsumedKg?: number; waterConsumedLiters?: number; notes?: string }) => {
+      const flock = requireFlockAccess(data.flockId);
+      if (flock.status !== "active") throw new Error("Cannot add entries to a non-active flock");
+      const entryDate = data.entryDate;
+      if (!entryDate) throw new Error("Entry date is required");
+      const today = new Date().toISOString().split("T")[0];
+      if (entryDate > today) throw new Error("Cannot create entries for future dates");
+      if (entryDate < flock.arrivalDate) throw new Error("Cannot create entries before flock arrival date");
+      const existing = db.select().from(schema.dailyEntries).where(and(eq(schema.dailyEntries.flockId, data.flockId), eq(schema.dailyEntries.entryDate, entryDate))).get();
+      if (existing) throw new Error("An entry already exists for this flock on this date");
+      const deaths = data.deaths || 0;
+      if (deaths < 0) throw new Error("Deaths cannot be negative");
+      if (deaths > flock.currentCount) throw new Error("Deaths cannot exceed current stock count");
+      const entry = db.insert(schema.dailyEntries).values({
+        flockId: data.flockId,
+        entryDate: data.entryDate,
+        deaths: deaths,
+        deathCause: deaths > 0 ? (data.deathCause || null) : null,
+        eggsGradeA: data.eggsGradeA || 0,
+        eggsGradeB: data.eggsGradeB || 0,
+        eggsCracked: data.eggsCracked || 0,
+        feedConsumedKg: data.feedConsumedKg || 0,
+        waterConsumedLiters: data.waterConsumedLiters || null,
+        notes: data.notes || null,
+      }).returning().get();
+      if (deaths > 0) {
+        db.update(schema.flocks).set({ currentCount: flock.currentCount - deaths }).where(eq(schema.flocks.id, flock.id)).run();
+      }
+      return entry;
     })
   );
 
   ipcMain.handle(
     "dailyEntries:update",
     wrapHandler((_e: unknown, id: number, data: Partial<{ deaths: number; deathCause: string; eggsGradeA: number; eggsGradeB: number; eggsCracked: number; feedConsumedKg: number; waterConsumedLiters: number; notes: string }>) => {
-      requireAuth();
-      const result = db
-        .update(schema.dailyEntries)
-        .set(data)
-        .where(eq(schema.dailyEntries.id, id))
-        .returning()
-        .get();
-      if (!result) throw new Error("Daily entry not found");
+      const { entry, flock } = requireDailyEntryAccess(id);
+      const oldDeaths = entry.deaths || 0;
+      const newDeaths = data.deaths !== undefined ? data.deaths : oldDeaths;
+      if (newDeaths < 0) throw new Error("Deaths cannot be negative");
+      const deathsDiff = newDeaths - oldDeaths;
+      if (deathsDiff > 0 && deathsDiff > flock.currentCount) throw new Error("Deaths cannot exceed current stock count");
+      const updates: Record<string, unknown> = {};
+      if (data.deaths !== undefined) updates.deaths = data.deaths;
+      if (data.deathCause !== undefined) updates.deathCause = data.deathCause;
+      if (data.eggsGradeA !== undefined) updates.eggsGradeA = data.eggsGradeA;
+      if (data.eggsGradeB !== undefined) updates.eggsGradeB = data.eggsGradeB;
+      if (data.eggsCracked !== undefined) updates.eggsCracked = data.eggsCracked;
+      if (data.feedConsumedKg !== undefined) updates.feedConsumedKg = data.feedConsumedKg;
+      if (data.waterConsumedLiters !== undefined) updates.waterConsumedLiters = data.waterConsumedLiters;
+      if (data.notes !== undefined) updates.notes = data.notes;
+      if (Object.keys(updates).length === 0) throw new Error("No valid fields to update");
+      const result = db.update(schema.dailyEntries).set(updates).where(eq(schema.dailyEntries.id, id)).returning().get();
+      if (deathsDiff !== 0) {
+        db.update(schema.flocks).set({ currentCount: flock.currentCount - deathsDiff }).where(eq(schema.flocks.id, flock.id)).run();
+      }
       return result;
+    })
+  );
+
+  ipcMain.handle(
+    "dailyEntries:delete",
+    wrapHandler((_e: unknown, id: number) => {
+      const { entry, flock } = requireDailyEntryAccess(id);
+      const deaths = entry.deaths || 0;
+      db.delete(schema.dailyEntries).where(eq(schema.dailyEntries.id, id)).run();
+      if (deaths > 0) {
+        db.update(schema.flocks).set({ currentCount: flock.currentCount + deaths }).where(eq(schema.flocks.id, flock.id)).run();
+      }
+      return { id };
+    })
+  );
+
+  ipcMain.handle(
+    "dailyEntries:getByFlockAndDate",
+    wrapHandler((_e: unknown, flockId: number, date: string) => {
+      requireFlockAccess(flockId);
+      return db.select().from(schema.dailyEntries).where(and(eq(schema.dailyEntries.flockId, flockId), eq(schema.dailyEntries.entryDate, date))).get() || null;
+    })
+  );
+
+  ipcMain.handle(
+    "dailyEntries:getByFlock",
+    wrapHandler((_e: unknown, flockId: number, startDate?: string, endDate?: string) => {
+      requireFlockAccess(flockId);
+      const conditions = [eq(schema.dailyEntries.flockId, flockId)];
+      if (startDate) conditions.push(gte(schema.dailyEntries.entryDate, startDate));
+      if (endDate) conditions.push(lte(schema.dailyEntries.entryDate, endDate));
+      return db.select().from(schema.dailyEntries).where(and(...conditions)).orderBy(schema.dailyEntries.entryDate).all();
+    })
+  );
+
+  ipcMain.handle(
+    "dailyEntries:getByFarm",
+    wrapHandler((_e: unknown, farmId: number, date: string) => {
+      requireFarmAccess(farmId);
+      const farmFlocks = db.select().from(schema.flocks).where(eq(schema.flocks.farmId, farmId)).all();
+      const flockIds = farmFlocks.map(f => f.id);
+      if (flockIds.length === 0) return [];
+      const entries: (typeof schema.dailyEntries.$inferSelect)[] = [];
+      for (const fId of flockIds) {
+        const entry = db.select().from(schema.dailyEntries).where(and(eq(schema.dailyEntries.flockId, fId), eq(schema.dailyEntries.entryDate, date))).get();
+        if (entry) entries.push(entry);
+      }
+      return entries;
+    })
+  );
+
+  ipcMain.handle(
+    "dailyEntries:getPreviousDayStock",
+    wrapHandler((_e: unknown, flockId: number, date: string) => {
+      const flock = requireFlockAccess(flockId);
+      const prevEntries = db.select().from(schema.dailyEntries).where(and(eq(schema.dailyEntries.flockId, flockId), lte(schema.dailyEntries.entryDate, date))).orderBy(schema.dailyEntries.entryDate).all();
+      const totalPrevDeaths = prevEntries.reduce((sum, e) => sum + (e.deaths || 0), 0);
+      const todayEntry = prevEntries.find(e => e.entryDate === date);
+      const todayDeaths = todayEntry ? (todayEntry.deaths || 0) : 0;
+      const openingStock = flock.initialCount - (totalPrevDeaths - todayDeaths);
+      return { openingStock, flockName: flock.batchName, flockId: flock.id, arrivalDate: flock.arrivalDate, currentCount: flock.currentCount };
     })
   );
 

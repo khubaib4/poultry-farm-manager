@@ -50,12 +50,18 @@ contextBridge.exposeInMainWorld("electronAPI", {
   dailyEntries: {
     create: (data: unknown) =>
       ipcRenderer.invoke("dailyEntries:create", data),
-    getByFlock: (flockId: number, startDate?: string, endDate?: string) =>
-      ipcRenderer.invoke("dailyEntries:getByFlock", flockId, startDate, endDate),
-    getByDate: (flockId: number, date: string) =>
-      ipcRenderer.invoke("dailyEntries:getByDate", flockId, date),
     update: (id: number, data: unknown) =>
       ipcRenderer.invoke("dailyEntries:update", id, data),
+    delete: (id: number) =>
+      ipcRenderer.invoke("dailyEntries:delete", id),
+    getByFlockAndDate: (flockId: number, date: string) =>
+      ipcRenderer.invoke("dailyEntries:getByFlockAndDate", flockId, date),
+    getByFlock: (flockId: number, startDate?: string, endDate?: string) =>
+      ipcRenderer.invoke("dailyEntries:getByFlock", flockId, startDate, endDate),
+    getByFarm: (farmId: number, date: string) =>
+      ipcRenderer.invoke("dailyEntries:getByFarm", farmId, date),
+    getPreviousDayStock: (flockId: number, date: string) =>
+      ipcRenderer.invoke("dailyEntries:getPreviousDayStock", flockId, date),
   },
   eggPrices: {
     create: (data: unknown) => ipcRenderer.invoke("eggPrices:create", data),

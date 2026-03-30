@@ -149,9 +149,12 @@ export interface ElectronAPI {
   };
   dailyEntries: {
     create: (data: DailyEntryData) => Promise<IpcResponse>;
-    getByFlock: (flockId: number, startDate?: string, endDate?: string) => Promise<IpcResponse>;
-    getByDate: (flockId: number, date: string) => Promise<IpcResponse>;
     update: (id: number, data: Partial<DailyEntryData>) => Promise<IpcResponse>;
+    delete: (id: number) => Promise<IpcResponse>;
+    getByFlockAndDate: (flockId: number, date: string) => Promise<IpcResponse>;
+    getByFlock: (flockId: number, startDate?: string, endDate?: string) => Promise<IpcResponse>;
+    getByFarm: (farmId: number, date: string) => Promise<IpcResponse>;
+    getPreviousDayStock: (flockId: number, date: string) => Promise<IpcResponse>;
   };
   eggPrices: {
     create: (data: EggPriceData) => Promise<IpcResponse>;

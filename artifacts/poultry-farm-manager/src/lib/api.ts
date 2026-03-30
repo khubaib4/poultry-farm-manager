@@ -106,14 +106,23 @@ export const dailyEntries = {
   create: (data: DailyEntryData) =>
     invoke(() => getApi()!.dailyEntries.create(data)),
 
+  update: (id: number, data: Partial<DailyEntryData>) =>
+    invoke(() => getApi()!.dailyEntries.update(id, data)),
+
+  delete: (id: number) =>
+    invoke(() => getApi()!.dailyEntries.delete(id)),
+
+  getByFlockAndDate: (flockId: number, date: string) =>
+    invoke(() => getApi()!.dailyEntries.getByFlockAndDate(flockId, date)),
+
   getByFlock: (flockId: number, startDate?: string, endDate?: string) =>
     invoke(() => getApi()!.dailyEntries.getByFlock(flockId, startDate, endDate)),
 
-  getByDate: (flockId: number, date: string) =>
-    invoke(() => getApi()!.dailyEntries.getByDate(flockId, date)),
+  getByFarm: (farmId: number, date: string) =>
+    invoke(() => getApi()!.dailyEntries.getByFarm(farmId, date)),
 
-  update: (id: number, data: Partial<DailyEntryData>) =>
-    invoke(() => getApi()!.dailyEntries.update(id, data)),
+  getPreviousDayStock: (flockId: number, date: string) =>
+    invoke(() => getApi()!.dailyEntries.getPreviousDayStock(flockId, date)),
 };
 
 export const eggPrices = {
