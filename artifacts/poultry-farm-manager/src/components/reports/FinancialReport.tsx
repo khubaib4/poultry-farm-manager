@@ -84,7 +84,7 @@ export default function FinancialReport({ data }: Props) {
       <div className="mb-6 border border-gray-200 rounded-lg p-4">
         {data.expenses.byCategory.length > 0 ? (
           <div className="space-y-3">
-            {data.expenses.byCategory.sort((a, b) => b.amount - a.amount).map(ec => (
+            {[...data.expenses.byCategory].sort((a, b) => b.amount - a.amount).map(ec => (
               <div key={ec.category}>
                 <div className="flex justify-between text-sm mb-1">
                   <span className="capitalize font-medium">{ec.category}</span>

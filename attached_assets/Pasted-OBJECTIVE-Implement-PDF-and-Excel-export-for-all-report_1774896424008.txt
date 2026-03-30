@@ -1,0 +1,148 @@
+OBJECTIVE: Implement PDF and Excel export for all reports
+
+REQUIREMENTS:
+- Export any report to PDF with professional formatting
+- Export data to Excel with proper columns and formatting
+- Print functionality with print-optimized styles
+- Download files with proper naming
+
+FILES TO CREATE/MODIFY:
+
+1. src/lib/pdfExport.ts
+   - PDF generation using jspdf and jspdf-autotable
+   - Functions for each report type:
+     * exportDailyReportPDF(data, farmName)
+     * exportWeeklyReportPDF(data, farmName)
+     * exportMonthlyReportPDF(data, farmName)
+     * exportFlockReportPDF(data, farmName)
+     * exportFinancialReportPDF(data, farmName)
+   
+   - PDF styling:
+     * Header with farm name and report title
+     * Professional fonts and colors
+     * Tables with borders and alternating rows
+     * Page numbers in footer
+     * Generated timestamp
+   
+   - Helper functions:
+     * addReportHeader(doc, title, farmName, dateRange)
+     * addReportFooter(doc)
+     * addTable(doc, headers, rows, startY)
+     * formatCurrency(amount)
+
+2. src/lib/excelExport.ts
+   - Excel generation using SheetJS (xlsx)
+   - Functions for each report type:
+     * exportDailyReportExcel(data, farmName)
+     * exportWeeklyReportExcel(data, farmName)
+     * exportMonthlyReportExcel(data, farmName)
+     * exportFlockReportExcel(data, farmName)
+     * exportFinancialReportExcel(data, farmName)
+   
+   - Excel features:
+     * Multiple sheets for different sections
+     * Formatted headers (bold, background color)
+     * Column widths auto-adjusted
+     * Number formatting for currency
+     * Date formatting
+   
+   - Helper functions:
+     * createWorkbook()
+     * addSheet(wb, name, data, headers)
+     * downloadWorkbook(wb, filename)
+
+3. src/lib/printUtils.ts
+   - Print functionality
+   - Functions:
+     * printReport(): triggers browser print dialog
+     * getPrintStyles(): returns print-optimized CSS
+   
+   - Print styles:
+     * Hide non-printable elements
+     * Proper page breaks
+     * Black and white friendly
+     * Margins for binding
+
+4. src/components/reports/ExportButtons.tsx
+   - Export button group component
+   - Props: reportType, reportData, farmName, dateRange
+   - Buttons:
+     * PDF icon + "Export PDF"
+     * Excel icon + "Export Excel"
+     * Printer icon + "Print"
+   - Loading state while generating
+   - Success/error toast notifications
+
+5. src/components/reports/PDFPreview.tsx
+   - Optional: In-app PDF preview before download
+   - Uses iframe or react-pdf
+   - Download button
+
+6. Update all report components to include ExportButtons:
+   - DailySummaryReport.tsx
+   - WeeklyReport.tsx
+   - MonthlyReport.tsx
+   - FlockReport.tsx
+   - FinancialReport.tsx
+
+7. Update ReportPreviewPage.tsx
+   - Add ExportButtons at top of preview
+   - Sticky export bar while scrolling
+   - Include all export options
+
+8. package.json (ensure dependencies)
+   - jspdf
+   - jspdf-autotable
+   - xlsx (SheetJS)
+
+PDF REPORT STRUCTURE:
++------------------------------------------+
+|  [Farm Logo]     FARM NAME               |
+|              Report Title                |
+|           Date Range: X to Y             |
++------------------------------------------+
+|                                          |
+|  SECTION 1: Summary                      |
+|  +------------------------------------+  |
+|  | Metric      | Value               |  |
+|  +------------------------------------+  |
+|  | Total Birds | 1,500               |  |
+|  | Total Eggs  | 12,450              |  |
+|  +------------------------------------+  |
+|                                          |
+|  SECTION 2: Daily Breakdown              |
+|  +------------------------------------+  |
+|  | Date | Eggs | Deaths | Feed | Rev |  |
+|  +------------------------------------+  |
+|  | ...  | ...  | ...    | ...  | ... |  |
+|  +------------------------------------+  |
+|                                          |
++------------------------------------------+
+|  Page 1 of 2    Generated: 2026-03-30    |
++------------------------------------------+
+
+EXCEL SHEET STRUCTURE:
+
+Sheet 1: Summary
+- Key metrics in rows
+
+Sheet 2: Daily Data
+- Full daily breakdown table
+
+Sheet 3: Financial
+- Revenue and expense details
+
+FILE NAMING CONVENTION:
+- PDF: `{FarmName}_{ReportType}_{DateRange}.pdf`
+- Excel: `{FarmName}_{ReportType}_{DateRange}.xlsx`
+- Example: `GreenValley_Weekly_2026-03-24_to_2026-03-30.pdf`
+
+UI/UX REQUIREMENTS:
+- Clear export buttons with icons
+- Loading spinner during generation
+- Toast notification on success/failure
+- File downloads automatically
+- Responsive button layout
+- Keyboard shortcuts (Ctrl+P for print)
+
+OUTPUT: All reports can be exported to PDF and Excel. Files are professionally formatted with proper naming. Print functionality works correctly.

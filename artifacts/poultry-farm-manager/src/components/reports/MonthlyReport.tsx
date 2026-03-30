@@ -97,7 +97,7 @@ export default function MonthlyReport({ data }: Props) {
             <div className="mt-4 pt-3 border-t border-gray-200">
               <h5 className="text-xs font-medium text-gray-500 mb-2">Expenses by Category</h5>
               <div className="space-y-1">
-                {data.financial.expensesByCategory.sort((a, b) => b.amount - a.amount).map(ec => (
+                {[...data.financial.expensesByCategory].sort((a, b) => b.amount - a.amount).map(ec => (
                   <div key={ec.category} className="flex items-center justify-between text-sm">
                     <span className={`px-2 py-0.5 rounded text-xs font-medium ${categoryColors[ec.category] || "bg-gray-100 text-gray-700"}`}>
                       {ec.category}

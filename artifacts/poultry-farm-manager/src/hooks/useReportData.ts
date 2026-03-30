@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { reports } from "@/lib/api";
-import type { ReportConfig } from "@/components/reports/ReportConfigPanel";
+import type { ReportConfig, ReportType } from "@/components/reports/ReportConfigPanel";
 import type {
   DailyReportData,
   WeeklyReportData,
@@ -13,7 +13,7 @@ type ReportData = DailyReportData | WeeklyReportData | MonthlyReportData | Flock
 
 interface UseReportDataReturn {
   data: ReportData | null;
-  reportType: string | null;
+  reportType: ReportType | null;
   isLoading: boolean;
   error: string | null;
   generate: (farmId: number, config: ReportConfig) => Promise<void>;
@@ -22,7 +22,7 @@ interface UseReportDataReturn {
 
 export function useReportData(): UseReportDataReturn {
   const [data, setData] = useState<ReportData | null>(null);
-  const [reportType, setReportType] = useState<string | null>(null);
+  const [reportType, setReportType] = useState<ReportType | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

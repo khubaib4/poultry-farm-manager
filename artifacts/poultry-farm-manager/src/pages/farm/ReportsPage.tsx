@@ -1,10 +1,11 @@
-import { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { isElectron } from "@/lib/api";
 import { useReportData } from "@/hooks/useReportData";
 import ReportTypeCard from "@/components/reports/ReportTypeCard";
 import ReportConfigPanel from "@/components/reports/ReportConfigPanel";
 import type { ReportConfig, ReportType } from "@/components/reports/ReportConfigPanel";
+import ExportButtons from "@/components/reports/ExportButtons";
 import DailySummaryReport from "@/components/reports/DailySummaryReport";
 import WeeklyReport from "@/components/reports/WeeklyReport";
 import MonthlyReport from "@/components/reports/MonthlyReport";
@@ -59,6 +60,7 @@ const REPORT_TYPES: {
 export default function ReportsPage() {
   const { user } = useAuth();
   const farmId = user?.farmId ?? null;
+  const farmName = user?.name || "Farm";
   const [selectedType, setSelectedType] = useState<ReportType>("daily");
   const { data, reportType, isLoading, error, generate, clear } = useReportData();
   const reportRef = useRef<HTMLDivElement>(null);
@@ -68,20 +70,45 @@ export default function ReportsPage() {
     generate(farmId, config);
   }
 
-  function handlePrint() {
+  const handlePrint = useCallback(() => {
     if (!reportRef.current) return;
     const printWindow = window.open("", "_blank", "width=900,height=700");
     if (!printWindow) return;
     printWindow.document.write(`
       <!DOCTYPE html><html><head><title>Report</title>
-      <link href="https://cdn.jsdelivr.net/npm/tailwindcss@3/dist/tailwind.min.css" rel="stylesheet">
-      <style>@media print { body { margin: 0; } .no-print { display: none; } }</style>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; color: #333; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12px; }
+        th { background: #1a5276; color: white; padding: 8px 6px; text-align: left; }
+        td { padding: 6px; border-bottom: 1px solid #ddd; }
+        tr:nth-child(even) { background: #f8f9fa; }
+        h1 { color: #1a5276; margin: 0 0 5px 0; }
+        h2, h3 { color: #2c3e50; }
+        .no-print { display: none; }
+        @media print {
+          body { margin: 0; padding: 15px; }
+          @page { margin: 15mm; }
+          table { page-break-inside: auto; }
+          tr { page-break-inside: avoid; }
+        }
+      </style>
       </head><body>${reportRef.current.innerHTML}
       <script>setTimeout(()=>window.print(),500)</script>
       </body></html>
     `);
     printWindow.document.close();
-  }
+  }, []);
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key === "p" && data) {
+        e.preventDefault();
+        handlePrint();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [data, handlePrint]);
 
   if (!isElectron()) {
     return (
@@ -133,27 +160,24 @@ export default function ReportsPage() {
         </>
       )}
 
-      {data && (
+      {data && reportType && (
         <div>
-          <div className="flex items-center gap-3 mb-4 no-print">
+          <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-gray-200 -mx-6 px-6 py-3 mb-4 flex items-center justify-between gap-3 flex-wrap">
             <button
               onClick={clear}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 flex items-center gap-2 text-sm"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
-              Back to Reports
+              Back
             </button>
-            <button
-              onClick={handlePrint}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-              </svg>
-              Print / Export PDF
-            </button>
+            <ExportButtons
+              reportType={reportType}
+              reportData={data}
+              farmName={farmName}
+              onPrint={handlePrint}
+            />
           </div>
           <div ref={reportRef} className="border border-gray-200 rounded-lg overflow-hidden shadow-sm">
             {reportType === "daily" && <DailySummaryReport data={data as DailyReportData} />}
@@ -161,6 +185,9 @@ export default function ReportsPage() {
             {reportType === "monthly" && <MonthlyReport data={data as MonthlyReportData} />}
             {reportType === "flock" && <FlockReport data={data as FlockReportData} />}
             {reportType === "financial" && <FinancialReport data={data as FinancialReportData} />}
+          </div>
+          <div className="mt-2 text-xs text-gray-400 text-center">
+            Tip: Press Ctrl+P to print
           </div>
         </div>
       )}
