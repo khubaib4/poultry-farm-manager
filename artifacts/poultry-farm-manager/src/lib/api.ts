@@ -17,6 +17,10 @@ import type {
   PerBirdMetrics,
   PerEggMetrics,
   InventoryData,
+  InventoryItem,
+  InventoryItemWithTransactions,
+  AddStockData,
+  ReduceStockData,
   VaccinationData,
   VaccinationScheduleData,
   UserData,
@@ -197,15 +201,30 @@ export const financial = {
 
 export const inventory = {
   create: (data: InventoryData) =>
-    invoke(() => getApi()!.inventory.create(data)),
+    invoke<InventoryItem>(() => getApi()!.inventory.create(data)),
 
-  getByFarm: (farmId: number) =>
-    invoke(() => getApi()!.inventory.getByFarm(farmId)),
+  getByFarm: (farmId: number, itemType?: string) =>
+    invoke<InventoryItem[]>(() => getApi()!.inventory.getByFarm(farmId, itemType)),
+
+  getById: (id: number) =>
+    invoke<InventoryItemWithTransactions>(() => getApi()!.inventory.getById(id)),
 
   update: (id: number, data: Partial<InventoryData>) =>
-    invoke(() => getApi()!.inventory.update(id, data)),
+    invoke<InventoryItem>(() => getApi()!.inventory.update(id, data)),
 
   delete: (id: number) => invoke(() => getApi()!.inventory.delete(id)),
+
+  addStock: (itemId: number, data: AddStockData) =>
+    invoke<InventoryItem>(() => getApi()!.inventory.addStock(itemId, data)),
+
+  reduceStock: (itemId: number, data: ReduceStockData) =>
+    invoke<InventoryItem>(() => getApi()!.inventory.reduceStock(itemId, data)),
+
+  getLowStockItems: (farmId: number) =>
+    invoke<InventoryItem[]>(() => getApi()!.inventory.getLowStockItems(farmId)),
+
+  getExpiringItems: (farmId: number, days: number) =>
+    invoke<InventoryItem[]>(() => getApi()!.inventory.getExpiringItems(farmId, days)),
 };
 
 export const vaccinations = {

@@ -12,6 +12,7 @@ const routeTitles: Record<string, string> = {
   "/farm/daily-entry": "Daily Entry",
   "/farm/flocks": "Flocks",
   "/farm/inventory": "Inventory",
+  "/farm/inventory/new": "Add Inventory Item",
   "/farm/vaccinations": "Vaccinations",
   "/farm/expenses": "Expenses",
   "/farm/expenses/new": "Add Expense",
@@ -27,7 +28,14 @@ export default function Header(): React.ReactElement {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const pageTitle = routeTitles[location.pathname] || "Dashboard";
+  let pageTitle = routeTitles[location.pathname] || "";
+  if (!pageTitle) {
+    if (location.pathname.match(/\/farm\/inventory\/\d+\/edit/)) pageTitle = "Edit Inventory Item";
+    else if (location.pathname.match(/\/farm\/expenses\/\d+\/edit/)) pageTitle = "Edit Expense";
+    else if (location.pathname.match(/\/farm\/flocks\/\d+\/edit/)) pageTitle = "Edit Flock";
+    else if (location.pathname.match(/\/farm\/flocks\/\d+/)) pageTitle = "Flock Details";
+    else pageTitle = "Dashboard";
+  }
 
   const handleLogout = async () => {
     await logout();

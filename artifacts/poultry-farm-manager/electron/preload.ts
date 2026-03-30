@@ -106,11 +106,20 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   inventory: {
     create: (data: unknown) => ipcRenderer.invoke("inventory:create", data),
-    getByFarm: (farmId: number) =>
-      ipcRenderer.invoke("inventory:getByFarm", farmId),
+    getByFarm: (farmId: number, itemType?: string) =>
+      ipcRenderer.invoke("inventory:getByFarm", farmId, itemType),
+    getById: (id: number) => ipcRenderer.invoke("inventory:getById", id),
     update: (id: number, data: unknown) =>
       ipcRenderer.invoke("inventory:update", id, data),
     delete: (id: number) => ipcRenderer.invoke("inventory:delete", id),
+    addStock: (itemId: number, data: unknown) =>
+      ipcRenderer.invoke("inventory:addStock", itemId, data),
+    reduceStock: (itemId: number, data: unknown) =>
+      ipcRenderer.invoke("inventory:reduceStock", itemId, data),
+    getLowStockItems: (farmId: number) =>
+      ipcRenderer.invoke("inventory:getLowStockItems", farmId),
+    getExpiringItems: (farmId: number, days: number) =>
+      ipcRenderer.invoke("inventory:getExpiringItems", farmId, days),
   },
   vaccinations: {
     create: (data: unknown) =>

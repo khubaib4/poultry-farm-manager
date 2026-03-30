@@ -140,6 +140,53 @@ export interface InventoryData {
   unit: string;
   minThreshold?: number;
   expiryDate?: string;
+  supplier?: string;
+  notes?: string;
+}
+
+export interface InventoryItem {
+  id: number;
+  farmId: number;
+  itemType: string;
+  itemName: string;
+  quantity: number;
+  unit: string;
+  minThreshold: number | null;
+  expiryDate: string | null;
+  lastUpdated: string | null;
+}
+
+export interface InventoryTransaction {
+  id: number;
+  inventoryId: number;
+  type: string;
+  quantity: number;
+  date: string;
+  reason: string | null;
+  supplier: string | null;
+  cost: number | null;
+  notes: string | null;
+  createdAt: string | null;
+}
+
+export interface InventoryItemWithTransactions extends InventoryItem {
+  transactions: InventoryTransaction[];
+}
+
+export interface AddStockData {
+  quantity: number;
+  date: string;
+  supplier?: string;
+  cost?: number;
+  expiryDate?: string;
+  notes?: string;
+}
+
+export interface ReduceStockData {
+  quantity: number;
+  date: string;
+  reason: string;
+  notes?: string;
 }
 
 export interface VaccinationData {
@@ -255,10 +302,15 @@ export interface ElectronAPI {
     getPerEggMetrics: (farmId: number, startDate: string, endDate: string) => Promise<IpcResponse<PerEggMetrics>>;
   };
   inventory: {
-    create: (data: InventoryData) => Promise<IpcResponse>;
-    getByFarm: (farmId: number) => Promise<IpcResponse>;
-    update: (id: number, data: Partial<InventoryData>) => Promise<IpcResponse>;
+    create: (data: InventoryData) => Promise<IpcResponse<InventoryItem>>;
+    getByFarm: (farmId: number, itemType?: string) => Promise<IpcResponse<InventoryItem[]>>;
+    getById: (id: number) => Promise<IpcResponse<InventoryItemWithTransactions>>;
+    update: (id: number, data: Partial<InventoryData>) => Promise<IpcResponse<InventoryItem>>;
     delete: (id: number) => Promise<IpcResponse>;
+    addStock: (itemId: number, data: AddStockData) => Promise<IpcResponse<InventoryItem>>;
+    reduceStock: (itemId: number, data: ReduceStockData) => Promise<IpcResponse<InventoryItem>>;
+    getLowStockItems: (farmId: number) => Promise<IpcResponse<InventoryItem[]>>;
+    getExpiringItems: (farmId: number, days: number) => Promise<IpcResponse<InventoryItem[]>>;
   };
   vaccinations: {
     create: (data: VaccinationData) => Promise<IpcResponse>;

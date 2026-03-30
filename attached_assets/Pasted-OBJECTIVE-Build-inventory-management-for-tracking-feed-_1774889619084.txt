@@ -1,0 +1,142 @@
+OBJECTIVE: Build inventory management for tracking feed, medicine, and supplies
+
+REQUIREMENTS:
+- Track inventory items by type (feed, medicine, equipment)
+- Record stock quantities with units
+- Add stock (purchases) and reduce stock (usage)
+- View current stock levels
+- Track expiry dates for medicine
+
+FILES TO CREATE/MODIFY:
+
+1. src/pages/farm/InventoryPage.tsx
+   - Route: /farm/inventory
+   - Header: "Inventory Management"
+   - Tabs: "Feed" | "Medicine" | "Equipment" | "All"
+   
+   - Add Item button (opens modal or navigates to add page)
+   
+   - Inventory Table/Grid:
+     * Item name
+     * Current quantity + unit
+     * Minimum threshold (for alerts)
+     * Expiry date (for medicine)
+     * Last updated
+     * Status badge (OK, Low, Expired)
+     * Actions: Edit, Add Stock, Reduce Stock, Delete
+   
+   - Summary Cards:
+     * Total feed stock (bags/kg)
+     * Medicine items count
+     * Low stock items count
+     * Expiring soon count (next 30 days)
+
+2. src/pages/farm/AddInventoryItemPage.tsx
+   - Route: /farm/inventory/new
+   - Form fields:
+     * Item Type (required): Feed, Medicine, Equipment
+     * Item Name (required)
+     * Current Quantity (required, number)
+     * Unit (required): bags, kg, pieces, doses, liters, boxes
+     * Minimum Threshold (optional, for low stock alerts)
+     * Expiry Date (optional, mainly for medicine)
+     * Supplier (optional)
+     * Notes (optional)
+   - Save and Cancel buttons
+
+3. src/pages/farm/EditInventoryItemPage.tsx
+   - Route: /farm/inventory/:itemId/edit
+   - Same form as Add, pre-filled
+   - Cannot change item type after creation
+
+4. src/components/inventory/InventoryTable.tsx
+   - Table view of inventory items
+   - Sortable columns
+   - Status badges with colors:
+     * Green: OK (above threshold)
+     * Yellow: Low (at or below threshold)
+     * Red: Out of Stock (zero) or Expired
+   - Row actions
+
+5. src/components/inventory/InventoryCard.tsx
+   - Card view for single item (mobile-friendly)
+   - Show key info and status
+   - Quick action buttons
+
+6. src/components/inventory/AddStockModal.tsx
+   - Modal to add stock to existing item
+   - Fields:
+     * Quantity to add (required)
+     * Purchase date (default today)
+     * Supplier (optional)
+     * Cost (optional, for tracking)
+     * New expiry date (for medicine, optional)
+   - Updates current quantity
+
+7. src/components/inventory/ReduceStockModal.tsx
+   - Modal to reduce/use stock
+   - Fields:
+     * Quantity to reduce (required, max = current stock)
+     * Reason (dropdown): Used, Damaged, Expired, Other
+     * Date (default today)
+     * Notes (optional)
+   - Updates current quantity
+
+8. src/components/inventory/StockStatusBadge.tsx
+   - Badge component showing stock status
+   - Props: quantity, threshold, expiryDate
+   - Returns appropriate color and text
+
+9. electron/ipc-handlers.ts (add handlers)
+   - inventory.create(data): create new inventory item
+   - inventory.getByFarm(farmId, type?): get all items, optionally filter by type
+   - inventory.getById(itemId): get single item with history
+   - inventory.update(itemId, data): update item details
+   - inventory.delete(itemId): delete item
+   - inventory.addStock(itemId, data): increase quantity, log transaction
+   - inventory.reduceStock(itemId, data): decrease quantity, log transaction
+   - inventory.getLowStockItems(farmId): get items at or below threshold
+   - inventory.getExpiringItems(farmId, days): get items expiring within X days
+
+10. drizzle/schema.ts (add if not exists)
+    - inventory_transactions table:
+      * id, inventory_id, type (add/reduce), quantity
+      * date, reason, supplier, cost, notes
+      * created_at
+
+11. src/lib/api.ts (add inventory functions)
+    - createInventoryItem(data)
+    - getInventoryItems(farmId, type?)
+    - getInventoryItemById(id)
+    - updateInventoryItem(id, data)
+    - deleteInventoryItem(id)
+    - addStock(itemId, data)
+    - reduceStock(itemId, data)
+    - getLowStockItems(farmId)
+    - getExpiringItems(farmId, days)
+
+12. src/App.tsx (add routes)
+    - /farm/inventory - InventoryPage
+    - /farm/inventory/new - AddInventoryItemPage
+    - /farm/inventory/:itemId/edit - EditInventoryItemPage
+
+13. Update sidebar navigation
+    - Add "Inventory" menu item with package icon
+
+VALIDATION RULES:
+- Item name: required, 2-100 characters
+- Quantity: required, non-negative number
+- Unit: required, from predefined list
+- Threshold: optional, non-negative number
+- Expiry date: optional, must be valid date
+- Reduce quantity cannot exceed current stock
+
+UI/UX REQUIREMENTS:
+- Visual status indicators (colors, badges)
+- Quick actions for common tasks (add stock, reduce stock)
+- Filter and search functionality
+- Sort by name, quantity, status, expiry
+- Confirm before delete
+- Toast notifications
+
+OUTPUT: Farm users can manage inventory items, track stock levels, add/reduce stock with history, and see status at a glance.

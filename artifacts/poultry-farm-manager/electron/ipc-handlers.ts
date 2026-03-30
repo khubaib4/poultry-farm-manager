@@ -1391,28 +1391,70 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(
     "inventory:create",
-    wrapHandler((_e: unknown, data: { farmId: number; itemType: string; itemName: string; quantity: number; unit: string; minThreshold?: number; expiryDate?: string }) => {
+    wrapHandler((_e: unknown, data: { farmId: number; itemType: string; itemName: string; quantity: number; unit: string; minThreshold?: number; expiryDate?: string; supplier?: string; notes?: string }) => {
       requireFarmAccess(data.farmId);
-      return db.insert(schema.inventory).values(data).returning().get();
+      const { supplier, notes, ...itemData } = data;
+      const item = db.insert(schema.inventory).values(itemData).returning().get();
+
+      if (item.quantity > 0) {
+        db.insert(schema.inventoryTransactions).values({
+          inventoryId: item.id,
+          type: "add",
+          quantity: item.quantity,
+          date: new Date().toISOString().split("T")[0],
+          reason: "Initial stock",
+          supplier: supplier ?? null,
+          notes: notes ?? null,
+        }).run();
+      }
+
+      return item;
     })
   );
 
   ipcMain.handle(
     "inventory:getByFarm",
-    wrapHandler((_e: unknown, farmId: number) => {
+    wrapHandler((_e: unknown, farmId: number, itemType?: string) => {
       requireFarmAccess(farmId);
-      return db
-        .select()
-        .from(schema.inventory)
-        .where(eq(schema.inventory.farmId, farmId))
+      const conditions = [eq(schema.inventory.farmId, farmId)];
+      if (itemType && itemType !== "all") {
+        conditions.push(eq(schema.inventory.itemType, itemType));
+      }
+      return db.select().from(schema.inventory)
+        .where(and(...conditions))
+        .orderBy(schema.inventory.itemName)
         .all();
     })
   );
 
   ipcMain.handle(
-    "inventory:update",
-    wrapHandler((_e: unknown, id: number, data: Partial<{ itemType: string; itemName: string; quantity: number; unit: string; minThreshold: number; expiryDate: string }>) => {
+    "inventory:getById",
+    wrapHandler((_e: unknown, id: number) => {
       requireAuth();
+      const item = db.select().from(schema.inventory)
+        .where(eq(schema.inventory.id, id))
+        .get();
+      if (!item) throw new Error("Inventory item not found");
+      requireFarmAccess(item.farmId!);
+
+      const transactions = db.select().from(schema.inventoryTransactions)
+        .where(eq(schema.inventoryTransactions.inventoryId, id))
+        .orderBy(desc(schema.inventoryTransactions.createdAt))
+        .limit(50)
+        .all();
+
+      return { ...item, transactions };
+    })
+  );
+
+  ipcMain.handle(
+    "inventory:update",
+    wrapHandler((_e: unknown, id: number, data: Partial<{ itemName: string; quantity: number; unit: string; minThreshold: number | null; expiryDate: string | null }>) => {
+      requireAuth();
+      const existing = db.select().from(schema.inventory).where(eq(schema.inventory.id, id)).get();
+      if (!existing) throw new Error("Inventory item not found");
+      requireFarmAccess(existing.farmId!);
+
       const updates = { ...data, lastUpdated: new Date().toISOString() };
       const result = db
         .update(schema.inventory)
@@ -1420,7 +1462,6 @@ export function registerIpcHandlers(): void {
         .where(eq(schema.inventory.id, id))
         .returning()
         .get();
-      if (!result) throw new Error("Inventory item not found");
       return result;
     })
   );
@@ -1429,8 +1470,102 @@ export function registerIpcHandlers(): void {
     "inventory:delete",
     wrapHandler((_e: unknown, id: number) => {
       requireAuth();
+      const existing = db.select().from(schema.inventory).where(eq(schema.inventory.id, id)).get();
+      if (!existing) throw new Error("Inventory item not found");
+      requireFarmAccess(existing.farmId!);
+
+      db.delete(schema.inventoryTransactions).where(eq(schema.inventoryTransactions.inventoryId, id)).run();
       db.delete(schema.inventory).where(eq(schema.inventory.id, id)).run();
       return { id };
+    })
+  );
+
+  ipcMain.handle(
+    "inventory:addStock",
+    wrapHandler((_e: unknown, itemId: number, data: { quantity: number; date: string; supplier?: string; cost?: number; expiryDate?: string; notes?: string }) => {
+      requireAuth();
+      if (!data.quantity || data.quantity <= 0) throw new Error("Quantity must be greater than 0");
+      const item = db.select().from(schema.inventory).where(eq(schema.inventory.id, itemId)).get();
+      if (!item) throw new Error("Inventory item not found");
+      requireFarmAccess(item.farmId!);
+
+      const newQty = item.quantity + data.quantity;
+      const updates: Record<string, unknown> = { quantity: newQty, lastUpdated: new Date().toISOString() };
+      if (data.expiryDate) updates.expiryDate = data.expiryDate;
+
+      db.update(schema.inventory).set(updates).where(eq(schema.inventory.id, itemId)).run();
+
+      db.insert(schema.inventoryTransactions).values({
+        inventoryId: itemId,
+        type: "add",
+        quantity: data.quantity,
+        date: data.date,
+        supplier: data.supplier ?? null,
+        cost: data.cost ?? null,
+        notes: data.notes ?? null,
+      }).run();
+
+      return db.select().from(schema.inventory).where(eq(schema.inventory.id, itemId)).get();
+    })
+  );
+
+  ipcMain.handle(
+    "inventory:reduceStock",
+    wrapHandler((_e: unknown, itemId: number, data: { quantity: number; date: string; reason: string; notes?: string }) => {
+      requireAuth();
+      if (!data.quantity || data.quantity <= 0) throw new Error("Quantity must be greater than 0");
+      const item = db.select().from(schema.inventory).where(eq(schema.inventory.id, itemId)).get();
+      if (!item) throw new Error("Inventory item not found");
+      requireFarmAccess(item.farmId!);
+      if (data.quantity > item.quantity) throw new Error("Cannot reduce more than current stock");
+
+      const newQty = item.quantity - data.quantity;
+      db.update(schema.inventory)
+        .set({ quantity: newQty, lastUpdated: new Date().toISOString() })
+        .where(eq(schema.inventory.id, itemId))
+        .run();
+
+      db.insert(schema.inventoryTransactions).values({
+        inventoryId: itemId,
+        type: "reduce",
+        quantity: data.quantity,
+        date: data.date,
+        reason: data.reason,
+        notes: data.notes ?? null,
+      }).run();
+
+      return db.select().from(schema.inventory).where(eq(schema.inventory.id, itemId)).get();
+    })
+  );
+
+  ipcMain.handle(
+    "inventory:getLowStockItems",
+    wrapHandler((_e: unknown, farmId: number) => {
+      requireFarmAccess(farmId);
+      return db.select().from(schema.inventory)
+        .where(and(
+          eq(schema.inventory.farmId, farmId),
+          isNotNull(schema.inventory.minThreshold),
+          sql`${schema.inventory.quantity} <= ${schema.inventory.minThreshold}`
+        ))
+        .all();
+    })
+  );
+
+  ipcMain.handle(
+    "inventory:getExpiringItems",
+    wrapHandler((_e: unknown, farmId: number, days: number) => {
+      requireFarmAccess(farmId);
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() + days);
+      const cutoffStr = cutoff.toISOString().split("T")[0];
+      return db.select().from(schema.inventory)
+        .where(and(
+          eq(schema.inventory.farmId, farmId),
+          isNotNull(schema.inventory.expiryDate),
+          lte(schema.inventory.expiryDate, cutoffStr)
+        ))
+        .all();
     })
   );
 

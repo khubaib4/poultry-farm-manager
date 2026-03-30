@@ -155,6 +155,21 @@ function createTablesManually(): void {
   console.log("Database initialized successfully (tables created manually)");
 
   try { sqlite.exec("ALTER TABLE expenses ADD COLUMN notes TEXT"); } catch { /* column already exists */ }
+
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS inventory_transactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      inventory_id INTEGER REFERENCES inventory(id) ON DELETE CASCADE,
+      type TEXT NOT NULL,
+      quantity REAL NOT NULL,
+      date TEXT NOT NULL,
+      reason TEXT,
+      supplier TEXT,
+      cost REAL,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
 }
 
 export function getDatabase(): typeof db {

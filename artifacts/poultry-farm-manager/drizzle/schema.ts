@@ -109,6 +109,19 @@ export const inventory = sqliteTable("inventory", {
   lastUpdated: text("last_updated").default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const inventoryTransactions = sqliteTable("inventory_transactions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  inventoryId: integer("inventory_id").references(() => inventory.id, { onDelete: "cascade" }),
+  type: text("type").notNull(),
+  quantity: real("quantity").notNull(),
+  date: text("date").notNull(),
+  reason: text("reason"),
+  supplier: text("supplier"),
+  cost: real("cost"),
+  notes: text("notes"),
+  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const vaccinations = sqliteTable("vaccinations", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   flockId: integer("flock_id").references(() => flocks.id),
