@@ -104,6 +104,34 @@ export interface RevenueVsExpenses {
   profit: number;
 }
 
+export interface ProfitLossData {
+  revenue: { byGrade: { A: number; B: number; cracked: number }; total: number };
+  expenses: { byCategory: Record<string, number>; total: number };
+  profit: number;
+  margin: number;
+}
+
+export interface FinancialTrendPoint {
+  period: string;
+  revenue: number;
+  expenses: number;
+  profit: number;
+}
+
+export interface PerBirdMetrics {
+  avgBirds: number;
+  revenuePerBird: number;
+  expensePerBird: number;
+  profitPerBird: number;
+}
+
+export interface PerEggMetrics {
+  totalEggs: number;
+  revenuePerEgg: number;
+  costPerEgg: number;
+  profitPerEgg: number;
+}
+
 export interface InventoryData {
   farmId: number;
   itemType: string;
@@ -219,6 +247,12 @@ export interface ElectronAPI {
     getDailySummary: (farmId: number, startDate: string, endDate: string) => Promise<IpcResponse<DailyRevenueSummary>>;
     getTotalRevenue: (farmId: number, startDate: string, endDate: string) => Promise<IpcResponse<TotalRevenue>>;
     getRevenueVsExpenses: (farmId: number, startDate: string, endDate: string) => Promise<IpcResponse<RevenueVsExpenses>>;
+  };
+  financial: {
+    getProfitLoss: (farmId: number, startDate: string, endDate: string) => Promise<IpcResponse<ProfitLossData>>;
+    getFinancialTrends: (farmId: number, startDate: string, endDate: string, groupBy: string) => Promise<IpcResponse<FinancialTrendPoint[]>>;
+    getPerBirdMetrics: (farmId: number, startDate: string, endDate: string) => Promise<IpcResponse<PerBirdMetrics>>;
+    getPerEggMetrics: (farmId: number, startDate: string, endDate: string) => Promise<IpcResponse<PerEggMetrics>>;
   };
   inventory: {
     create: (data: InventoryData) => Promise<IpcResponse>;

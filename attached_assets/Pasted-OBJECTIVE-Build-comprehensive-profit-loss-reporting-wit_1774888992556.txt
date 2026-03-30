@@ -1,0 +1,150 @@
+OBJECTIVE: Build comprehensive profit/loss reporting with financial dashboard
+
+REQUIREMENTS:
+- Calculate profit/loss: Revenue - Expenses
+- Financial dashboard with key metrics
+- Monthly P&L statements
+- Visual charts for financial trends
+- Export financial reports
+
+FILES TO CREATE/MODIFY:
+
+1. src/pages/farm/FinancialDashboard.tsx
+   - Route: /farm/finances
+   - Header: "Financial Overview"
+   - Period selector: This Month, Last Month, This Quarter, This Year, Custom Range
+   
+   - Row 1 - Key Financial Cards (4 cards):
+     * Total Revenue (green)
+     * Total Expenses (red)
+     * Net Profit/Loss (green if profit, red if loss)
+     * Profit Margin % ((profit/revenue) × 100)
+   
+   - Row 2 - Trend Chart:
+     * Combined line chart showing revenue, expenses, profit over time
+     * Toggle: Daily, Weekly, Monthly view
+     * Legend for each line
+   
+   - Row 3 - Two Column Layout:
+     * Left: Expense Breakdown (pie chart by category)
+     * Right: Revenue Breakdown (pie chart by egg grade)
+   
+   - Row 4 - Quick Stats:
+     * Revenue per bird
+     * Expense per bird
+     * Profit per bird
+     * Cost per egg produced
+
+2. src/pages/farm/ProfitLossReport.tsx
+   - Route: /farm/finances/report
+   - Formal P&L statement format
+   - Period selector
+   
+   - REVENUE SECTION:
+     * Egg Sales - Grade A: PKR XXX
+     * Egg Sales - Grade B: PKR XXX
+     * Egg Sales - Cracked: PKR XXX
+     * Total Revenue: PKR XXX
+   
+   - EXPENSES SECTION:
+     * Feed Costs: PKR XXX
+     * Medicine/Vaccines: PKR XXX
+     * Labor/Salaries: PKR XXX
+     * Utilities: PKR XXX
+     * Equipment/Maintenance: PKR XXX
+     * Miscellaneous: PKR XXX
+     * Total Expenses: PKR XXX
+   
+   - SUMMARY:
+     * Gross Profit/Loss: PKR XXX
+     * Profit Margin: XX%
+   
+   - Export buttons: PDF, Excel, Print
+
+3. src/components/financial/ProfitLossCard.tsx
+   - Large card showing net profit or loss
+   - Green background/text if profit
+   - Red background/text if loss
+   - Show amount and percentage margin
+
+4. src/components/financial/FinancialTrendChart.tsx
+   - Multi-line chart using recharts
+   - Lines: Revenue (green), Expenses (red), Profit (blue)
+   - Tooltip with all values
+   - Responsive
+
+5. src/components/financial/ExpensePieChart.tsx
+   - Pie/donut chart of expenses by category
+   - Legend with amounts
+   - Click slice to filter
+
+6. src/components/financial/RevenuePieChart.tsx
+   - Pie/donut chart of revenue by egg grade
+   - Legend with amounts
+
+7. src/components/financial/QuickStatsGrid.tsx
+   - Grid of per-bird and per-egg metrics
+   - Small cards with icon, label, value
+
+8. src/components/financial/PLStatement.tsx
+   - Formal profit/loss statement component
+   - Props: revenueData, expenseData, period
+   - Formatted like accounting statement
+   - Print-friendly styles
+
+9. electron/ipc-handlers.ts (add handlers)
+   - financial.getProfitLoss(farmId, startDate, endDate):
+     * Calculate total revenue
+     * Calculate total expenses by category
+     * Return { revenue: {byGrade, total}, expenses: {byCategory, total}, profit, margin }
+   
+   - financial.getFinancialTrends(farmId, startDate, endDate, groupBy):
+     * groupBy: 'day' | 'week' | 'month'
+     * Return array of { period, revenue, expenses, profit }
+   
+   - financial.getPerBirdMetrics(farmId, startDate, endDate):
+     * Get average bird count for period
+     * Calculate: revenue/birds, expenses/birds, profit/birds
+   
+   - financial.getPerEggMetrics(farmId, startDate, endDate):
+     * Get total eggs for period
+     * Calculate: cost per egg, revenue per egg
+
+10. src/lib/api.ts (add financial functions)
+    - getProfitLoss(farmId, startDate, endDate)
+    - getFinancialTrends(farmId, startDate, endDate, groupBy)
+    - getPerBirdMetrics(farmId, startDate, endDate)
+    - getPerEggMetrics(farmId, startDate, endDate)
+
+11. src/lib/calculations.ts (add financial calculations)
+    - calculateProfitMargin(profit, revenue): percentage
+    - calculatePerBirdMetrics(totals, avgBirds): object
+    - calculatePerEggMetrics(totals, totalEggs): object
+
+12. src/hooks/useFinancialData.ts
+    - Custom hook for financial dashboard
+    - Return: { profitLoss, trends, metrics, isLoading }
+
+13. src/App.tsx (add routes)
+    - /farm/finances - FinancialDashboard
+    - /farm/finances/report - ProfitLossReport
+
+14. Update sidebar navigation
+    - Add "Finances" menu item with dollar-sign icon
+    - Submenu or single item linking to dashboard
+
+CALCULATION FORMULAS:
+- Net Profit = Total Revenue - Total Expenses
+- Profit Margin = (Net Profit / Total Revenue) × 100
+- Revenue Per Bird = Total Revenue / Average Bird Count
+- Cost Per Egg = Total Expenses / Total Eggs Produced
+
+UI/UX REQUIREMENTS:
+- Clear visual distinction: green for profit, red for loss
+- Charts should be interactive (tooltips, hover states)
+- Loading states for all data
+- Period comparison (vs last month/year)
+- Print-friendly report layout
+- Mobile responsive
+
+OUTPUT: Complete financial dashboard showing profit/loss, trends, and breakdowns. P&L report can be viewed and exported. All financial calculations are accurate.

@@ -1096,6 +1096,300 @@ export function registerIpcHandlers(): void {
   );
 
   ipcMain.handle(
+    "financial:getProfitLoss",
+    wrapHandler((_e: unknown, farmId: number, startDate: string, endDate: string) => {
+      requireFarmAccess(farmId);
+
+      const entries = db.select({
+        entryDate: schema.dailyEntries.entryDate,
+        eggsGradeA: schema.dailyEntries.eggsGradeA,
+        eggsGradeB: schema.dailyEntries.eggsGradeB,
+        eggsCracked: schema.dailyEntries.eggsCracked,
+      })
+        .from(schema.dailyEntries)
+        .innerJoin(schema.flocks, eq(schema.dailyEntries.flockId, schema.flocks.id))
+        .where(and(
+          eq(schema.flocks.farmId, farmId),
+          gte(schema.dailyEntries.entryDate, startDate),
+          lte(schema.dailyEntries.entryDate, endDate)
+        ))
+        .all();
+
+      const eggPricesRows = db.select()
+        .from(schema.eggPrices)
+        .where(eq(schema.eggPrices.farmId, farmId))
+        .orderBy(desc(schema.eggPrices.effectiveDate))
+        .all();
+
+      function getPriceOnDate(grade: string, date: string): number {
+        const matching = eggPricesRows.find(p => p.grade === grade && p.effectiveDate <= date);
+        return matching?.pricePerEgg ?? 0;
+      }
+
+      const revenueByGrade = { A: 0, B: 0, cracked: 0 };
+      let totalRevenue = 0;
+
+      for (const entry of entries) {
+        const date = entry.entryDate;
+        const revA = (entry.eggsGradeA ?? 0) * getPriceOnDate("A", date);
+        const revB = (entry.eggsGradeB ?? 0) * getPriceOnDate("B", date);
+        const revC = (entry.eggsCracked ?? 0) * getPriceOnDate("cracked", date);
+        revenueByGrade.A += revA;
+        revenueByGrade.B += revB;
+        revenueByGrade.cracked += revC;
+        totalRevenue += revA + revB + revC;
+      }
+
+      const expenseRows = db.select({
+        category: schema.expenses.category,
+        amount: schema.expenses.amount,
+      })
+        .from(schema.expenses)
+        .where(and(
+          eq(schema.expenses.farmId, farmId),
+          gte(schema.expenses.expenseDate, startDate),
+          lte(schema.expenses.expenseDate, endDate)
+        ))
+        .all();
+
+      const byCategory: Record<string, number> = {};
+      let totalExpenses = 0;
+      for (const row of expenseRows) {
+        byCategory[row.category] = (byCategory[row.category] ?? 0) + row.amount;
+        totalExpenses += row.amount;
+      }
+
+      const profit = totalRevenue - totalExpenses;
+      const margin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
+
+      return {
+        revenue: { byGrade: revenueByGrade, total: totalRevenue },
+        expenses: { byCategory, total: totalExpenses },
+        profit,
+        margin,
+      };
+    })
+  );
+
+  ipcMain.handle(
+    "financial:getFinancialTrends",
+    wrapHandler((_e: unknown, farmId: number, startDate: string, endDate: string, groupBy: string) => {
+      requireFarmAccess(farmId);
+
+      const entries = db.select({
+        entryDate: schema.dailyEntries.entryDate,
+        eggsGradeA: schema.dailyEntries.eggsGradeA,
+        eggsGradeB: schema.dailyEntries.eggsGradeB,
+        eggsCracked: schema.dailyEntries.eggsCracked,
+      })
+        .from(schema.dailyEntries)
+        .innerJoin(schema.flocks, eq(schema.dailyEntries.flockId, schema.flocks.id))
+        .where(and(
+          eq(schema.flocks.farmId, farmId),
+          gte(schema.dailyEntries.entryDate, startDate),
+          lte(schema.dailyEntries.entryDate, endDate)
+        ))
+        .all();
+
+      const eggPricesRows = db.select()
+        .from(schema.eggPrices)
+        .where(eq(schema.eggPrices.farmId, farmId))
+        .orderBy(desc(schema.eggPrices.effectiveDate))
+        .all();
+
+      function getPriceOnDate(grade: string, date: string): number {
+        const matching = eggPricesRows.find(p => p.grade === grade && p.effectiveDate <= date);
+        return matching?.pricePerEgg ?? 0;
+      }
+
+      function getPeriodKey(dateStr: string): string {
+        const d = new Date(dateStr + "T00:00:00");
+        if (groupBy === "day") return dateStr;
+        if (groupBy === "week") {
+          const day = d.getDay();
+          const diff = d.getDate() - day;
+          const weekStart = new Date(d);
+          weekStart.setDate(diff);
+          return weekStart.toISOString().split("T")[0];
+        }
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      }
+
+      const revenueMap: Record<string, number> = {};
+      for (const entry of entries) {
+        const key = getPeriodKey(entry.entryDate);
+        const rev = (entry.eggsGradeA ?? 0) * getPriceOnDate("A", entry.entryDate)
+          + (entry.eggsGradeB ?? 0) * getPriceOnDate("B", entry.entryDate)
+          + (entry.eggsCracked ?? 0) * getPriceOnDate("cracked", entry.entryDate);
+        revenueMap[key] = (revenueMap[key] ?? 0) + rev;
+      }
+
+      const expenseRows = db.select({
+        expenseDate: schema.expenses.expenseDate,
+        amount: schema.expenses.amount,
+      })
+        .from(schema.expenses)
+        .where(and(
+          eq(schema.expenses.farmId, farmId),
+          gte(schema.expenses.expenseDate, startDate),
+          lte(schema.expenses.expenseDate, endDate)
+        ))
+        .all();
+
+      const expenseMap: Record<string, number> = {};
+      for (const row of expenseRows) {
+        const key = getPeriodKey(row.expenseDate);
+        expenseMap[key] = (expenseMap[key] ?? 0) + row.amount;
+      }
+
+      const allKeys = new Set([...Object.keys(revenueMap), ...Object.keys(expenseMap)]);
+      const trends = Array.from(allKeys)
+        .sort()
+        .map(period => {
+          const rev = revenueMap[period] ?? 0;
+          const exp = expenseMap[period] ?? 0;
+          return { period, revenue: rev, expenses: exp, profit: rev - exp };
+        });
+
+      return trends;
+    })
+  );
+
+  ipcMain.handle(
+    "financial:getPerBirdMetrics",
+    wrapHandler((_e: unknown, farmId: number, startDate: string, endDate: string) => {
+      requireFarmAccess(farmId);
+
+      const activeFlocks = db.select({
+        currentCount: schema.flocks.currentCount,
+      })
+        .from(schema.flocks)
+        .where(and(
+          eq(schema.flocks.farmId, farmId),
+          eq(schema.flocks.status, "active")
+        ))
+        .all();
+
+      const avgBirds = activeFlocks.reduce((s, f) => s + f.currentCount, 0);
+
+      const entries = db.select({
+        entryDate: schema.dailyEntries.entryDate,
+        eggsGradeA: schema.dailyEntries.eggsGradeA,
+        eggsGradeB: schema.dailyEntries.eggsGradeB,
+        eggsCracked: schema.dailyEntries.eggsCracked,
+      })
+        .from(schema.dailyEntries)
+        .innerJoin(schema.flocks, eq(schema.dailyEntries.flockId, schema.flocks.id))
+        .where(and(
+          eq(schema.flocks.farmId, farmId),
+          gte(schema.dailyEntries.entryDate, startDate),
+          lte(schema.dailyEntries.entryDate, endDate)
+        ))
+        .all();
+
+      const eggPricesRows = db.select()
+        .from(schema.eggPrices)
+        .where(eq(schema.eggPrices.farmId, farmId))
+        .orderBy(desc(schema.eggPrices.effectiveDate))
+        .all();
+
+      function getPriceOnDate(grade: string, date: string): number {
+        const matching = eggPricesRows.find(p => p.grade === grade && p.effectiveDate <= date);
+        return matching?.pricePerEgg ?? 0;
+      }
+
+      let totalRevenue = 0;
+      for (const entry of entries) {
+        totalRevenue += (entry.eggsGradeA ?? 0) * getPriceOnDate("A", entry.entryDate);
+        totalRevenue += (entry.eggsGradeB ?? 0) * getPriceOnDate("B", entry.entryDate);
+        totalRevenue += (entry.eggsCracked ?? 0) * getPriceOnDate("cracked", entry.entryDate);
+      }
+
+      const expenseRows = db.select({ amount: schema.expenses.amount })
+        .from(schema.expenses)
+        .where(and(
+          eq(schema.expenses.farmId, farmId),
+          gte(schema.expenses.expenseDate, startDate),
+          lte(schema.expenses.expenseDate, endDate)
+        ))
+        .all();
+
+      const totalExpenses = expenseRows.reduce((s, r) => s + r.amount, 0);
+      const profit = totalRevenue - totalExpenses;
+
+      return {
+        avgBirds,
+        revenuePerBird: avgBirds > 0 ? totalRevenue / avgBirds : 0,
+        expensePerBird: avgBirds > 0 ? totalExpenses / avgBirds : 0,
+        profitPerBird: avgBirds > 0 ? profit / avgBirds : 0,
+      };
+    })
+  );
+
+  ipcMain.handle(
+    "financial:getPerEggMetrics",
+    wrapHandler((_e: unknown, farmId: number, startDate: string, endDate: string) => {
+      requireFarmAccess(farmId);
+
+      const entries = db.select({
+        entryDate: schema.dailyEntries.entryDate,
+        eggsGradeA: schema.dailyEntries.eggsGradeA,
+        eggsGradeB: schema.dailyEntries.eggsGradeB,
+        eggsCracked: schema.dailyEntries.eggsCracked,
+      })
+        .from(schema.dailyEntries)
+        .innerJoin(schema.flocks, eq(schema.dailyEntries.flockId, schema.flocks.id))
+        .where(and(
+          eq(schema.flocks.farmId, farmId),
+          gte(schema.dailyEntries.entryDate, startDate),
+          lte(schema.dailyEntries.entryDate, endDate)
+        ))
+        .all();
+
+      const eggPricesRows = db.select()
+        .from(schema.eggPrices)
+        .where(eq(schema.eggPrices.farmId, farmId))
+        .orderBy(desc(schema.eggPrices.effectiveDate))
+        .all();
+
+      function getPriceOnDate(grade: string, date: string): number {
+        const matching = eggPricesRows.find(p => p.grade === grade && p.effectiveDate <= date);
+        return matching?.pricePerEgg ?? 0;
+      }
+
+      let totalRevenue = 0;
+      let totalEggs = 0;
+      for (const entry of entries) {
+        const a = entry.eggsGradeA ?? 0;
+        const b = entry.eggsGradeB ?? 0;
+        const c = entry.eggsCracked ?? 0;
+        totalEggs += a + b + c;
+        totalRevenue += a * getPriceOnDate("A", entry.entryDate)
+          + b * getPriceOnDate("B", entry.entryDate)
+          + c * getPriceOnDate("cracked", entry.entryDate);
+      }
+
+      const expenseRows = db.select({ amount: schema.expenses.amount })
+        .from(schema.expenses)
+        .where(and(
+          eq(schema.expenses.farmId, farmId),
+          gte(schema.expenses.expenseDate, startDate),
+          lte(schema.expenses.expenseDate, endDate)
+        ))
+        .all();
+
+      const totalExpenses = expenseRows.reduce((s, r) => s + r.amount, 0);
+
+      return {
+        totalEggs,
+        revenuePerEgg: totalEggs > 0 ? totalRevenue / totalEggs : 0,
+        costPerEgg: totalEggs > 0 ? totalExpenses / totalEggs : 0,
+        profitPerEgg: totalEggs > 0 ? (totalRevenue - totalExpenses) / totalEggs : 0,
+      };
+    })
+  );
+
+  ipcMain.handle(
     "inventory:create",
     wrapHandler((_e: unknown, data: { farmId: number; itemType: string; itemName: string; quantity: number; unit: string; minThreshold?: number; expiryDate?: string }) => {
       requireFarmAccess(data.farmId);

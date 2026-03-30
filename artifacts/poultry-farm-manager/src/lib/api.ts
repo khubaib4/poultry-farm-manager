@@ -12,6 +12,10 @@ import type {
   DailyRevenueSummary,
   TotalRevenue,
   RevenueVsExpenses,
+  ProfitLossData,
+  FinancialTrendPoint,
+  PerBirdMetrics,
+  PerEggMetrics,
   InventoryData,
   VaccinationData,
   VaccinationScheduleData,
@@ -175,6 +179,20 @@ export const revenue = {
 
   getRevenueVsExpenses: (farmId: number, startDate: string, endDate: string) =>
     invoke<RevenueVsExpenses>(() => getApi()!.revenue.getRevenueVsExpenses(farmId, startDate, endDate)),
+};
+
+export const financial = {
+  getProfitLoss: (farmId: number, startDate: string, endDate: string) =>
+    invoke<ProfitLossData>(() => getApi()!.financial.getProfitLoss(farmId, startDate, endDate)),
+
+  getFinancialTrends: (farmId: number, startDate: string, endDate: string, groupBy: string) =>
+    invoke<FinancialTrendPoint[]>(() => getApi()!.financial.getFinancialTrends(farmId, startDate, endDate, groupBy)),
+
+  getPerBirdMetrics: (farmId: number, startDate: string, endDate: string) =>
+    invoke<PerBirdMetrics>(() => getApi()!.financial.getPerBirdMetrics(farmId, startDate, endDate)),
+
+  getPerEggMetrics: (farmId: number, startDate: string, endDate: string) =>
+    invoke<PerEggMetrics>(() => getApi()!.financial.getPerEggMetrics(farmId, startDate, endDate)),
 };
 
 export const inventory = {

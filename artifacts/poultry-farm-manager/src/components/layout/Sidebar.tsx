@@ -12,6 +12,7 @@ import {
   Syringe,
   Receipt,
   TrendingUp,
+  DollarSign,
   Tag,
   PanelLeftClose,
   PanelLeft,
@@ -38,6 +39,7 @@ const farmNavItems: NavItem[] = [
   { label: "Vaccinations", path: "/farm/vaccinations", icon: <Syringe className="h-5 w-5" /> },
   { label: "Expenses", path: "/farm/expenses", icon: <Receipt className="h-5 w-5" /> },
   { label: "Revenue", path: "/farm/revenue", icon: <TrendingUp className="h-5 w-5" /> },
+  { label: "Finances", path: "/farm/finances", icon: <DollarSign className="h-5 w-5" /> },
   { label: "Pricing", path: "/farm/pricing", icon: <Tag className="h-5 w-5" /> },
   { label: "Reports", path: "/farm/reports", icon: <BarChart3 className="h-5 w-5" /> },
   { label: "Settings", path: "/farm/settings", icon: <Settings className="h-5 w-5" /> },
@@ -74,7 +76,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps): React.Re
 
       <nav className="flex-1 py-3 space-y-1 px-2 overflow-y-auto">
         {navItems.map((item) => {
-          const isActive = location.pathname === item.path;
+          const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + "/");
           return (
             <button
               key={item.path}

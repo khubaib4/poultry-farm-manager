@@ -94,6 +94,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getRevenueVsExpenses: (farmId: number, startDate: string, endDate: string) =>
       ipcRenderer.invoke("revenue:getRevenueVsExpenses", farmId, startDate, endDate),
   },
+  financial: {
+    getProfitLoss: (farmId: number, startDate: string, endDate: string) =>
+      ipcRenderer.invoke("financial:getProfitLoss", farmId, startDate, endDate),
+    getFinancialTrends: (farmId: number, startDate: string, endDate: string, groupBy: string) =>
+      ipcRenderer.invoke("financial:getFinancialTrends", farmId, startDate, endDate, groupBy),
+    getPerBirdMetrics: (farmId: number, startDate: string, endDate: string) =>
+      ipcRenderer.invoke("financial:getPerBirdMetrics", farmId, startDate, endDate),
+    getPerEggMetrics: (farmId: number, startDate: string, endDate: string) =>
+      ipcRenderer.invoke("financial:getPerEggMetrics", farmId, startDate, endDate),
+  },
   inventory: {
     create: (data: unknown) => ipcRenderer.invoke("inventory:create", data),
     getByFarm: (farmId: number) =>

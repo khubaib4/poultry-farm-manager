@@ -46,6 +46,29 @@ export function getPerformanceStatus(value: number, thresholds: Thresholds): Per
   }
 }
 
+export function calculateProfitMargin(profit: number, revenue: number): number {
+  if (revenue <= 0) return 0;
+  return (profit / revenue) * 100;
+}
+
+export function calculatePerBirdMetrics(totals: { revenue: number; expenses: number; profit: number }, avgBirds: number) {
+  if (avgBirds <= 0) return { revenuePerBird: 0, expensePerBird: 0, profitPerBird: 0 };
+  return {
+    revenuePerBird: totals.revenue / avgBirds,
+    expensePerBird: totals.expenses / avgBirds,
+    profitPerBird: totals.profit / avgBirds,
+  };
+}
+
+export function calculatePerEggMetrics(totals: { revenue: number; expenses: number }, totalEggs: number) {
+  if (totalEggs <= 0) return { revenuePerEgg: 0, costPerEgg: 0, profitPerEgg: 0 };
+  return {
+    revenuePerEgg: totals.revenue / totalEggs,
+    costPerEgg: totals.expenses / totalEggs,
+    profitPerEgg: (totals.revenue - totals.expenses) / totalEggs,
+  };
+}
+
 export const THRESHOLDS = {
   productionRate: { good: 85, warning: 70, higherIsBetter: true as const },
   dailyMortality: { good: 0.1, warning: 0.3, higherIsBetter: false as const },
