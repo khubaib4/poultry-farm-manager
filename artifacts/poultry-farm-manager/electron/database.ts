@@ -25,8 +25,9 @@ export function initializeDatabase(): typeof db {
     console.log("Database initialized successfully");
   } catch (error) {
     console.error("Database migration failed:", error);
-    createTablesManually();
   }
+
+  createTablesManually();
 
   return db;
 }
