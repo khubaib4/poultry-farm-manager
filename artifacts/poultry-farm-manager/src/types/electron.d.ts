@@ -74,6 +74,36 @@ export interface ExpenseSummary {
   count: number;
 }
 
+export interface DailyRevenueEntry {
+  date: string;
+  gradeA: { qty: number; revenue: number };
+  gradeB: { qty: number; revenue: number };
+  cracked: { qty: number; revenue: number };
+  total: number;
+}
+
+export interface DailyRevenueSummary {
+  daily: DailyRevenueEntry[];
+  hasPrices: boolean;
+}
+
+export interface TotalRevenue {
+  totalRevenue: number;
+  totalEggs: number;
+  avgPricePerEgg: number;
+  byGrade: {
+    A: { qty: number; revenue: number };
+    B: { qty: number; revenue: number };
+    cracked: { qty: number; revenue: number };
+  };
+}
+
+export interface RevenueVsExpenses {
+  revenue: number;
+  expenses: number;
+  profit: number;
+}
+
 export interface InventoryData {
   farmId: number;
   itemType: string;
@@ -184,6 +214,11 @@ export interface ElectronAPI {
     delete: (id: number) => Promise<IpcResponse>;
     getSummary: (farmId: number, startDate: string, endDate: string) => Promise<IpcResponse<ExpenseSummary>>;
     getSuppliers: (farmId: number) => Promise<IpcResponse<string[]>>;
+  };
+  revenue: {
+    getDailySummary: (farmId: number, startDate: string, endDate: string) => Promise<IpcResponse<DailyRevenueSummary>>;
+    getTotalRevenue: (farmId: number, startDate: string, endDate: string) => Promise<IpcResponse<TotalRevenue>>;
+    getRevenueVsExpenses: (farmId: number, startDate: string, endDate: string) => Promise<IpcResponse<RevenueVsExpenses>>;
   };
   inventory: {
     create: (data: InventoryData) => Promise<IpcResponse>;

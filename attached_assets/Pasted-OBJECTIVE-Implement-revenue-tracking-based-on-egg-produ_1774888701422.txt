@@ -1,0 +1,112 @@
+OBJECTIVE: Implement revenue tracking based on egg production and sales
+
+REQUIREMENTS:
+- Auto-calculate daily revenue from egg production × current prices
+- Track actual sales (may differ from production)
+- Revenue dashboard showing daily, weekly, monthly totals
+- Compare revenue vs expenses for profit/loss
+
+FILES TO CREATE/MODIFY:
+
+1. src/pages/farm/RevenuePage.tsx
+   - Route: /farm/revenue
+   - Header: "Revenue Overview"
+   - Date range selector (default: current month)
+   
+   - Summary Cards Row:
+     * Total Revenue (PKR)
+     * Total Eggs Sold
+     * Average Price Per Egg
+     * Revenue vs Last Period (trend)
+   
+   - Revenue Breakdown Section:
+     * By egg grade (Grade A, B, Cracked)
+     * Show quantity and revenue for each
+   
+   - Daily Revenue Table:
+     * Columns: Date, Grade A (qty/revenue), Grade B (qty/revenue), Cracked (qty/revenue), Total Revenue
+     * Sortable by date
+     * Click row to see details
+   
+   - Revenue Chart:
+     * Line or bar chart showing daily revenue
+     * Last 30 days by default
+     * Toggle between daily/weekly view
+
+2. src/components/revenue/RevenueSummaryCards.tsx
+   - Four cards showing key revenue metrics
+   - Total revenue with currency formatting
+   - Trend indicators (up/down vs previous period)
+
+3. src/components/revenue/RevenueByGradeCard.tsx
+   - Breakdown of revenue by egg grade
+   - Show: grade, quantity, price, subtotal
+   - Percentage of total revenue
+
+4. src/components/revenue/RevenueChart.tsx
+   - Line chart showing revenue over time
+   - Use recharts library
+   - Tooltip showing date and amount
+   - Responsive design
+
+5. src/components/revenue/DailyRevenueTable.tsx
+   - Table showing daily revenue breakdown
+   - Columns: Date, Eggs by grade, Revenue by grade, Total
+   - Pagination for long periods
+
+6. electron/ipc-handlers.ts (add handlers)
+   - revenue.getDailySummary(farmId, startDate, endDate):
+     * Get daily production from daily_entries
+     * Get prices from egg_prices (price active on each date)
+     * Calculate: eggs × price for each grade
+     * Return array of { date, gradeA: {qty, revenue}, gradeB: {qty, revenue}, cracked: {qty, revenue}, total }
+   
+   - revenue.getTotalRevenue(farmId, startDate, endDate):
+     * Return total revenue for period
+     * Breakdown by grade
+   
+   - revenue.getRevenueVsExpenses(farmId, startDate, endDate):
+     * Return { revenue, expenses, profit }
+   
+   - revenue.getAverageMetrics(farmId, startDate, endDate):
+     * Average daily revenue
+     * Average price per egg
+     * Total eggs sold
+
+7. src/lib/api.ts (add revenue functions)
+   - getDailyRevenue(farmId, startDate, endDate)
+   - getTotalRevenue(farmId, startDate, endDate)
+   - getRevenueVsExpenses(farmId, startDate, endDate)
+   - getAverageMetrics(farmId, startDate, endDate)
+
+8. src/lib/calculations.ts (add revenue calculations)
+   - calculateDailyRevenue(eggs, prices): { gradeA, gradeB, cracked, total }
+   - calculateTotalRevenue(dailyData): number
+   - calculateAveragePricePerEgg(revenue, totalEggs): number
+
+9. src/hooks/useRevenueData.ts
+   - Custom hook to fetch revenue data
+   - Parameters: farmId, startDate, endDate
+   - Return: { dailyRevenue, totals, isLoading, refetch }
+
+10. src/App.tsx (add route)
+    - /farm/revenue - RevenuePage
+
+11. Update sidebar navigation
+    - Add "Revenue" menu item with trending-up icon
+    - Place after Expenses
+
+REVENUE CALCULATION LOGIC:
+- Daily Revenue = (Grade A eggs × Grade A price) + (Grade B eggs × Grade B price) + (Cracked eggs × Cracked price)
+- Use the egg price that was active on each specific date (from egg_prices table, based on effective_date)
+- If no price set for a date, use the most recent price before that date
+- If no price exists at all, show warning and use 0
+
+UI/UX REQUIREMENTS:
+- Currency formatted as PKR with commas
+- Charts should be responsive
+- Loading skeletons while fetching
+- Empty state if no data for period
+- Quick date range buttons: Today, This Week, This Month, Last Month
+
+OUTPUT: Farm dashboard shows revenue calculated from egg production. Daily, weekly, monthly revenue summaries available. Revenue breakdown by egg grade is visible.

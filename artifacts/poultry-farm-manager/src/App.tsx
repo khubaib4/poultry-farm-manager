@@ -24,6 +24,7 @@ import EggPricingPage from "@/pages/farm/EggPricingPage";
 import ExpensesPage from "@/pages/farm/ExpensesPage";
 import AddExpensePage from "@/pages/farm/AddExpensePage";
 import EditExpensePage from "@/pages/farm/EditExpensePage";
+import RevenuePage from "@/pages/farm/RevenuePage";
 import PlaceholderPage from "@/pages/PlaceholderPage";
 
 function AuthRedirect(): React.ReactElement {
@@ -76,6 +77,7 @@ export default function App(): React.ReactElement {
           <Route path="/farm/expenses" element={<FarmLayout><ExpensesPage /></FarmLayout>} />
           <Route path="/farm/expenses/new" element={<FarmLayout><AddExpensePage /></FarmLayout>} />
           <Route path="/farm/expenses/:expenseId/edit" element={<FarmLayout><EditExpensePage /></FarmLayout>} />
+          <Route path="/farm/revenue" element={<FarmLayout><RevenuePage /></FarmLayout>} />
           <Route path="/farm/pricing" element={<FarmLayout><EggPricingPage /></FarmLayout>} />
           <Route path="/farm/reports" element={<FarmLayout><PlaceholderPage title="Reports" description="View farm analytics and performance reports." /></FarmLayout>} />
           <Route path="/farm/settings" element={<FarmLayout><PlaceholderPage title="Settings" description="Manage farm settings and preferences." /></FarmLayout>} />

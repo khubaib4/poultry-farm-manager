@@ -9,6 +9,9 @@ import type {
   ExpenseData,
   ExpenseFilters,
   ExpenseSummary,
+  DailyRevenueSummary,
+  TotalRevenue,
+  RevenueVsExpenses,
   InventoryData,
   VaccinationData,
   VaccinationScheduleData,
@@ -161,6 +164,17 @@ export const expenses = {
 
   getSuppliers: (farmId: number) =>
     invoke<string[]>(() => getApi()!.expenses.getSuppliers(farmId)),
+};
+
+export const revenue = {
+  getDailySummary: (farmId: number, startDate: string, endDate: string) =>
+    invoke<DailyRevenueSummary>(() => getApi()!.revenue.getDailySummary(farmId, startDate, endDate)),
+
+  getTotalRevenue: (farmId: number, startDate: string, endDate: string) =>
+    invoke<TotalRevenue>(() => getApi()!.revenue.getTotalRevenue(farmId, startDate, endDate)),
+
+  getRevenueVsExpenses: (farmId: number, startDate: string, endDate: string) =>
+    invoke<RevenueVsExpenses>(() => getApi()!.revenue.getRevenueVsExpenses(farmId, startDate, endDate)),
 };
 
 export const inventory = {
