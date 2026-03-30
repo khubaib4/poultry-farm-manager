@@ -170,6 +170,16 @@ function createTablesManually(): void {
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
   `);
+
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS dismissed_alerts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      farm_id INTEGER REFERENCES farms(id),
+      alert_type TEXT NOT NULL,
+      reference_id INTEGER NOT NULL,
+      dismissed_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
 }
 
 export function getDatabase(): typeof db {

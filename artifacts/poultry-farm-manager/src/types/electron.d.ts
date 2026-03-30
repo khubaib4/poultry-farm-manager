@@ -189,6 +189,18 @@ export interface ReduceStockData {
   notes?: string;
 }
 
+export interface FarmAlert {
+  id: string;
+  type: "low_stock" | "expiring" | "vaccination_due";
+  severity: "critical" | "warning" | "info";
+  title: string;
+  message: string;
+  referenceId: number;
+  createdAt: string;
+  isDismissed: boolean;
+  actionUrl: string;
+}
+
 export interface VaccinationData {
   flockId: number;
   vaccineName: string;
@@ -300,6 +312,12 @@ export interface ElectronAPI {
     getFinancialTrends: (farmId: number, startDate: string, endDate: string, groupBy: string) => Promise<IpcResponse<FinancialTrendPoint[]>>;
     getPerBirdMetrics: (farmId: number, startDate: string, endDate: string) => Promise<IpcResponse<PerBirdMetrics>>;
     getPerEggMetrics: (farmId: number, startDate: string, endDate: string) => Promise<IpcResponse<PerEggMetrics>>;
+  };
+  alerts: {
+    getAll: (farmId: number) => Promise<IpcResponse<FarmAlert[]>>;
+    dismiss: (farmId: number, alertType: string, referenceId: number) => Promise<IpcResponse>;
+    undismiss: (farmId: number, alertType: string, referenceId: number) => Promise<IpcResponse>;
+    clearDismissed: (farmId: number) => Promise<IpcResponse>;
   };
   inventory: {
     create: (data: InventoryData) => Promise<IpcResponse<InventoryItem>>;

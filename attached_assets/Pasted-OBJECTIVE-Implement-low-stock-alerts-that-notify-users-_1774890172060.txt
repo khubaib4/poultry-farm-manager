@@ -1,0 +1,139 @@
+OBJECTIVE: Implement low stock alerts that notify users when inventory falls below thresholds
+
+REQUIREMENTS:
+- Automatic detection of low stock items
+- Display alerts on dashboard and inventory page
+- Configurable thresholds per item
+- Alert notifications panel
+- Optional: Alert history/log
+
+FILES TO CREATE/MODIFY:
+
+1. src/components/alerts/LowStockAlert.tsx
+   - Single alert item component
+   - Shows: item name, current qty, threshold, how much below
+   - Action buttons: "Order Now" (link to add stock), "Dismiss"
+   - Severity indicator based on how low:
+     * Warning (yellow): 1-50% of threshold remaining
+     * Critical (red): 0% or below threshold
+
+2. src/components/alerts/LowStockAlertsList.tsx
+   - List of all low stock alerts
+   - Grouped by item type (Feed, Medicine, Equipment)
+   - Sort by severity (critical first)
+   - "Dismiss All" button
+   - Empty state when no alerts
+
+3. src/components/alerts/AlertBadge.tsx
+   - Small badge showing alert count
+   - Used in sidebar navigation
+   - Red background with white number
+   - Pulses or animates when new alerts
+
+4. src/components/alerts/AlertsDropdown.tsx
+   - Dropdown in header showing recent alerts
+   - Click bell icon to open
+   - Shows top 5 alerts
+   - "View All" link to full alerts page
+   - Badge count on bell icon
+
+5. src/pages/farm/AlertsPage.tsx
+   - Route: /farm/alerts
+   - Header: "Alerts & Notifications"
+   - Tabs: "Active" | "Dismissed" | "All"
+   
+   - Filter by type:
+     * Low Stock
+     * Expiring Soon
+     * Vaccination Due
+     * High Mortality (future)
+   
+   - Alert list with actions
+   - Bulk dismiss option
+
+6. src/components/inventory/ThresholdSettings.tsx
+   - Component for setting/editing thresholds
+   - Can be inline in inventory table or modal
+   - Quick +/- buttons for adjustment
+   - Save immediately on change
+
+7. electron/ipc-handlers.ts (add/modify handlers)
+   - alerts.getAll(farmId):
+     * Combine: low stock, expiring items, vaccination due
+     * Return sorted by priority/severity
+   
+   - alerts.getLowStock(farmId):
+     * Get items where quantity <= threshold
+     * Calculate severity
+     * Return with item details
+   
+   - alerts.dismiss(alertId, alertType):
+     * Mark alert as dismissed
+     * Store dismissal (don't show again until condition clears and recurs)
+   
+   - alerts.getDismissed(farmId):
+     * Get dismissed alerts
+   
+   - alerts.clearDismissed(farmId):
+     * Re-enable dismissed alerts
+
+8. drizzle/schema.ts (add if needed)
+   - dismissed_alerts table:
+     * id, farm_id, alert_type, reference_id
+     * dismissed_at, dismissed_by
+     * Will not alert again until: condition clears, then recurs
+
+9. src/lib/api.ts (add alert functions)
+   - getAllAlerts(farmId)
+   - getLowStockAlerts(farmId)
+   - dismissAlert(alertId, type)
+   - getDismissedAlerts(farmId)
+   - clearDismissedAlerts(farmId)
+
+10. src/hooks/useAlerts.ts
+    - Custom hook for alerts
+    - Auto-refresh every 5 minutes
+    - Return: { alerts, lowStock, expiring, vaccinations, count, dismiss, isLoading }
+
+11. src/components/layout/Header.tsx (modify)
+    - Add bell icon with alert count badge
+    - Click opens AlertsDropdown
+    - Show count of active alerts
+
+12. src/components/layout/Sidebar.tsx (modify)
+    - Add alert badge next to Inventory menu item
+    - Shows low stock count
+
+13. Update FarmDashboard.tsx
+    - Ensure AlertsPanel shows low stock alerts
+    - Link to inventory page for resolution
+
+ALERT SEVERITY LEVELS:
+- Critical (Red): quantity = 0 OR quantity < 25% of threshold
+- Warning (Yellow): quantity <= threshold but > 25%
+- Info (Blue): expiring within 7 days
+
+ALERT DATA STRUCTURE:
+```typescript
+interface Alert {
+  id: string;
+  type: 'low_stock' | 'expiring' | 'vaccination_due';
+  severity: 'critical' | 'warning' | 'info';
+  title: string;
+  message: string;
+  referenceId: number; // item ID or flock ID
+  createdAt: Date;
+  isDismissed: boolean;
+  actionUrl?: string;
+}
+```
+
+UI/UX REQUIREMENTS:
+- Alerts should be non-intrusive but visible
+- Critical alerts more prominent
+- Easy to dismiss without losing data
+- Quick actions to resolve (link to relevant page)
+- Badge counts update in real-time
+- Accessibility: proper ARIA labels
+
+OUTPUT: Low stock items trigger alerts shown on dashboard and in header dropdown. Users can dismiss alerts and see alert history. Thresholds are configurable per item.

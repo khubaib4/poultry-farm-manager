@@ -122,6 +122,14 @@ export const inventoryTransactions = sqliteTable("inventory_transactions", {
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const dismissedAlerts = sqliteTable("dismissed_alerts", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  farmId: integer("farm_id").references(() => farms.id),
+  alertType: text("alert_type").notNull(),
+  referenceId: integer("reference_id").notNull(),
+  dismissedAt: text("dismissed_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const vaccinations = sqliteTable("vaccinations", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   flockId: integer("flock_id").references(() => flocks.id),

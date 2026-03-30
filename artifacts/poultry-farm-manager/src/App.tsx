@@ -30,6 +30,7 @@ import ProfitLossReport from "@/pages/farm/ProfitLossReport";
 import InventoryPage from "@/pages/farm/InventoryPage";
 import AddInventoryItemPage from "@/pages/farm/AddInventoryItemPage";
 import EditInventoryItemPage from "@/pages/farm/EditInventoryItemPage";
+import AlertsPage from "@/pages/farm/AlertsPage";
 import PlaceholderPage from "@/pages/PlaceholderPage";
 
 function AuthRedirect(): React.ReactElement {
@@ -87,6 +88,7 @@ export default function App(): React.ReactElement {
           <Route path="/farm/revenue" element={<FarmLayout><RevenuePage /></FarmLayout>} />
           <Route path="/farm/finances" element={<FarmLayout><FinancialDashboard /></FarmLayout>} />
           <Route path="/farm/finances/report" element={<FarmLayout><ProfitLossReport /></FarmLayout>} />
+          <Route path="/farm/alerts" element={<FarmLayout><AlertsPage /></FarmLayout>} />
           <Route path="/farm/pricing" element={<FarmLayout><EggPricingPage /></FarmLayout>} />
           <Route path="/farm/reports" element={<FarmLayout><PlaceholderPage title="Reports" description="View farm analytics and performance reports." /></FarmLayout>} />
           <Route path="/farm/settings" element={<FarmLayout><PlaceholderPage title="Settings" description="Manage farm settings and preferences." /></FarmLayout>} />

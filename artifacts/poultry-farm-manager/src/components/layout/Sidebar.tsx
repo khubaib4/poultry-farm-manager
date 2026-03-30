@@ -1,6 +1,7 @@
 import React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAlerts } from "@/hooks/useAlerts";
 import {
   LayoutDashboard,
   Building2,
@@ -14,14 +15,17 @@ import {
   TrendingUp,
   DollarSign,
   Tag,
+  Bell,
   PanelLeftClose,
   PanelLeft,
 } from "lucide-react";
+import AlertBadge from "@/components/alerts/AlertBadge";
 
 interface NavItem {
   label: string;
   path: string;
   icon: React.ReactNode;
+  badgeKey?: string;
 }
 
 const ownerNavItems: NavItem[] = [
@@ -35,12 +39,13 @@ const farmNavItems: NavItem[] = [
   { label: "Dashboard", path: "/farm/dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
   { label: "Daily Entry", path: "/farm/daily-entry", icon: <PlusCircle className="h-5 w-5" /> },
   { label: "Flocks", path: "/farm/flocks", icon: <Bird className="h-5 w-5" /> },
-  { label: "Inventory", path: "/farm/inventory", icon: <Package className="h-5 w-5" /> },
+  { label: "Inventory", path: "/farm/inventory", icon: <Package className="h-5 w-5" />, badgeKey: "inventory" },
   { label: "Vaccinations", path: "/farm/vaccinations", icon: <Syringe className="h-5 w-5" /> },
   { label: "Expenses", path: "/farm/expenses", icon: <Receipt className="h-5 w-5" /> },
   { label: "Revenue", path: "/farm/revenue", icon: <TrendingUp className="h-5 w-5" /> },
   { label: "Finances", path: "/farm/finances", icon: <DollarSign className="h-5 w-5" /> },
   { label: "Pricing", path: "/farm/pricing", icon: <Tag className="h-5 w-5" /> },
+  { label: "Alerts", path: "/farm/alerts", icon: <Bell className="h-5 w-5" />, badgeKey: "alerts" },
   { label: "Reports", path: "/farm/reports", icon: <BarChart3 className="h-5 w-5" /> },
   { label: "Settings", path: "/farm/settings", icon: <Settings className="h-5 w-5" /> },
 ];
@@ -54,8 +59,22 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps): React.Re
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const { lowStock, activeCount, criticalCount } = useAlerts();
 
   const navItems = user?.type === "owner" ? ownerNavItems : farmNavItems;
+
+  const lowStockActiveCount = lowStock.filter(a => !a.isDismissed).length;
+
+  function getBadge(item: NavItem): React.ReactNode {
+    if (!item.badgeKey) return null;
+    if (item.badgeKey === "inventory" && lowStockActiveCount > 0) {
+      return <AlertBadge count={lowStockActiveCount} />;
+    }
+    if (item.badgeKey === "alerts" && activeCount > 0) {
+      return <AlertBadge count={activeCount} hasCritical={criticalCount > 0} />;
+    }
+    return null;
+  }
 
   return (
     <aside
@@ -77,6 +96,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps): React.Re
       <nav className="flex-1 py-3 space-y-1 px-2 overflow-y-auto">
         {navItems.map((item) => {
           const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + "/");
+          const badge = getBadge(item);
           return (
             <button
               key={item.path}
@@ -88,8 +108,18 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps): React.Re
                   : "text-slate-300 hover:bg-slate-800 hover:text-white"
               } ${collapsed ? "justify-center" : ""}`}
             >
-              <span className="shrink-0">{item.icon}</span>
-              {!collapsed && <span className="truncate">{item.label}</span>}
+              <span className="shrink-0 relative">
+                {item.icon}
+                {collapsed && badge && (
+                  <span className="absolute -top-1.5 -right-1.5">{badge}</span>
+                )}
+              </span>
+              {!collapsed && (
+                <>
+                  <span className="truncate flex-1">{item.label}</span>
+                  {badge}
+                </>
+              )}
             </button>
           );
         })}

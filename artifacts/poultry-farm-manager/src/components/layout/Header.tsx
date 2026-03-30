@@ -1,7 +1,9 @@
 import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { LogOut, User, Building2, Bell, ChevronDown } from "lucide-react";
+import { useAlerts } from "@/hooks/useAlerts";
+import { LogOut, User, Building2, ChevronDown } from "lucide-react";
+import AlertsDropdown from "@/components/alerts/AlertsDropdown";
 
 const routeTitles: Record<string, string> = {
   "/owner/dashboard": "Dashboard",
@@ -19,6 +21,7 @@ const routeTitles: Record<string, string> = {
   "/farm/revenue": "Revenue",
   "/farm/finances": "Financial Overview",
   "/farm/finances/report": "P&L Report",
+  "/farm/alerts": "Alerts & Notifications",
   "/farm/reports": "Reports",
   "/farm/settings": "Settings",
 };
@@ -27,6 +30,7 @@ export default function Header(): React.ReactElement {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { alerts, activeCount, criticalCount, dismiss } = useAlerts();
 
   let pageTitle = routeTitles[location.pathname] || "";
   if (!pageTitle) {
@@ -42,6 +46,8 @@ export default function Header(): React.ReactElement {
     navigate("/login", { replace: true });
   };
 
+  const isFarmUser = user?.type === "farm" || user?.type === "user";
+
   return (
     <header className="flex h-[60px] items-center justify-between border-b bg-white px-6">
       <h1 className="text-lg font-semibold text-slate-900">{pageTitle}</h1>
@@ -55,9 +61,14 @@ export default function Header(): React.ReactElement {
           </button>
         )}
 
-        <button className="relative rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
-          <Bell className="h-5 w-5" />
-        </button>
+        {isFarmUser && (
+          <AlertsDropdown
+            alerts={alerts}
+            activeCount={activeCount}
+            criticalCount={criticalCount}
+            onDismiss={dismiss}
+          />
+        )}
 
         <div className="h-6 w-px bg-slate-200" />
 

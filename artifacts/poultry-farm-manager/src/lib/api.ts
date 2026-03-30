@@ -21,6 +21,7 @@ import type {
   InventoryItemWithTransactions,
   AddStockData,
   ReduceStockData,
+  FarmAlert,
   VaccinationData,
   VaccinationScheduleData,
   UserData,
@@ -225,6 +226,20 @@ export const inventory = {
 
   getExpiringItems: (farmId: number, days: number) =>
     invoke<InventoryItem[]>(() => getApi()!.inventory.getExpiringItems(farmId, days)),
+};
+
+export const alerts = {
+  getAll: (farmId: number) =>
+    invoke<FarmAlert[]>(() => getApi()!.alerts.getAll(farmId)),
+
+  dismiss: (farmId: number, alertType: string, referenceId: number) =>
+    invoke(() => getApi()!.alerts.dismiss(farmId, alertType, referenceId)),
+
+  undismiss: (farmId: number, alertType: string, referenceId: number) =>
+    invoke(() => getApi()!.alerts.undismiss(farmId, alertType, referenceId)),
+
+  clearDismissed: (farmId: number) =>
+    invoke(() => getApi()!.alerts.clearDismissed(farmId)),
 };
 
 export const vaccinations = {

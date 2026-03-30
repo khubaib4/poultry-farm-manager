@@ -121,6 +121,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getExpiringItems: (farmId: number, days: number) =>
       ipcRenderer.invoke("inventory:getExpiringItems", farmId, days),
   },
+  alerts: {
+    getAll: (farmId: number) => ipcRenderer.invoke("alerts:getAll", farmId),
+    dismiss: (farmId: number, alertType: string, referenceId: number) =>
+      ipcRenderer.invoke("alerts:dismiss", farmId, alertType, referenceId),
+    undismiss: (farmId: number, alertType: string, referenceId: number) =>
+      ipcRenderer.invoke("alerts:undismiss", farmId, alertType, referenceId),
+    clearDismissed: (farmId: number) =>
+      ipcRenderer.invoke("alerts:clearDismissed", farmId),
+  },
   vaccinations: {
     create: (data: unknown) =>
       ipcRenderer.invoke("vaccinations:create", data),

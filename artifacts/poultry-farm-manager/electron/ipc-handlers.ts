@@ -1861,4 +1861,151 @@ export function registerIpcHandlers(): void {
       return alerts;
     })
   );
+
+  ipcMain.handle(
+    "alerts:getAll",
+    wrapHandler((_e: unknown, farmId: number) => {
+      requireFarmAccess(farmId);
+      const today = new Date();
+      const todayStr = today.toISOString().split("T")[0];
+
+      const dismissed = db.select().from(schema.dismissedAlerts)
+        .where(eq(schema.dismissedAlerts.farmId, farmId))
+        .all();
+      const dismissedKeys = new Set(dismissed.map(d => `${d.alertType}:${d.referenceId}`));
+
+      const alerts: { id: string; type: string; severity: string; title: string; message: string; referenceId: number; createdAt: string; isDismissed: boolean; actionUrl: string }[] = [];
+
+      const inventoryItems = db.select().from(schema.inventory)
+        .where(eq(schema.inventory.farmId, farmId))
+        .all();
+
+      for (const item of inventoryItems) {
+        if (item.minThreshold !== null && item.quantity <= item.minThreshold) {
+          const key = `low_stock:${item.id}`;
+          const isDismissed = dismissedKeys.has(key);
+          let severity = "warning";
+          if (item.quantity <= 0) severity = "critical";
+          else if (item.minThreshold > 0 && item.quantity < item.minThreshold * 0.25) severity = "critical";
+
+          alerts.push({
+            id: key,
+            type: "low_stock",
+            severity,
+            title: `Low Stock: ${item.itemName}`,
+            message: `${item.quantity} ${item.unit} remaining (threshold: ${item.minThreshold} ${item.unit})`,
+            referenceId: item.id,
+            createdAt: item.lastUpdated ?? todayStr,
+            isDismissed,
+            actionUrl: "/farm/inventory",
+          });
+        }
+
+        if (item.expiryDate) {
+          const daysUntilExpiry = Math.floor((new Date(item.expiryDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          if (daysUntilExpiry <= 30) {
+            const key = `expiring:${item.id}`;
+            const isDismissed = dismissedKeys.has(key);
+            let severity = "info";
+            if (daysUntilExpiry <= 0) severity = "critical";
+            else if (daysUntilExpiry <= 7) severity = "warning";
+
+            alerts.push({
+              id: key,
+              type: "expiring",
+              severity,
+              title: daysUntilExpiry <= 0 ? `Expired: ${item.itemName}` : `Expiring Soon: ${item.itemName}`,
+              message: daysUntilExpiry <= 0
+                ? `Expired ${Math.abs(daysUntilExpiry)} day(s) ago`
+                : `Expires in ${daysUntilExpiry} day(s) — ${item.expiryDate}`,
+              referenceId: item.id,
+              createdAt: item.lastUpdated ?? todayStr,
+              isDismissed,
+              actionUrl: "/farm/inventory",
+            });
+          }
+        }
+      }
+
+      const pendingVacc = db.select().from(schema.vaccinations)
+        .innerJoin(schema.flocks, eq(schema.vaccinations.flockId, schema.flocks.id))
+        .where(and(
+          eq(schema.flocks.farmId, farmId),
+          eq(schema.flocks.status, "active"),
+          eq(schema.vaccinations.status, "pending"),
+          lte(schema.vaccinations.scheduledDate, todayStr)
+        ))
+        .all();
+
+      for (const row of pendingVacc) {
+        const v = row.vaccinations;
+        const f = row.flocks;
+        const key = `vaccination_due:${v.id}`;
+        const isDismissed = dismissedKeys.has(key);
+        const daysOverdue = Math.floor((today.getTime() - new Date(v.scheduledDate).getTime()) / (1000 * 60 * 60 * 24));
+        const severity = daysOverdue > 7 ? "critical" : daysOverdue > 0 ? "warning" : "info";
+
+        alerts.push({
+          id: key,
+          type: "vaccination_due",
+          severity,
+          title: `Vaccination Due: ${v.vaccineName}`,
+          message: `${f.batchName} — scheduled ${v.scheduledDate}${daysOverdue > 0 ? ` (${daysOverdue} day(s) overdue)` : ""}`,
+          referenceId: v.id,
+          createdAt: v.scheduledDate,
+          isDismissed,
+          actionUrl: "/farm/vaccinations",
+        });
+      }
+
+      const priorityMap: Record<string, number> = { critical: 0, warning: 1, info: 2 };
+      alerts.sort((a, b) => priorityMap[a.severity] - priorityMap[b.severity]);
+
+      return alerts;
+    })
+  );
+
+  ipcMain.handle(
+    "alerts:dismiss",
+    wrapHandler((_e: unknown, farmId: number, alertType: string, referenceId: number) => {
+      requireFarmAccess(farmId);
+      const existing = db.select().from(schema.dismissedAlerts)
+        .where(and(
+          eq(schema.dismissedAlerts.farmId, farmId),
+          eq(schema.dismissedAlerts.alertType, alertType),
+          eq(schema.dismissedAlerts.referenceId, referenceId)
+        ))
+        .get();
+      if (!existing) {
+        db.insert(schema.dismissedAlerts).values({ farmId, alertType, referenceId }).run();
+      }
+      return { success: true };
+    })
+  );
+
+  ipcMain.handle(
+    "alerts:undismiss",
+    wrapHandler((_e: unknown, farmId: number, alertType: string, referenceId: number) => {
+      requireFarmAccess(farmId);
+      db.delete(schema.dismissedAlerts)
+        .where(and(
+          eq(schema.dismissedAlerts.farmId, farmId),
+          eq(schema.dismissedAlerts.alertType, alertType),
+          eq(schema.dismissedAlerts.referenceId, referenceId)
+        ))
+        .run();
+      return { success: true };
+    })
+  );
+
+  ipcMain.handle(
+    "alerts:clearDismissed",
+    wrapHandler((_e: unknown, farmId: number) => {
+      requireFarmAccess(farmId);
+      db.delete(schema.dismissedAlerts)
+        .where(eq(schema.dismissedAlerts.farmId, farmId))
+        .run();
+      return { success: true };
+    })
+  );
 }
