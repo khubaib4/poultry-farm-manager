@@ -35,7 +35,7 @@ export default function RegisterOwnerPage(): React.ReactElement {
 
   useEffect(() => {
     if (isAuthenticated) {
-      navigate("/dashboard", { replace: true });
+      navigate("/", { replace: true });
     }
   }, [isAuthenticated, navigate]);
 
@@ -95,7 +95,7 @@ export default function RegisterOwnerPage(): React.ReactElement {
 
       if (loginResult.success && loginResult.data) {
         login(loginResult.data);
-        navigate("/dashboard", { replace: true });
+        navigate("/owner/dashboard", { replace: true });
       } else {
         navigate("/login", { replace: true });
       }

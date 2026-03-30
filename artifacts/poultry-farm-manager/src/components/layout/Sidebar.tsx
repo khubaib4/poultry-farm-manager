@@ -1,0 +1,107 @@
+import React from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  LayoutDashboard,
+  Building2,
+  BarChart3,
+  Settings,
+  PlusCircle,
+  Bird,
+  Package,
+  Syringe,
+  Receipt,
+  PanelLeftClose,
+  PanelLeft,
+} from "lucide-react";
+
+interface NavItem {
+  label: string;
+  path: string;
+  icon: React.ReactNode;
+}
+
+const ownerNavItems: NavItem[] = [
+  { label: "Dashboard", path: "/owner/dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
+  { label: "All Farms", path: "/owner/farms", icon: <Building2 className="h-5 w-5" /> },
+  { label: "Reports", path: "/owner/reports", icon: <BarChart3 className="h-5 w-5" /> },
+  { label: "Settings", path: "/owner/settings", icon: <Settings className="h-5 w-5" /> },
+];
+
+const farmNavItems: NavItem[] = [
+  { label: "Dashboard", path: "/farm/dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
+  { label: "Daily Entry", path: "/farm/daily-entry", icon: <PlusCircle className="h-5 w-5" /> },
+  { label: "Flocks", path: "/farm/flocks", icon: <Bird className="h-5 w-5" /> },
+  { label: "Inventory", path: "/farm/inventory", icon: <Package className="h-5 w-5" /> },
+  { label: "Vaccinations", path: "/farm/vaccinations", icon: <Syringe className="h-5 w-5" /> },
+  { label: "Expenses", path: "/farm/expenses", icon: <Receipt className="h-5 w-5" /> },
+  { label: "Reports", path: "/farm/reports", icon: <BarChart3 className="h-5 w-5" /> },
+  { label: "Settings", path: "/farm/settings", icon: <Settings className="h-5 w-5" /> },
+];
+
+interface SidebarProps {
+  collapsed: boolean;
+  onToggle: () => void;
+}
+
+export default function Sidebar({ collapsed, onToggle }: SidebarProps): React.ReactElement {
+  const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const navItems = user?.type === "owner" ? ownerNavItems : farmNavItems;
+
+  return (
+    <aside
+      className={`flex flex-col bg-slate-900 text-white transition-all duration-300 ${
+        collapsed ? "w-[60px]" : "w-[240px]"
+      }`}
+    >
+      <div className="flex h-[60px] items-center gap-3 px-3 border-b border-slate-700">
+        <div className="flex items-center justify-center w-9 h-9 bg-primary rounded-lg shrink-0">
+          <Bird className="h-5 w-5 text-primary-foreground" />
+        </div>
+        {!collapsed && (
+          <span className="text-sm font-semibold whitespace-nowrap overflow-hidden">
+            Poultry Farm
+          </span>
+        )}
+      </div>
+
+      <nav className="flex-1 py-3 space-y-1 px-2 overflow-y-auto">
+        {navItems.map((item) => {
+          const isActive = location.pathname === item.path;
+          return (
+            <button
+              key={item.path}
+              onClick={() => navigate(item.path)}
+              title={collapsed ? item.label : undefined}
+              className={`flex items-center gap-3 w-full rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                isActive
+                  ? "bg-primary text-primary-foreground"
+                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
+              } ${collapsed ? "justify-center" : ""}`}
+            >
+              <span className="shrink-0">{item.icon}</span>
+              {!collapsed && <span className="truncate">{item.label}</span>}
+            </button>
+          );
+        })}
+      </nav>
+
+      <div className="border-t border-slate-700 p-2">
+        <button
+          onClick={onToggle}
+          className="flex items-center justify-center w-full rounded-lg px-3 py-2 text-sm text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {collapsed ? (
+            <PanelLeft className="h-5 w-5" />
+          ) : (
+            <PanelLeftClose className="h-5 w-5" />
+          )}
+        </button>
+      </div>
+    </aside>
+  );
+}

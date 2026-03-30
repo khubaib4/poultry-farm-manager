@@ -15,7 +15,7 @@ export default function LoginPage(): React.ReactElement {
 
   useEffect(() => {
     if (isAuthenticated) {
-      navigate("/dashboard", { replace: true });
+      navigate("/", { replace: true });
     }
   }, [isAuthenticated, navigate]);
 
@@ -48,7 +48,8 @@ export default function LoginPage(): React.ReactElement {
 
       if (result.success && result.data) {
         login(result.data);
-        navigate("/dashboard", { replace: true });
+        const dest = result.data.type === "owner" ? "/owner/dashboard" : "/farm/dashboard";
+        navigate(dest, { replace: true });
       } else {
         setError(result.error || "Login failed");
       }

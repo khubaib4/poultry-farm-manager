@@ -58,8 +58,12 @@ Electron + React + TypeScript desktop app for poultry farm management.
 - **Electron main**: `electron/main.ts` — creates BrowserWindow (1280×800, min 1024×768), loads renderer
 - **Preload**: `electron/preload.ts` — IPC bridge via `contextBridge` (exposes `window.electronAPI`)
 - **React renderer**: `src/` — React 18, Tailwind CSS (v3), shadcn/ui design tokens
-- **Routing**: `react-router-dom` v7 with `HashRouter` (routes: `/login`, `/register`, `/dashboard`)
-- **Auth**: Two login modes (Owner email/password, Farm username/password), session persisted via `electron-store`, server-side auth guards on all IPC handlers
+- **Routing**: `react-router-dom` v7 with `HashRouter`
+  - Public: `/login`, `/register`
+  - Owner routes: `/owner/dashboard`, `/owner/farms`, `/owner/reports`, `/owner/settings`
+  - Farm routes: `/farm/dashboard`, `/farm/daily-entry`, `/farm/flocks`, `/farm/inventory`, `/farm/vaccinations`, `/farm/expenses`, `/farm/reports`, `/farm/settings`
+- **Auth**: Two login modes (Owner email/password, Farm username/password), session persisted via `electron-store`, server-side auth guards on all IPC handlers, role-based route protection
+- **Layout**: `AppLayout` with collapsible sidebar (240px/60px), header with farm selector (owner), breadcrumb navigation
 - **State**: Zustand auth store (`src/stores/authStore.ts`) + React context (`src/contexts/AuthContext.tsx`)
 - **Validation**: Zod for registration form, manual validation for login form
 - **Build output**: `out/` (main, preload, renderer sub-dirs)

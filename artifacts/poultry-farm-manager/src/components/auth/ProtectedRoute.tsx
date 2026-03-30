@@ -5,12 +5,14 @@ import { Loader2 } from "lucide-react";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
+  allowedRoles?: Array<"owner" | "farm" | "user">;
 }
 
 export default function ProtectedRoute({
   children,
+  allowedRoles,
 }: ProtectedRouteProps): React.ReactElement {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
 
   if (isLoading) {
     return (
@@ -25,6 +27,11 @@ export default function ProtectedRoute({
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (allowedRoles && user && !allowedRoles.includes(user.type)) {
+    const dest = user.type === "owner" ? "/owner/dashboard" : "/farm/dashboard";
+    return <Navigate to={dest} replace />;
   }
 
   return <>{children}</>;
