@@ -58,9 +58,10 @@ const farmNavItems: NavItem[] = [
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
+  onNavigate?: () => void;
 }
 
-export default function Sidebar({ collapsed, onToggle }: SidebarProps): React.ReactElement {
+export default function Sidebar({ collapsed, onToggle, onNavigate }: SidebarProps): React.ReactElement {
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -110,7 +111,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps): React.Re
           return (
             <button
               key={item.path}
-              onClick={() => navigate(item.path)}
+              onClick={() => { navigate(item.path); onNavigate?.(); }}
               title={collapsed ? item.label : undefined}
               className={`flex items-center gap-3 w-full rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                 isActive

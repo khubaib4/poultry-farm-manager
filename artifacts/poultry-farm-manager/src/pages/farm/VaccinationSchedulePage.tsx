@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { isElectron } from "@/lib/api";
 import { useVaccinations } from "@/hooks/useVaccinations";
 import { Syringe, RefreshCw, Settings, Filter } from "lucide-react";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import EmptyState from "@/components/ui/EmptyState";
 import VaccinationList from "@/components/vaccinations/VaccinationList";
 import CompleteVaccinationModal from "@/components/vaccinations/CompleteVaccinationModal";
 import SkipVaccinationModal from "@/components/vaccinations/SkipVaccinationModal";
@@ -145,9 +147,16 @@ export default function VaccinationSchedulePage(): React.ReactElement {
       </div>
 
       {isLoading ? (
-        <div className="text-center py-12">
-          <div className="animate-spin h-8 w-8 border-4 border-purple-600 border-t-transparent rounded-full mx-auto mb-3" />
-          <p className="text-gray-500 text-sm">Loading vaccinations...</p>
+        <LoadingSpinner text="Loading vaccinations..." />
+      ) : tab === "upcoming" && upcoming.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200">
+          <EmptyState
+            icon={<Syringe className="h-8 w-8" />}
+            title="No vaccinations scheduled"
+            description="No vaccinations scheduled. Set up your vaccination template."
+            actionLabel="Set Up Template"
+            onAction={() => navigate("/farm/vaccinations/template")}
+          />
         </div>
       ) : tab === "upcoming" ? (
         <div className="bg-white rounded-xl border border-gray-200 p-6">

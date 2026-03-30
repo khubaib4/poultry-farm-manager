@@ -3,7 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { isElectron, expenses as expensesApi } from "@/lib/api";
 import { formatCurrency, getTodayString } from "@/lib/utils";
-import { Plus, Search, Filter, X } from "lucide-react";
+import { Plus, Search, X } from "lucide-react";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import EmptyState from "@/components/ui/EmptyState";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import ExpenseTable from "@/components/expenses/ExpenseTable";
 import ExpenseSummaryCard from "@/components/expenses/ExpenseSummaryCard";
 import { EXPENSE_CATEGORIES } from "@/components/expenses/CategoryIcon";
@@ -194,9 +197,16 @@ export default function ExpensesPage(): React.ReactElement {
       </div>
 
       {loading ? (
-        <div className="text-center py-12">
-          <div className="animate-spin h-8 w-8 border-4 border-green-600 border-t-transparent rounded-full mx-auto mb-3" />
-          <p className="text-gray-500 text-sm">Loading expenses...</p>
+        <LoadingSpinner text="Loading expenses..." />
+      ) : expensesList.length === 0 && !category && !search ? (
+        <div className="bg-white rounded-xl border border-gray-200">
+          <EmptyState
+            icon={<Plus className="h-8 w-8" />}
+            title="No expenses recorded"
+            description="No expenses recorded. Track your farm expenses here."
+            actionLabel="Add Expense"
+            onAction={() => navigate("/farm/expenses/new")}
+          />
         </div>
       ) : (
         <ExpenseTable
@@ -206,32 +216,16 @@ export default function ExpensesPage(): React.ReactElement {
         />
       )}
 
-      {deleteModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Expense</h3>
-            <p className="text-sm text-gray-600 mb-1">Are you sure you want to delete this expense?</p>
-            <p className="text-sm font-medium text-gray-800 mb-1">{deleteModal.description}</p>
-            <p className="text-sm text-gray-600 mb-4">{formatCurrency(deleteModal.amount)}</p>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50"
-              >
-                {deleting ? "Deleting..." : "Delete"}
-              </button>
-              <button
-                onClick={() => setDeleteModal(null)}
-                disabled={deleting}
-                className="px-4 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        isOpen={!!deleteModal}
+        title="Delete Expense"
+        message={deleteModal ? `Are you sure you want to delete "${deleteModal.description}" (${formatCurrency(deleteModal.amount)})?` : ""}
+        confirmText="Delete"
+        variant="danger"
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteModal(null)}
+        isLoading={deleting}
+      />
     </div>
   );
 }

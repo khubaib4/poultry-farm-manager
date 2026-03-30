@@ -3,7 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { isElectron } from "@/lib/api";
 import FlockCard from "@/components/flocks/FlockCard";
-import { Plus, Bird, Loader2, Search, ArrowUpDown } from "lucide-react";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import EmptyState from "@/components/ui/EmptyState";
+import ErrorState from "@/components/ui/ErrorState";
+import { Plus, Bird, Search, ArrowUpDown } from "lucide-react";
 
 interface Flock {
   id: number;
@@ -85,45 +88,39 @@ export default function FlocksPage(): React.ReactElement {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <LoadingSpinner size="lg" text="Loading flocks..." />;
+  }
+
+  if (error) {
+    return <ErrorState message={error} onRetry={() => window.location.reload()} />;
   }
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Flocks</h2>
-          <p className="text-slate-500 mt-1">
+          <h2 className="text-2xl font-bold text-gray-900">Flocks</h2>
+          <p className="text-gray-500 mt-1">
             Manage your bird batches and flock records.
           </p>
         </div>
         <button
           onClick={() => navigate("/farm/flocks/new")}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 transition-colors"
         >
           <Plus className="h-4 w-4" />
           Add Flock
         </button>
       </div>
 
-      {error && (
-        <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive mb-4">
-          {error}
-        </div>
-      )}
-
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4">
         <div className="flex rounded-lg border overflow-hidden">
           <button
             onClick={() => setTab("active")}
             className={`px-4 py-2 text-sm font-medium transition-colors ${
               tab === "active"
-                ? "bg-primary text-primary-foreground"
-                : "bg-white text-slate-600 hover:bg-slate-50"
+                ? "bg-emerald-600 text-white"
+                : "bg-white text-gray-600 hover:bg-gray-50"
             }`}
           >
             Active ({flocks.filter((f) => f.status === "active" || !f.status).length})
@@ -132,8 +129,8 @@ export default function FlocksPage(): React.ReactElement {
             onClick={() => setTab("archived")}
             className={`px-4 py-2 text-sm font-medium transition-colors ${
               tab === "archived"
-                ? "bg-primary text-primary-foreground"
-                : "bg-white text-slate-600 hover:bg-slate-50"
+                ? "bg-emerald-600 text-white"
+                : "bg-white text-gray-600 hover:bg-gray-50"
             }`}
           >
             Archived ({flocks.filter((f) => f.status && f.status !== "active").length})
@@ -147,7 +144,7 @@ export default function FlocksPage(): React.ReactElement {
             placeholder="Search by batch name..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border border-input bg-background pl-9 pr-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="w-full rounded-lg border border-gray-300 pl-9 pr-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
           />
         </div>
 
@@ -158,8 +155,8 @@ export default function FlocksPage(): React.ReactElement {
               onClick={() => handleSort(key)}
               className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors ${
                 sortBy === key
-                  ? "bg-slate-100 text-slate-900"
-                  : "text-slate-500 hover:bg-slate-50"
+                  ? "bg-gray-100 text-gray-900"
+                  : "text-gray-500 hover:bg-gray-50"
               }`}
             >
               {key === "arrivalDate" ? "Date" : key === "currentCount" ? "Count" : "Age"}
@@ -170,25 +167,14 @@ export default function FlocksPage(): React.ReactElement {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="bg-white rounded-xl border p-12 text-center">
-          <Bird className="h-12 w-12 text-slate-300 mx-auto mb-3" />
-          <h4 className="text-lg font-medium text-slate-700 mb-1">
-            {tab === "active" ? "No active flocks" : "No archived flocks"}
-          </h4>
-          <p className="text-sm text-slate-500 mb-4">
-            {tab === "active"
-              ? "Add your first flock to start tracking production."
-              : "Archived flocks (culled or sold) will appear here."}
-          </p>
-          {tab === "active" && (
-            <button
-              onClick={() => navigate("/farm/flocks/new")}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-            >
-              <Plus className="h-4 w-4" />
-              Add First Flock
-            </button>
-          )}
+        <div className="bg-white rounded-xl border border-gray-200">
+          <EmptyState
+            icon={<Bird className="h-8 w-8" />}
+            title={tab === "active" ? "No active flocks" : "No archived flocks"}
+            description={tab === "active" ? "No flocks in this farm. Add a flock to start tracking." : "Archived flocks (culled or sold) will appear here."}
+            actionLabel={tab === "active" ? "Add First Flock" : undefined}
+            onAction={tab === "active" ? () => navigate("/farm/flocks/new") : undefined}
+          />
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

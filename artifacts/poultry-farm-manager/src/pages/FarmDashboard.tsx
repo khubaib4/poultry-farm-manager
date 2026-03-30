@@ -4,6 +4,8 @@ import { isElectron } from "@/lib/api";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { getPerformanceStatus, calculateTrend, THRESHOLDS } from "@/lib/calculations";
 import { Bird, Egg, Skull, Wheat, RefreshCw } from "lucide-react";
+import { SkeletonDashboard } from "@/components/ui/Skeleton";
+import EmptyState from "@/components/ui/EmptyState";
 import StatCard from "@/components/dashboard/StatCard";
 import PerformanceCard from "@/components/dashboard/PerformanceCard";
 import EntryStatusWidget from "@/components/dashboard/EntryStatusWidget";
@@ -58,9 +60,7 @@ export default function FarmDashboard(): React.ReactElement {
       </div>
 
       {isLoading && !stats ? (
-        <div className="flex items-center justify-center py-20">
-          <RefreshCw className="h-8 w-8 animate-spin text-gray-300" />
-        </div>
+        <SkeletonDashboard />
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -155,16 +155,14 @@ export default function FarmDashboard(): React.ReactElement {
           )}
 
           {stats && stats.flocks.length === 0 && (
-            <div className="bg-white rounded-xl border p-8 text-center">
-              <Bird className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-1">No Active Flocks</h3>
-              <p className="text-sm text-gray-500 mb-4">Add your first flock to start tracking production.</p>
-              <a
-                href="#/farm/flocks/new"
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
-              >
-                Add Flock
-              </a>
+            <div className="bg-white rounded-xl border border-gray-200">
+              <EmptyState
+                icon={<Bird className="h-8 w-8" />}
+                title="No Active Flocks"
+                description="Add your first flock to start tracking production."
+                actionLabel="Add Flock"
+                onAction={() => window.location.hash = "#/farm/flocks/new"}
+              />
             </div>
           )}
         </>

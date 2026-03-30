@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { isElectron, revenue as revenueApi } from "@/lib/api";
 import { AlertTriangle } from "lucide-react";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import RevenueSummaryCards from "@/components/revenue/RevenueSummaryCards";
 import RevenueByGradeCard from "@/components/revenue/RevenueByGradeCard";
 import RevenueChart from "@/components/revenue/RevenueChart";
@@ -161,10 +162,7 @@ export default function RevenuePage(): React.ReactElement {
       </div>
 
       {loading ? (
-        <div className="text-center py-12">
-          <div className="animate-spin h-8 w-8 border-4 border-green-600 border-t-transparent rounded-full mx-auto mb-3" />
-          <p className="text-gray-500 text-sm">Loading revenue data...</p>
-        </div>
+        <LoadingSpinner text="Loading revenue data..." />
       ) : (
         <>
           <RevenueSummaryCards

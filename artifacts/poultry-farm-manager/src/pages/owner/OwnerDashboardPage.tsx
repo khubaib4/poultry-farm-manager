@@ -15,10 +15,12 @@ import {
   TrendingUp,
   Plus,
   RefreshCw,
-  Loader2,
   BarChart3,
   Calendar,
 } from "lucide-react";
+import { SkeletonDashboard } from "@/components/ui/Skeleton";
+import ErrorState from "@/components/ui/ErrorState";
+import EmptyState from "@/components/ui/EmptyState";
 
 export default function OwnerDashboardPage(): React.ReactElement {
   const { user } = useAuth();
@@ -35,17 +37,17 @@ export default function OwnerDashboardPage(): React.ReactElement {
   if (!isElectron()) {
     return (
       <div className="flex items-center justify-center py-20">
-        <p className="text-slate-500">This feature is only available in the desktop app.</p>
+        <p className="text-gray-500">This feature is only available in the desktop app.</p>
       </div>
     );
   }
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-      </div>
-    );
+    return <SkeletonDashboard />;
+  }
+
+  if (error && !stats) {
+    return <ErrorState message={error} onRetry={refresh} />;
   }
 
   const comparisonData = farms.map((f) => ({
@@ -65,25 +67,25 @@ export default function OwnerDashboardPage(): React.ReactElement {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">
+          <h2 className="text-2xl font-bold text-gray-900">
             Welcome back, {user?.name}
           </h2>
           <div className="flex items-center gap-2 mt-1">
-            <Calendar className="h-4 w-4 text-slate-400" />
-            <p className="text-slate-500 text-sm">{today}</p>
+            <Calendar className="h-4 w-4 text-gray-400" />
+            <p className="text-gray-500 text-sm">{today}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={refresh}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
           >
             <RefreshCw className="h-4 w-4" />
             Refresh
           </button>
           <button
             onClick={() => navigate("/owner/compare")}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
           >
             <BarChart3 className="h-4 w-4" />
             Compare Farms
@@ -134,7 +136,7 @@ export default function OwnerDashboardPage(): React.ReactElement {
 
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-slate-900">Your Farms</h3>
+          <h3 className="text-lg font-semibold text-gray-900">Your Farms</h3>
           <button
             onClick={() => navigate("/owner/add-farm")}
             className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
@@ -144,17 +146,14 @@ export default function OwnerDashboardPage(): React.ReactElement {
           </button>
         </div>
         {farms.length === 0 ? (
-          <div className="bg-white rounded-xl border p-12 text-center">
-            <Bird className="h-12 w-12 text-slate-300 mx-auto mb-3" />
-            <h4 className="text-lg font-medium text-slate-700 mb-1">No farms yet</h4>
-            <p className="text-sm text-slate-500 mb-4">Add your first farm to start managing your poultry operations.</p>
-            <button
-              onClick={() => navigate("/owner/add-farm")}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
-            >
-              <Plus className="h-4 w-4" />
-              Add Your First Farm
-            </button>
+          <div className="bg-white rounded-xl border border-gray-200">
+            <EmptyState
+              icon={<Bird className="h-8 w-8" />}
+              title="No farms yet"
+              description="Add your first farm to start managing your poultry operations."
+              actionLabel="Add Your First Farm"
+              onAction={() => navigate("/owner/add-farm")}
+            />
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -167,13 +166,13 @@ export default function OwnerDashboardPage(): React.ReactElement {
             ))}
             <div
               onClick={() => navigate("/owner/add-farm")}
-              className="bg-white rounded-xl border-2 border-dashed border-slate-200 hover:border-blue-400 hover:bg-blue-50/30 transition-all cursor-pointer flex items-center justify-center p-8 min-h-[200px]"
+              className="bg-white rounded-xl border-2 border-dashed border-gray-200 hover:border-blue-400 hover:bg-blue-50/30 transition-all cursor-pointer flex items-center justify-center p-8 min-h-[200px]"
             >
               <div className="text-center">
                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-50 mb-3">
                   <Plus className="h-6 w-6 text-blue-600" />
                 </div>
-                <p className="text-sm font-medium text-slate-600">Add New Farm</p>
+                <p className="text-sm font-medium text-gray-600">Add New Farm</p>
               </div>
             </div>
           </div>

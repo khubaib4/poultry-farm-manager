@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { isElectron } from "@/lib/api";
 import { useAlerts } from "@/hooks/useAlerts";
 import { Bell, RefreshCw } from "lucide-react";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import EmptyState from "@/components/ui/EmptyState";
 import LowStockAlertsList from "@/components/alerts/LowStockAlertsList";
 import type { FarmAlert } from "@/types/electron";
 
@@ -126,16 +128,15 @@ export default function AlertsPage(): React.ReactElement {
       </div>
 
       {isLoading ? (
-        <div className="text-center py-12">
-          <div className="animate-spin h-8 w-8 border-4 border-green-600 border-t-transparent rounded-full mx-auto mb-3" />
-          <p className="text-gray-500 text-sm">Loading alerts...</p>
-        </div>
+        <LoadingSpinner text="Loading alerts..." />
       ) : tab === "dismissed" ? (
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           {dismissedAlerts.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-gray-400">No dismissed alerts</p>
-            </div>
+            <EmptyState
+              icon={<Bell className="h-8 w-8" />}
+              title="No dismissed alerts"
+              description="Alerts you dismiss will appear here."
+            />
           ) : (
             <>
               <div className="flex items-center justify-between mb-4">

@@ -1,0 +1,76 @@
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 12pt;
+  }
+
+  nav,
+  aside,
+  .sidebar,
+  .no-print,
+  button:not(.print-visible),
+  .fixed,
+  [role="dialog"] {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  main,
+  .main-content {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    page-break-inside: auto;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  th,
+  td {
+    border: 1px solid #ddd;
+    padding: 6px 8px;
+    font-size: 10pt;
+  }
+
+  th {
+    background: #f5f5f5 !important;
+    font-weight: bold;
+  }
+
+  .bg-white,
+  .bg-gray-50 {
+    background: white !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  h1 { font-size: 18pt; }
+  h2 { font-size: 14pt; }
+  h3 { font-size: 12pt; }
+
+  a[href]::after {
+    content: none;
+  }
+
+  .page-break {
+    page-break-before: always;
+  }
+
+  @page {
+    margin: 1.5cm;
+    size: A4;
+  }
+}

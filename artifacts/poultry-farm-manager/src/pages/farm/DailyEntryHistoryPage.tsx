@@ -3,7 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { isElectron } from "@/lib/api";
 import { formatDateForDisplay, getTodayString, addDays } from "@/lib/utils";
-import { Loader2, ArrowLeft, Download, Filter, Egg, Skull, Wheat, Bird } from "lucide-react";
+import { ArrowLeft, Download, Filter, Egg, Skull, Wheat, Bird } from "lucide-react";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import EmptyState from "@/components/ui/EmptyState";
 
 interface Flock {
   id: number;
@@ -180,14 +182,14 @@ export default function DailyEntryHistoryPage(): React.ReactElement {
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center h-40">
-          <Loader2 className="w-8 h-8 animate-spin text-green-600" />
-        </div>
+        <LoadingSpinner text="Loading entries..." />
       ) : entries.length === 0 ? (
-        <div className="text-center py-12">
-          <Bird className="w-10 h-10 mx-auto text-gray-300 mb-3" />
-          <h3 className="text-lg font-semibold text-gray-700 mb-1">No Entries Found</h3>
-          <p className="text-gray-500">No daily entries match the selected filters.</p>
+        <div className="bg-white rounded-xl border border-gray-200">
+          <EmptyState
+            icon={<Bird className="h-8 w-8" />}
+            title="No Entries Found"
+            description="No daily entries match the selected filters. Try adjusting the date range or flock selection."
+          />
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">

@@ -3,7 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { isElectron } from "@/lib/api";
 import FarmCard from "@/components/farms/FarmCard";
-import { Plus, Building2, Loader2 } from "lucide-react";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import EmptyState from "@/components/ui/EmptyState";
+import ErrorState from "@/components/ui/ErrorState";
+import { Plus, Building2 } from "lucide-react";
 
 interface Farm {
   id: number;
@@ -63,25 +66,25 @@ export default function FarmsListPage(): React.ReactElement {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <LoadingSpinner size="lg" text="Loading farms..." />;
+  }
+
+  if (error && farms.length === 0) {
+    return <ErrorState message={error} onRetry={loadFarms} />;
   }
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">All Farms</h2>
-          <p className="text-slate-500 mt-1">
+          <h2 className="text-2xl font-bold text-gray-900">All Farms</h2>
+          <p className="text-gray-500 mt-1">
             {farms.length} farm{farms.length !== 1 ? "s" : ""} registered
           </p>
         </div>
         <button
           onClick={() => navigate("/owner/add-farm")}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 transition-colors"
         >
           <Plus className="h-4 w-4" />
           Add Farm
@@ -89,27 +92,20 @@ export default function FarmsListPage(): React.ReactElement {
       </div>
 
       {error && (
-        <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive mb-4">
+        <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 mb-4">
           {error}
         </div>
       )}
 
       {farms.length === 0 ? (
-        <div className="bg-white rounded-xl border p-12 text-center">
-          <Building2 className="h-12 w-12 text-slate-300 mx-auto mb-3" />
-          <h4 className="text-lg font-medium text-slate-700 mb-1">
-            No farms yet
-          </h4>
-          <p className="text-sm text-slate-500 mb-4">
-            Add your first farm to start managing your poultry operations.
-          </p>
-          <button
-            onClick={() => navigate("/owner/add-farm")}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            Add Your First Farm
-          </button>
+        <div className="bg-white rounded-xl border border-gray-200">
+          <EmptyState
+            icon={<Building2 className="h-8 w-8" />}
+            title="No farms yet"
+            description="You haven't added any farms yet. Click 'Add Farm' to get started."
+            actionLabel="Add Your First Farm"
+            onAction={() => navigate("/owner/add-farm")}
+          />
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

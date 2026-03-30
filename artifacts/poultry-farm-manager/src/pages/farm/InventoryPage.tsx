@@ -3,6 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { isElectron, inventory as inventoryApi } from "@/lib/api";
 import { Plus, Package, Pill, AlertTriangle, Clock, Search } from "lucide-react";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import EmptyState from "@/components/ui/EmptyState";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import InventoryTable from "@/components/inventory/InventoryTable";
 import InventoryCard from "@/components/inventory/InventoryCard";
 import AddStockModal from "@/components/inventory/AddStockModal";
@@ -157,9 +160,16 @@ export default function InventoryPage(): React.ReactElement {
       </div>
 
       {loading ? (
-        <div className="text-center py-12">
-          <div className="animate-spin h-8 w-8 border-4 border-green-600 border-t-transparent rounded-full mx-auto mb-3" />
-          <p className="text-gray-500 text-sm">Loading inventory...</p>
+        <LoadingSpinner text="Loading inventory..." />
+      ) : items.length === 0 && !search ? (
+        <div className="bg-white rounded-xl border border-gray-200">
+          <EmptyState
+            icon={<Package className="h-8 w-8" />}
+            title="No inventory items"
+            description="Add items to start tracking your stock levels."
+            actionLabel="Add First Item"
+            onAction={() => navigate("/farm/inventory/new")}
+          />
         </div>
       ) : (
         <>
@@ -202,20 +212,15 @@ export default function InventoryPage(): React.ReactElement {
         <ReduceStockModal item={reduceStockItem} onClose={() => setReduceStockItem(null)} onSubmit={handleReduceStock} />
       )}
 
-      {deleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setDeleteConfirm(null)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Item</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              Are you sure you want to delete <span className="font-medium">{deleteConfirm.itemName}</span>? This will also remove all stock history.
-            </p>
-            <div className="flex items-center gap-3">
-              <button onClick={() => setDeleteConfirm(null)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
-              <button onClick={handleDelete} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700">Delete</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        isOpen={!!deleteConfirm}
+        title="Delete Item"
+        message={deleteConfirm ? `Are you sure you want to delete "${deleteConfirm.itemName}"? This will also remove all stock history.` : ""}
+        confirmText="Delete"
+        variant="danger"
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteConfirm(null)}
+      />
     </div>
   );
 }
