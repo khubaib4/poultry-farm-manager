@@ -23,6 +23,9 @@ export interface FlockData {
   arrivalDate: string;
   ageAtArrivalDays?: number;
   status?: string;
+  statusChangedDate?: string;
+  statusNotes?: string;
+  notes?: string;
 }
 
 export interface DailyEntryData {
@@ -140,6 +143,9 @@ export interface ElectronAPI {
     getByFarm: (farmId: number) => Promise<IpcResponse>;
     getById: (id: number) => Promise<IpcResponse>;
     update: (id: number, data: Partial<FlockData>) => Promise<IpcResponse>;
+    changeStatus: (id: number, status: string, date: string, notes?: string) => Promise<IpcResponse>;
+    delete: (id: number) => Promise<IpcResponse>;
+    getStats: (id: number) => Promise<IpcResponse>;
   };
   dailyEntries: {
     create: (data: DailyEntryData) => Promise<IpcResponse>;

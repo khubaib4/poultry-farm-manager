@@ -51,6 +51,33 @@ export function generatePassword(): string {
   return chars.join("");
 }
 
+export function calculateAge(arrivalDate: string, ageAtArrival: number = 0): number {
+  const arrival = new Date(arrivalDate);
+  const today = new Date();
+  const diffMs = today.getTime() - arrival.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  return Math.max(0, diffDays + ageAtArrival);
+}
+
+export function formatAge(days: number): string {
+  if (days < 7) return `${days} day${days !== 1 ? "s" : ""}`;
+  const weeks = Math.floor(days / 7);
+  const remainingDays = days % 7;
+  if (remainingDays === 0) return `${weeks} week${weeks !== 1 ? "s" : ""}`;
+  return `${weeks}w ${remainingDays}d`;
+}
+
+export function generateBatchName(existingNames: string[]): string {
+  const year = new Date().getFullYear();
+  const prefix = `Batch-${year}-`;
+  const existingNumbers = existingNames
+    .filter((n) => n.startsWith(prefix))
+    .map((n) => parseInt(n.replace(prefix, ""), 10))
+    .filter((n) => !isNaN(n));
+  const next = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 1;
+  return `${prefix}${String(next).padStart(3, "0")}`;
+}
+
 export async function copyToClipboard(text: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text);

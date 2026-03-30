@@ -42,6 +42,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getById: (id: number) => ipcRenderer.invoke("flocks:getById", id),
     update: (id: number, data: unknown) =>
       ipcRenderer.invoke("flocks:update", id, data),
+    changeStatus: (id: number, status: string, date: string, notes?: string) =>
+      ipcRenderer.invoke("flocks:changeStatus", id, status, date, notes),
+    delete: (id: number) => ipcRenderer.invoke("flocks:delete", id),
+    getStats: (id: number) => ipcRenderer.invoke("flocks:getStats", id),
   },
   dailyEntries: {
     create: (data: unknown) =>

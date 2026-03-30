@@ -8,6 +8,13 @@
       "when": 1774864013881,
       "tag": "0000_fast_forge",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1774868780444,
+      "tag": "0001_flowery_pestilence",
+      "breakpoints": true
     }
   ]
 }

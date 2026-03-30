@@ -43,6 +43,9 @@ export const flocks = sqliteTable("flocks", {
   arrivalDate: text("arrival_date").notNull(),
   ageAtArrivalDays: integer("age_at_arrival_days").default(0),
   status: text("status").default("active"),
+  statusChangedDate: text("status_changed_date"),
+  statusNotes: text("status_notes"),
+  notes: text("notes"),
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 });
 

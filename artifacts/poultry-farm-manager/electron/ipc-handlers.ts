@@ -1,5 +1,5 @@
 import { ipcMain } from "electron";
-import { eq, and, gte, lte } from "drizzle-orm";
+import { eq, and, gte, lte, sql, sum } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import Store from "electron-store";
 import { getDatabase } from "./database";
@@ -382,11 +382,82 @@ export function registerIpcHandlers(): void {
     })
   );
 
+  function getFlockStats(flockId: number) {
+    const deathsResult = db
+      .select({ total: sum(schema.dailyEntries.deaths) })
+      .from(schema.dailyEntries)
+      .where(eq(schema.dailyEntries.flockId, flockId))
+      .get();
+    const totalDeaths = Number(deathsResult?.total || 0);
+
+    const eggsResult = db
+      .select({
+        gradeA: sum(schema.dailyEntries.eggsGradeA),
+        gradeB: sum(schema.dailyEntries.eggsGradeB),
+        cracked: sum(schema.dailyEntries.eggsCracked),
+      })
+      .from(schema.dailyEntries)
+      .where(eq(schema.dailyEntries.flockId, flockId))
+      .get();
+    const totalEggs = Number(eggsResult?.gradeA || 0) + Number(eggsResult?.gradeB || 0) + Number(eggsResult?.cracked || 0);
+
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const sevenDaysAgoStr = sevenDaysAgo.toISOString().split("T")[0];
+    const recentEggsResult = db
+      .select({
+        gradeA: sum(schema.dailyEntries.eggsGradeA),
+        gradeB: sum(schema.dailyEntries.eggsGradeB),
+      })
+      .from(schema.dailyEntries)
+      .where(and(
+        eq(schema.dailyEntries.flockId, flockId),
+        gte(schema.dailyEntries.entryDate, sevenDaysAgoStr)
+      ))
+      .get();
+    const eggsLast7Days = Number(recentEggsResult?.gradeA || 0) + Number(recentEggsResult?.gradeB || 0);
+
+    return { totalDeaths, totalEggs, eggsLast7Days };
+  }
+
   ipcMain.handle(
     "flocks:create",
-    wrapHandler((_e: unknown, data: { farmId: number; batchName: string; breed?: string; initialCount: number; currentCount: number; arrivalDate: string; ageAtArrivalDays?: number; status?: string }) => {
+    wrapHandler((_e: unknown, data: { farmId: number; batchName: string; breed?: string; initialCount: number; arrivalDate: string; ageAtArrivalDays?: number; notes?: string }) => {
       requireFarmAccess(data.farmId);
-      return db.insert(schema.flocks).values(data).returning().get();
+      const existingName = db
+        .select()
+        .from(schema.flocks)
+        .where(and(eq(schema.flocks.farmId, data.farmId), eq(schema.flocks.batchName, data.batchName)))
+        .get();
+      if (existingName) throw new Error("A flock with this batch name already exists in this farm");
+      const flock = db.insert(schema.flocks).values({
+        farmId: data.farmId,
+        batchName: data.batchName,
+        breed: data.breed,
+        initialCount: data.initialCount,
+        currentCount: data.initialCount,
+        arrivalDate: data.arrivalDate,
+        ageAtArrivalDays: data.ageAtArrivalDays || 0,
+        notes: data.notes,
+      }).returning().get();
+
+      const schedules = db.select().from(schema.vaccinationSchedule).all();
+      for (const sched of schedules) {
+        const arrivalMs = new Date(data.arrivalDate).getTime();
+        const ageAtArrival = data.ageAtArrivalDays || 0;
+        const daysUntilVacc = sched.ageDays - ageAtArrival;
+        if (daysUntilVacc >= 0) {
+          const scheduledDate = new Date(arrivalMs + daysUntilVacc * 86400000).toISOString().split("T")[0];
+          db.insert(schema.vaccinations).values({
+            flockId: flock.id,
+            vaccineName: sched.vaccineName,
+            scheduledDate,
+            status: "pending",
+          }).run();
+        }
+      }
+
+      return flock;
     })
   );
 
@@ -394,40 +465,108 @@ export function registerIpcHandlers(): void {
     "flocks:getByFarm",
     wrapHandler((_e: unknown, farmId: number) => {
       requireFarmAccess(farmId);
-      return db
+      const flocksList = db
         .select()
         .from(schema.flocks)
         .where(eq(schema.flocks.farmId, farmId))
         .all();
+      return flocksList.map((flock) => {
+        const stats = getFlockStats(flock.id);
+        const currentCount = flock.initialCount - stats.totalDeaths;
+        const ageDays = Math.max(0, Math.floor((Date.now() - new Date(flock.arrivalDate).getTime()) / 86400000) + (flock.ageAtArrivalDays || 0));
+        const mortalityRate = flock.initialCount > 0 ? (stats.totalDeaths / flock.initialCount) * 100 : 0;
+        const productionRate = currentCount > 0 && stats.eggsLast7Days > 0 ? (stats.eggsLast7Days / (currentCount * 7)) * 100 : 0;
+        return { ...flock, currentCount, ageDays, mortalityRate: Math.round(mortalityRate * 100) / 100, productionRate: Math.round(productionRate * 100) / 100, totalDeaths: stats.totalDeaths, totalEggs: stats.totalEggs, eggsLast7Days: stats.eggsLast7Days };
+      });
     })
   );
+
+  function requireFlockAccess(flockId: number) {
+    const flock = db.select().from(schema.flocks).where(eq(schema.flocks.id, flockId)).get();
+    if (!flock) throw new Error("Flock not found");
+    requireFarmAccess(flock.farmId!);
+    return flock;
+  }
+
+  function enrichFlock(flock: typeof schema.flocks.$inferSelect) {
+    const stats = getFlockStats(flock.id);
+    const currentCount = flock.initialCount - stats.totalDeaths;
+    const ageDays = Math.max(0, Math.floor((Date.now() - new Date(flock.arrivalDate).getTime()) / 86400000) + (flock.ageAtArrivalDays || 0));
+    const mortalityRate = flock.initialCount > 0 ? (stats.totalDeaths / flock.initialCount) * 100 : 0;
+    const productionRate = currentCount > 0 && stats.eggsLast7Days > 0 ? (stats.eggsLast7Days / (currentCount * 7)) * 100 : 0;
+    return { ...flock, currentCount, ageDays, mortalityRate: Math.round(mortalityRate * 100) / 100, productionRate: Math.round(productionRate * 100) / 100, totalDeaths: stats.totalDeaths, totalEggs: stats.totalEggs, eggsLast7Days: stats.eggsLast7Days };
+  }
 
   ipcMain.handle(
     "flocks:getById",
     wrapHandler((_e: unknown, id: number) => {
-      requireAuth();
-      const flock = db
-        .select()
-        .from(schema.flocks)
-        .where(eq(schema.flocks.id, id))
-        .get();
-      if (!flock) throw new Error("Flock not found");
-      return flock;
+      const flock = requireFlockAccess(id);
+      return enrichFlock(flock);
     })
   );
 
   ipcMain.handle(
     "flocks:update",
-    wrapHandler((_e: unknown, id: number, data: Partial<{ batchName: string; breed: string; currentCount: number; status: string }>) => {
-      requireAuth();
+    wrapHandler((_e: unknown, id: number, data: Partial<{ batchName: string; breed: string; notes: string }>) => {
+      requireFlockAccess(id);
+      const updates: Record<string, unknown> = {};
+      if (data.batchName !== undefined) updates.batchName = data.batchName;
+      if (data.breed !== undefined) updates.breed = data.breed;
+      if (data.notes !== undefined) updates.notes = data.notes;
+      if (Object.keys(updates).length === 0) throw new Error("No valid fields to update");
       const result = db
         .update(schema.flocks)
-        .set(data)
+        .set(updates)
         .where(eq(schema.flocks.id, id))
         .returning()
         .get();
       if (!result) throw new Error("Flock not found");
       return result;
+    })
+  );
+
+  ipcMain.handle(
+    "flocks:changeStatus",
+    wrapHandler((_e: unknown, id: number, status: string, date: string, notes?: string) => {
+      requireFlockAccess(id);
+      if (!["culled", "sold"].includes(status)) throw new Error("Invalid status. Must be 'culled' or 'sold'");
+      const result = db
+        .update(schema.flocks)
+        .set({ status, statusChangedDate: date, statusNotes: notes || null })
+        .where(eq(schema.flocks.id, id))
+        .returning()
+        .get();
+      if (!result) throw new Error("Flock not found");
+      return result;
+    })
+  );
+
+  ipcMain.handle(
+    "flocks:delete",
+    wrapHandler((_e: unknown, id: number) => {
+      requireFlockAccess(id);
+      const entries = db
+        .select()
+        .from(schema.dailyEntries)
+        .where(eq(schema.dailyEntries.flockId, id))
+        .all();
+      if (entries.length > 0) throw new Error("Cannot delete flock with existing daily entries. Change status to 'culled' or 'sold' instead.");
+      db.delete(schema.vaccinations).where(eq(schema.vaccinations.flockId, id)).run();
+      db.delete(schema.flocks).where(eq(schema.flocks.id, id)).run();
+      return { id };
+    })
+  );
+
+  ipcMain.handle(
+    "flocks:getStats",
+    wrapHandler((_e: unknown, id: number) => {
+      const flock = requireFlockAccess(id);
+      const stats = getFlockStats(id);
+      const currentCount = flock.initialCount - stats.totalDeaths;
+      const ageDays = Math.max(0, Math.floor((Date.now() - new Date(flock.arrivalDate).getTime()) / 86400000) + (flock.ageAtArrivalDays || 0));
+      const mortalityRate = flock.initialCount > 0 ? (stats.totalDeaths / flock.initialCount) * 100 : 0;
+      const productionRate = currentCount > 0 && stats.eggsLast7Days > 0 ? (stats.eggsLast7Days / (currentCount * 7)) * 100 : 0;
+      return { currentCount, ageDays, totalDeaths: stats.totalDeaths, totalEggs: stats.totalEggs, eggsLast7Days: stats.eggsLast7Days, mortalityRate: Math.round(mortalityRate * 100) / 100, productionRate: Math.round(productionRate * 100) / 100 };
     })
   );
 

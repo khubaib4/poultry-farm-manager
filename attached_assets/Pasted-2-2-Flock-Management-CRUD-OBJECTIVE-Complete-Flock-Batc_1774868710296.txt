@@ -1,0 +1,136 @@
+2.2: Flock Management CRUD
+OBJECTIVE: Complete Flock/Batch Management system for farm managers to manage chicken flocks within their farm
+
+REQUIREMENTS:
+- Farm user can view all flocks (active and archived)
+- Farm user can add new flock/batch with arrival details
+- Farm user can edit flock information
+- Farm user can change flock status (active → culled/sold)
+- Auto-calculate current flock age based on arrival date
+- Show flock statistics (current count, production rate, mortality rate)
+
+FILES TO CREATE/MODIFY:
+
+1. src/pages/farm/FlocksPage.tsx
+   - Route: /farm/flocks
+   - Tabs: "Active Flocks" | "Archived" (culled/sold)
+   - Grid/List of flock cards
+   - "Add New Flock" button
+   - Search by batch name
+   - Sort by: arrival date, current count, age
+   - Empty state for each tab
+
+2. src/pages/farm/AddFlockPage.tsx
+   - Route: /farm/flocks/new
+   - Form fields:
+     * Batch Name (auto-suggest: "Batch-YYYY-NNN" format)
+     * Breed (dropdown with common layer breeds + custom option)
+     * Initial Bird Count (number, required)
+     * Arrival Date (date picker, required, cannot be future)
+     * Age at Arrival (days, default 0 for day-old chicks)
+     * Notes (optional textarea)
+   - On save, current_count = initial_count
+   - Auto-generate vaccination schedule based on age (from vaccination_schedule table)
+   - Redirect to flock detail page on success
+
+3. src/pages/farm/FlockDetailPage.tsx
+   - Route: /farm/flocks/:flockId
+   - Header: Batch name, breed, status badge
+   - Stats cards row:
+     * Current Age (auto-calculated: today - arrival_date + age_at_arrival)
+     * Current Count (initial - total deaths)
+     * Total Deaths (sum from daily_entries)
+     * Mortality Rate (deaths / initial × 100)
+     * Total Eggs (sum from daily_entries)
+     * Production Rate (eggs / current_count × 100, last 7 days)
+   - Tabs:
+     * Overview (charts: production trend, mortality trend)
+     * Daily Entries (table of recent entries, link to daily entry page)
+     * Vaccinations (upcoming and completed)
+   - Action buttons: Edit Flock, Change Status, Delete
+
+4. src/pages/farm/EditFlockPage.tsx
+   - Route: /farm/flocks/:flockId/edit
+   - Editable: batch_name, breed, notes
+   - Non-editable (display only): initial_count, arrival_date, age_at_arrival
+   - Cannot edit current_count (calculated from deaths)
+
+5. src/components/flocks/FlockCard.tsx
+   - Display: batch name, breed, current count / initial count
+   - Age badge (e.g., "45 days old" or "6 weeks old")
+   - Status badge (active = green, culled = gray, sold = blue)
+   - Quick stats: mortality %, egg production (last 7 days)
+   - Click to navigate to detail page
+
+6. src/components/flocks/ChangeStatusModal.tsx
+   - Select new status: culled, sold
+   - Date of status change (default today)
+   - Reason/notes (optional)
+   - Warning: "This will archive the flock"
+   - Confirm button
+
+7. src/components/flocks/BreedSelector.tsx
+   - Dropdown with common layer breeds:
+     * Lohmann Brown
+     * Hy-Line Brown
+     * ISA Brown
+     * Bovans Brown
+     * Novogen Brown
+     * Dekalb White
+     * Hy-Line W-36
+     * Custom (text input)
+   - Remember last used breeds for this farm
+
+8. electron/ipc-handlers.ts (add handlers)
+   - flocks.create(data): create flock, auto-generate vaccinations
+   - flocks.getByFarm(farmId): return all flocks with calculated stats
+   - flocks.getById(flockId): return flock with full stats
+   - flocks.update(flockId, data): update editable fields
+   - flocks.changeStatus(flockId, status, date, notes): archive flock
+   - flocks.delete(flockId): only if no daily entries exist
+   - flocks.getStats(flockId): return calculated statistics
+
+9. drizzle/schema.ts (verify flock table has all fields)
+   - Ensure status field accepts: 'active', 'culled', 'sold'
+   - Add status_changed_date and status_notes columns if not exist
+
+10. src/lib/api.ts (add flock API functions)
+    - createFlock(data)
+    - getFlocksByFarm(farmId)
+    - getFlockById(id)
+    - updateFlock(id, data)
+    - changeFlockStatus(id, status, date, notes)
+    - deleteFlock(id)
+    - getFlockStats(id)
+
+11. src/lib/utils.ts (add helper functions)
+    - calculateAge(arrivalDate, ageAtArrival): returns age in days
+    - formatAge(days): returns "X days" or "X weeks Y days"
+    - generateBatchName(existingBatches): returns next batch name
+
+12. src/App.tsx (add routes)
+    - /farm/flocks - FlocksPage
+    - /farm/flocks/new - AddFlockPage
+    - /farm/flocks/:flockId - FlockDetailPage
+    - /farm/flocks/:flockId/edit - EditFlockPage
+
+CALCULATIONS:
+- Current Age = (today - arrival_date) + age_at_arrival_days
+- Current Count = initial_count - SUM(deaths from daily_entries)
+- Mortality Rate = (total_deaths / initial_count) × 100
+- Production Rate = (eggs_last_7_days / (current_count × 7)) × 100
+
+VALIDATION RULES:
+- Batch name: required, unique within farm
+- Initial count: required, 1-100,000
+- Arrival date: required, cannot be future date
+- Age at arrival: 0-365 days
+
+UI/UX REQUIREMENTS:
+- Age displayed prominently (farmers track this closely)
+- Color-coded status badges
+- Visual indicator if mortality rate > 1% (warning)
+- Visual indicator if production rate < 80% (warning)
+- Confirmation before status change or delete
+
+OUTPUT: Farm users can manage all flocks - create with auto-vaccination scheduling, view detailed stats, edit, change status to archive, and delete empty flocks. Flock cards show real-time calculated age and stats.

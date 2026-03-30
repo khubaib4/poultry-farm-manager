@@ -14,6 +14,10 @@ import OwnerDashboard from "@/pages/OwnerDashboard";
 import FarmDashboard from "@/pages/FarmDashboard";
 import AddFarmPage from "@/pages/owner/AddFarmPage";
 import FarmsListPage from "@/pages/owner/FarmsListPage";
+import FlocksPage from "@/pages/farm/FlocksPage";
+import AddFlockPage from "@/pages/farm/AddFlockPage";
+import FlockDetailPage from "@/pages/farm/FlockDetailPage";
+import EditFlockPage from "@/pages/farm/EditFlockPage";
 import PlaceholderPage from "@/pages/PlaceholderPage";
 
 function AuthRedirect(): React.ReactElement {
@@ -56,7 +60,10 @@ export default function App(): React.ReactElement {
 
           <Route path="/farm/dashboard" element={<FarmLayout><FarmDashboard /></FarmLayout>} />
           <Route path="/farm/daily-entry" element={<FarmLayout><PlaceholderPage title="Daily Entry" description="Record daily egg production, mortality, and feed data." /></FarmLayout>} />
-          <Route path="/farm/flocks" element={<FarmLayout><PlaceholderPage title="Flocks" description="Manage your bird batches and flock records." /></FarmLayout>} />
+          <Route path="/farm/flocks" element={<FarmLayout><FlocksPage /></FarmLayout>} />
+          <Route path="/farm/flocks/new" element={<FarmLayout><AddFlockPage /></FarmLayout>} />
+          <Route path="/farm/flocks/:flockId" element={<FarmLayout><FlockDetailPage /></FarmLayout>} />
+          <Route path="/farm/flocks/:flockId/edit" element={<FarmLayout><EditFlockPage /></FarmLayout>} />
           <Route path="/farm/inventory" element={<FarmLayout><PlaceholderPage title="Inventory" description="Track feed, medicine, and equipment stock." /></FarmLayout>} />
           <Route path="/farm/vaccinations" element={<FarmLayout><PlaceholderPage title="Vaccinations" description="Schedule and track vaccination programs." /></FarmLayout>} />
           <Route path="/farm/expenses" element={<FarmLayout><PlaceholderPage title="Expenses" description="Monitor and categorize farm spending." /></FarmLayout>} />

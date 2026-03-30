@@ -93,6 +93,13 @@ export const flocks = {
 
   update: (id: number, data: Partial<FlockData>) =>
     invoke(() => getApi()!.flocks.update(id, data)),
+
+  changeStatus: (id: number, status: string, date: string, notes?: string) =>
+    invoke(() => getApi()!.flocks.changeStatus(id, status, date, notes)),
+
+  delete: (id: number) => invoke(() => getApi()!.flocks.delete(id)),
+
+  getStats: (id: number) => invoke(() => getApi()!.flocks.getStats(id)),
 };
 
 export const dailyEntries = {

@@ -1,0 +1,202 @@
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { isElectron } from "@/lib/api";
+import FlockCard from "@/components/flocks/FlockCard";
+import { Plus, Bird, Loader2, Search, ArrowUpDown } from "lucide-react";
+
+interface Flock {
+  id: number;
+  batchName: string;
+  breed?: string | null;
+  initialCount: number;
+  currentCount: number;
+  arrivalDate: string;
+  ageDays: number;
+  status?: string | null;
+  mortalityRate: number;
+  productionRate: number;
+  totalDeaths: number;
+  totalEggs: number;
+  eggsLast7Days: number;
+}
+
+type SortKey = "arrivalDate" | "currentCount" | "ageDays";
+
+export default function FlocksPage(): React.ReactElement {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [flocks, setFlocks] = useState<Flock[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<"active" | "archived">("active");
+  const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState<SortKey>("arrivalDate");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  useEffect(() => {
+    const loadFlocks = async () => {
+      if (!isElectron() || !user?.farmId) {
+        setIsLoading(false);
+        return;
+      }
+      try {
+        const result = await window.electronAPI.flocks.getByFarm(user.farmId);
+        if (result.success && result.data) {
+          setFlocks(result.data as Flock[]);
+        } else {
+          setError(result.error || "Failed to load flocks");
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load flocks");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadFlocks();
+  }, [user]);
+
+  const filtered = flocks
+    .filter((f) => {
+      const isActive = f.status === "active" || !f.status;
+      if (tab === "active") return isActive;
+      return !isActive;
+    })
+    .filter((f) =>
+      search
+        ? f.batchName.toLowerCase().includes(search.toLowerCase())
+        : true
+    )
+    .sort((a, b) => {
+      let cmp = 0;
+      if (sortBy === "arrivalDate") cmp = a.arrivalDate.localeCompare(b.arrivalDate);
+      else if (sortBy === "currentCount") cmp = a.currentCount - b.currentCount;
+      else if (sortBy === "ageDays") cmp = a.ageDays - b.ageDays;
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+
+  const handleSort = (key: SortKey) => {
+    if (sortBy === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(key);
+      setSortDir("desc");
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">Flocks</h2>
+          <p className="text-slate-500 mt-1">
+            Manage your bird batches and flock records.
+          </p>
+        </div>
+        <button
+          onClick={() => navigate("/farm/flocks/new")}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+        >
+          <Plus className="h-4 w-4" />
+          Add Flock
+        </button>
+      </div>
+
+      {error && (
+        <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive mb-4">
+          {error}
+        </div>
+      )}
+
+      <div className="flex items-center gap-3 mb-4">
+        <div className="flex rounded-lg border overflow-hidden">
+          <button
+            onClick={() => setTab("active")}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              tab === "active"
+                ? "bg-primary text-primary-foreground"
+                : "bg-white text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            Active ({flocks.filter((f) => f.status === "active" || !f.status).length})
+          </button>
+          <button
+            onClick={() => setTab("archived")}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              tab === "archived"
+                ? "bg-primary text-primary-foreground"
+                : "bg-white text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            Archived ({flocks.filter((f) => f.status && f.status !== "active").length})
+          </button>
+        </div>
+
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search by batch name..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full rounded-lg border border-input bg-background pl-9 pr-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </div>
+
+        <div className="flex items-center gap-1">
+          {(["arrivalDate", "currentCount", "ageDays"] as SortKey[]).map((key) => (
+            <button
+              key={key}
+              onClick={() => handleSort(key)}
+              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors ${
+                sortBy === key
+                  ? "bg-slate-100 text-slate-900"
+                  : "text-slate-500 hover:bg-slate-50"
+              }`}
+            >
+              {key === "arrivalDate" ? "Date" : key === "currentCount" ? "Count" : "Age"}
+              {sortBy === key && <ArrowUpDown className="h-3 w-3" />}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="bg-white rounded-xl border p-12 text-center">
+          <Bird className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+          <h4 className="text-lg font-medium text-slate-700 mb-1">
+            {tab === "active" ? "No active flocks" : "No archived flocks"}
+          </h4>
+          <p className="text-sm text-slate-500 mb-4">
+            {tab === "active"
+              ? "Add your first flock to start tracking production."
+              : "Archived flocks (culled or sold) will appear here."}
+          </p>
+          {tab === "active" && (
+            <button
+              onClick={() => navigate("/farm/flocks/new")}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              Add First Flock
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map((flock) => (
+            <FlockCard key={flock.id} flock={flock} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
