@@ -1,5 +1,6 @@
 import { app, BrowserWindow, shell } from "electron";
 import { join } from "path";
+import { initializeDatabase, closeDatabase } from "./database";
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -39,6 +40,8 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  initializeDatabase();
+
   createWindow();
 
   app.on("activate", function () {
@@ -50,4 +53,8 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
   }
+});
+
+app.on("before-quit", () => {
+  closeDatabase();
 });

@@ -65,7 +65,14 @@ Electron + React + TypeScript desktop app for poultry farm management.
 - **Dist**: `pnpm --filter @workspace/poultry-farm-manager run dist`
 - **Tailwind config**: `tailwind.config.js` with full shadcn/ui CSS variable color system
 - **Path alias**: `@/` maps to `src/`
-- **Note**: `electron` binary download requires running `node node_modules/electron/install.js` in the package dir after first install (workspace `onlyBuiltDependencies` includes `electron`)
+- **Database**: SQLite via `better-sqlite3` + Drizzle ORM
+  - Schema: `drizzle/schema.ts` — 10 tables (owners, farms, users, flocks, daily_entries, egg_prices, expenses, inventory, vaccinations, vaccination_schedule)
+  - Migrations: `drizzle/migrations/` — auto-run on app startup
+  - DB file location: Electron `userData` directory (`poultry-farm.db`)
+  - `electron/database.ts` — initializes DB, runs migrations, fallback to manual CREATE TABLE
+  - `pnpm run db:generate` — generate new migration from schema changes
+- **Web preview**: `pnpm run dev:web` — serves the React UI in browser (for development without Electron)
+- **Note**: `electron` and `better-sqlite3` binaries require native builds (workspace `onlyBuiltDependencies` includes both)
 
 ## Packages
 

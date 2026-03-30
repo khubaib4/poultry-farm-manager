@@ -1,0 +1,63 @@
+Prompt 1.3: IPC Bridge Setup
+OBJECTIVE: Set up secure IPC (Inter-Process Communication) between Electron main process and React renderer
+
+REQUIREMENTS:
+- Use contextBridge to expose safe APIs to renderer
+- Create typed IPC handlers for database operations
+- Follow Electron security best practices (contextIsolation: true, nodeIntegration: false)
+
+FILES TO CREATE/MODIFY:
+
+1. electron/preload.ts
+   - Expose 'electronAPI' object via contextBridge
+   - Define IPC invoke methods for all database operations
+   - Methods needed:
+     * auth.loginOwner(email, password)
+     * auth.loginFarm(username, password)
+     * auth.logout()
+     * auth.getCurrentUser()
+     * owners.create(data)
+     * owners.getById(id)
+     * owners.update(id, data)
+     * farms.create(data)
+     * farms.getAll(ownerId)
+     * farms.getById(id)
+     * farms.update(id, data)
+     * farms.delete(id)
+     * flocks.create(data)
+     * flocks.getByFarm(farmId)
+     * flocks.getById(id)
+     * flocks.update(id, data)
+     * dailyEntries.create(data)
+     * dailyEntries.getByFlock(flockId, startDate?, endDate?)
+     * dailyEntries.getByDate(flockId, date)
+     * dailyEntries.update(id, data)
+     * (more will be added in later phases)
+
+2. electron/ipc-handlers.ts
+   - Create IPC handler functions for each operation
+   - Import Drizzle db and schema
+   - Implement CRUD operations for each table
+   - Use bcrypt for password hashing (install bcryptjs)
+   - Return typed responses
+
+3. electron/main.ts
+   - Register all IPC handlers on app ready
+   - Import handlers from ipc-handlers.ts
+
+4. src/types/electron.d.ts
+   - TypeScript declarations for window.electronAPI
+   - Define all method signatures with proper types
+
+5. src/lib/api.ts
+   - Wrapper functions that call window.electronAPI methods
+   - Add error handling
+   - Export typed functions for use in React components
+
+SECURITY REQUIREMENTS:
+- Never expose Node.js APIs directly to renderer
+- Validate all inputs in IPC handlers
+- Hash passwords before storing
+- Return sanitized errors (no stack traces to renderer)
+
+OUTPUT: React components can call api.auth.loginOwner() and it communicates with SQLite via IPC
