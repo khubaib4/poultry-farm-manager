@@ -1,5 +1,30 @@
-node_modules
-out
-dist
-release
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+dist-electron/
+out/
+release/
 *.tsbuildinfo
+
+# Database (local data)
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Electron
+.electron/
+
+# OS files
+.DS_Store
+Thumbs.db

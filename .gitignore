@@ -1,18 +1,42 @@
-# See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
+# Dependencies
+node_modules/
 
-# compiled output
-dist
-tmp
-out-tsc
+# Build outputs
+dist/
+dist-electron/
+out/
+release/
+tmp/
+out-tsc/
 *.tsbuildinfo
-.expo
-.expo-shared
 
-# dependencies
-node_modules
+# Expo
+.expo/
+.expo-shared/
 
-# IDEs and editors
-/.idea
+# Database (local data)
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+npm-debug.log*
+yarn-error.log
+testem.log
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Editor folders
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
 .project
 .classpath
 .c9/
@@ -20,29 +44,19 @@ node_modules
 .settings/
 *.sublime-workspace
 
-# IDE - VSCode
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
+# OS files
+.DS_Store
+Thumbs.db
 
-# misc
+# Electron
+.electron/
+
+# Misc
 /.sass-cache
 /connect.lock
 /coverage
 /libpeerconnection.log
-npm-debug.log
-yarn-error.log
-testem.log
 /typings
-
-# System Files
-.DS_Store
-Thumbs.db
-
-.cursor/rules/nx-rules.mdc
-.github/instructions/nx.instructions.md
 
 # Replit
 .cache/
