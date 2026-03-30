@@ -28,6 +28,12 @@ import type {
   CompletedVaccination,
   CompleteVaccinationData,
   SkipVaccinationData,
+  VaccinationHistoryFilters,
+  VaccinationHistoryResponse,
+  FlockVaccinationDetailed,
+  AddCustomVaccinationData,
+  ComplianceStats,
+  VaccinationExportItem,
   UserData,
 } from "@/types/electron";
 
@@ -270,6 +276,21 @@ export const vaccinations = {
 
   reschedule: (id: number, newDate: string) =>
     invoke(() => getApi()!.vaccinations.reschedule(id, newDate)),
+
+  getHistory: (farmId: number, filters: VaccinationHistoryFilters) =>
+    invoke<VaccinationHistoryResponse>(() => getApi()!.vaccinations.getHistory(farmId, filters)),
+
+  getByFlockDetailed: (flockId: number) =>
+    invoke<FlockVaccinationDetailed>(() => getApi()!.vaccinations.getByFlockDetailed(flockId)),
+
+  addCustom: (flockId: number, data: AddCustomVaccinationData) =>
+    invoke(() => getApi()!.vaccinations.addCustom(flockId, data)),
+
+  getComplianceStats: (farmId: number) =>
+    invoke<ComplianceStats>(() => getApi()!.vaccinations.getComplianceStats(farmId)),
+
+  exportHistory: (farmId: number, filters: { flockId?: number; startDate?: string; endDate?: string; status?: string }) =>
+    invoke<VaccinationExportItem[]>(() => getApi()!.vaccinations.exportHistory(farmId, filters)),
 };
 
 export const vaccinationSchedule = {

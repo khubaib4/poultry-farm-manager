@@ -258,6 +258,104 @@ export interface SkipVaccinationData {
   rescheduleDate?: string;
 }
 
+export interface VaccinationHistoryFilters {
+  flockId?: number;
+  startDate?: string;
+  endDate?: string;
+  search?: string;
+  status?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface VaccinationHistoryItem {
+  id: number;
+  flockId: number | null;
+  vaccineName: string;
+  scheduledDate: string;
+  administeredDate: string | null;
+  administeredBy: string | null;
+  batchNumber: string | null;
+  notes: string | null;
+  status: string | null;
+  createdAt: string | null;
+  flockName: string;
+  flockBreed: string;
+}
+
+export interface VaccinationHistoryResponse {
+  items: VaccinationHistoryItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface FlockVaccinationItem {
+  id: number;
+  flockId: number | null;
+  vaccineName: string;
+  scheduledDate: string;
+  administeredDate: string | null;
+  administeredBy: string | null;
+  batchNumber: string | null;
+  notes: string | null;
+  status: string | null;
+  createdAt: string | null;
+  vaccAgeDays: number;
+}
+
+export interface FlockVaccinationDetailed {
+  flock: {
+    id: number;
+    batchName: string;
+    breed: string;
+    currentCount: number | null;
+    arrivalDate: string;
+    ageAtArrivalDays: number | null;
+    status: string | null;
+  };
+  vaccinations: FlockVaccinationItem[];
+  compliance: {
+    total: number;
+    completed: number;
+    skipped: number;
+    overdue: number;
+    pending: number;
+    rate: number;
+  };
+}
+
+export interface ComplianceStats {
+  total: number;
+  completed: number;
+  skipped: number;
+  overdue: number;
+  pending: number;
+  rate: number;
+  lastCompletedDate: string | null;
+  lastCompletedVaccine: string | null;
+}
+
+export interface AddCustomVaccinationData {
+  vaccineName: string;
+  administeredDate: string;
+  administeredBy: string;
+  batchNumber?: string;
+  route?: string;
+  notes?: string;
+}
+
+export interface VaccinationExportItem {
+  date: string;
+  flock: string;
+  vaccine: string;
+  status: string;
+  administeredBy: string;
+  batchNumber: string;
+  notes: string;
+}
+
 export interface VaccinationScheduleData {
   vaccineName: string;
   ageDays: number;
@@ -385,6 +483,11 @@ export interface ElectronAPI {
     complete: (id: number, data: CompleteVaccinationData) => Promise<IpcResponse>;
     skip: (id: number, data: SkipVaccinationData) => Promise<IpcResponse>;
     reschedule: (id: number, newDate: string) => Promise<IpcResponse>;
+    getHistory: (farmId: number, filters: VaccinationHistoryFilters) => Promise<IpcResponse<VaccinationHistoryResponse>>;
+    getByFlockDetailed: (flockId: number) => Promise<IpcResponse<FlockVaccinationDetailed>>;
+    addCustom: (flockId: number, data: AddCustomVaccinationData) => Promise<IpcResponse>;
+    getComplianceStats: (farmId: number) => Promise<IpcResponse<ComplianceStats>>;
+    exportHistory: (farmId: number, filters: { flockId?: number; startDate?: string; endDate?: string; status?: string }) => Promise<IpcResponse<VaccinationExportItem[]>>;
   };
   dashboard: {
     getFarmStats: (farmId: number) => Promise<IpcResponse>;

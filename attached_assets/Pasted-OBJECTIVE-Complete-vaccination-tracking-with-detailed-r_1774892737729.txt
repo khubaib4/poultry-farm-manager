@@ -1,0 +1,164 @@
+OBJECTIVE: Complete vaccination tracking with detailed recording and comprehensive history
+
+REQUIREMENTS:
+- Record detailed vaccination administration
+- View complete vaccination history per flock
+- Track vaccine inventory usage
+- Generate vaccination reports
+- Vaccination certificates/records export
+
+FILES TO CREATE/MODIFY:
+
+1. src/pages/farm/VaccinationHistoryPage.tsx
+   - Route: /farm/vaccinations/history
+   - Header: "Vaccination History"
+   
+   - Filters:
+     * Flock selector (all or specific)
+     * Date range
+     * Vaccine name search
+     * Status (completed, skipped, all)
+   
+   - History Table:
+     * Columns: Date, Flock, Vaccine, Status, Administered By, Batch #, Notes
+     * Sortable columns
+     * Pagination
+     * Export button (CSV, PDF)
+   
+   - Summary Stats:
+     * Total vaccinations completed
+     * Compliance rate (completed / total scheduled × 100)
+     * Most recent vaccination
+
+2. src/pages/farm/FlockVaccinationPage.tsx
+   - Route: /farm/flocks/:flockId/vaccinations
+   - Dedicated page for single flock's vaccination record
+   
+   - Flock Header:
+     * Flock name, breed, age
+     * Vaccination compliance badge
+   
+   - Timeline View:
+     * Visual timeline of all vaccinations
+     * Past (completed/skipped) and future (pending)
+     * Color coded by status
+   
+   - Table View (toggle):
+     * All vaccinations for this flock
+     * Status, dates, notes
+   
+   - Actions:
+     * Add custom vaccination (not from template)
+     * Regenerate schedule from template
+     * Export flock vaccination record
+
+3. src/components/vaccinations/VaccinationTimeline.tsx
+   - Visual timeline component
+   - Vertical line with nodes for each vaccination
+   - Node colors: green (done), red (skipped), gray (pending), orange (overdue)
+   - Show vaccine name, date, age at vaccination
+   - Click node for details
+
+4. src/components/vaccinations/VaccinationHistoryTable.tsx
+   - Table component for history
+   - Sortable, filterable
+   - Row expansion for notes/details
+   - Bulk export selection
+
+5. src/components/vaccinations/AddCustomVaccinationModal.tsx
+   - Add a vaccination not in template
+   - Fields:
+     * Vaccine Name (required)
+     * Date Administered (required)
+     * Administered By (required)
+     * Batch Number (optional)
+     * Route (dropdown)
+     * Notes (optional)
+   - Adds directly as completed
+
+6. src/components/vaccinations/VaccinationComplianceCard.tsx
+   - Card showing compliance metrics
+   - Completed vs Total
+   - Percentage with progress bar
+   - Warning if compliance low
+
+7. src/components/vaccinations/ExportVaccinationModal.tsx
+   - Export options modal
+   - Select format: CSV, PDF
+   - Select date range
+   - Select flocks (all or specific)
+   - Include notes checkbox
+   - Generate and download
+
+8. electron/ipc-handlers.ts (add handlers)
+   - vaccinations.getHistory(farmId, filters):
+     * Get vaccination history with filters
+     * Include flock details
+     * Pagination support
+   
+   - vaccinations.getByFlockDetailed(flockId):
+     * Get all vaccinations for flock
+     * Include pending, completed, skipped
+     * Calculate compliance
+   
+   - vaccinations.addCustom(flockId, data):
+     * Add a custom vaccination record
+     * Not from template
+     * Status = completed
+   
+   - vaccinations.getComplianceStats(farmId):
+     * Calculate compliance across all flocks
+     * Return: { total, completed, skipped, pending, rate }
+   
+   - vaccinations.exportHistory(farmId, filters, format):
+     * Generate export data
+     * Format: csv or json (PDF generated client-side)
+
+9. src/lib/api.ts (add functions)
+   - getVaccinationHistory(farmId, filters)
+   - getFlockVaccinationsDetailed(flockId)
+   - addCustomVaccination(flockId, data)
+   - getComplianceStats(farmId)
+   - exportVaccinationHistory(farmId, filters, format)
+
+10. src/lib/exportUtils.ts (new file)
+    - generateVaccinationCSV(data): string
+    - generateVaccinationPDF(data): uses jspdf
+    - downloadFile(content, filename, type)
+
+11. src/hooks/useVaccinationHistory.ts
+    - Hook for history page with filters
+    - Return: { history, stats, isLoading, filters, setFilters }
+
+12. src/App.tsx (add routes)
+    - /farm/vaccinations/history - VaccinationHistoryPage
+    - /farm/flocks/:flockId/vaccinations - FlockVaccinationPage
+
+13. Update FlockDetailPage.tsx
+    - Add "Vaccinations" tab or section
+    - Show compliance badge
+    - Link to full vaccination page
+
+COMPLIANCE CALCULATION:
+- Compliance Rate = (Completed / (Completed + Skipped + Overdue)) × 100
+- Pending future vaccinations not included in compliance
+- Overdue = pending but past due date
+
+EXPORT CSV FORMAT:
+Date,Flock,Vaccine,Status,Administered By,Batch Number,Notes
+2024-03-15,Batch-2024-001,Newcastle + IB,Completed,Dr. Ali,NK-2024-001,No adverse reactions
+
+EXPORT PDF FORMAT:
+- Header: Farm name, date range, generated date
+- Table with all vaccination records
+- Summary stats at bottom
+- Professional formatting
+
+UI/UX REQUIREMENTS:
+- Timeline is visually clear and intuitive
+- Easy to see compliance at a glance
+- Export works offline (client-side PDF)
+- History loads fast with pagination
+- Mobile-responsive tables
+
+OUTPUT: Complete vaccination history is viewable and exportable. Per-flock vaccination records available. Compliance tracking helps ensure all vaccinations are completed.

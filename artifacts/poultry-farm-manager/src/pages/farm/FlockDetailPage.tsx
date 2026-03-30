@@ -385,6 +385,31 @@ export default function FlockDetailPage(): React.ReactElement {
 
       {activeTab === "vaccinations" && (
         <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {(() => {
+                const total = vaccinations.length;
+                const comp = completedVacc.length;
+                const rate = total > 0 ? Math.round((comp / total) * 100) : 100;
+                const color = rate >= 90 ? "bg-green-100 text-green-700" : rate >= 70 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700";
+                return (
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${color}`}>
+                    {rate}% compliant
+                  </span>
+                );
+              })()}
+            </div>
+            <button
+              onClick={() => navigate(`/farm/flocks/${flock.id}/vaccinations`)}
+              className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+            >
+              View Full Vaccination Record
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+
           {upcomingVacc.length > 0 && (
             <div className="bg-white rounded-xl border p-5">
               <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">

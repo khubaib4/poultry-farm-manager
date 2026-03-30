@@ -147,6 +147,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("vaccinations:skip", id, data),
     reschedule: (id: number, newDate: string) =>
       ipcRenderer.invoke("vaccinations:reschedule", id, newDate),
+    getHistory: (farmId: number, filters: unknown) =>
+      ipcRenderer.invoke("vaccinations:getHistory", farmId, filters),
+    getByFlockDetailed: (flockId: number) =>
+      ipcRenderer.invoke("vaccinations:getByFlockDetailed", flockId),
+    addCustom: (flockId: number, data: unknown) =>
+      ipcRenderer.invoke("vaccinations:addCustom", flockId, data),
+    getComplianceStats: (farmId: number) =>
+      ipcRenderer.invoke("vaccinations:getComplianceStats", farmId),
+    exportHistory: (farmId: number, filters: unknown) =>
+      ipcRenderer.invoke("vaccinations:exportHistory", farmId, filters),
   },
   dashboard: {
     getFarmStats: (farmId: number) =>

@@ -70,6 +70,15 @@ export default function VaccinationSchedulePage(): React.ReactElement {
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => navigate("/farm/vaccinations/history")}
+            className="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            History & Reports
+          </button>
+          <button
             onClick={() => navigate("/farm/vaccinations/template")}
             className="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
           >
