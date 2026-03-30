@@ -204,6 +204,28 @@ contextBridge.exposeInMainWorld("electronAPI", {
     runAutoBackup: () => ipcRenderer.invoke("backup:runAutoBackup"),
     selectDirectory: () => ipcRenderer.invoke("backup:selectDirectory"),
   },
+  settings: {
+    getAll: () => ipcRenderer.invoke("settings:getAll"),
+    update: (partial: unknown) => ipcRenderer.invoke("settings:update", partial),
+    reset: () => ipcRenderer.invoke("settings:reset"),
+  },
+  profile: {
+    changePassword: (currentPassword: string, newPassword: string) =>
+      ipcRenderer.invoke("profile:changePassword", currentPassword, newPassword),
+    getOwnerProfile: () => ipcRenderer.invoke("profile:getOwnerProfile"),
+    getFarmProfile: () => ipcRenderer.invoke("profile:getFarmProfile"),
+  },
+  data: {
+    getSystemInfo: () => ipcRenderer.invoke("data:getSystemInfo"),
+    exportAllData: (farmId: number, options: unknown) =>
+      ipcRenderer.invoke("data:exportAllData", farmId, options),
+    clearDismissedAlerts: (farmId: number) =>
+      ipcRenderer.invoke("data:clearDismissedAlerts", farmId),
+    resetFarmData: (farmId: number) =>
+      ipcRenderer.invoke("data:resetFarmData", farmId),
+    deleteOwnerAccount: (ownerId: number, password: string) =>
+      ipcRenderer.invoke("data:deleteOwnerAccount", ownerId, password),
+  },
   vaccinationSchedule: {
     create: (data: unknown) =>
       ipcRenderer.invoke("vaccinationSchedule:create", data),

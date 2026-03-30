@@ -6,6 +6,7 @@ import {
   Navigate,
 } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { SettingsProvider } from "@/contexts/SettingsContext";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import AppLayout from "@/components/layout/AppLayout";
 import LoginPage from "@/pages/LoginPage";
@@ -39,6 +40,7 @@ import VaccinationHistoryPage from "@/pages/farm/VaccinationHistoryPage";
 import FlockVaccinationPage from "@/pages/farm/FlockVaccinationPage";
 import ReportsPage from "@/pages/farm/ReportsPage";
 import BackupRestorePage from "@/pages/BackupRestorePage";
+import SettingsPage from "@/pages/settings/SettingsPage";
 import PlaceholderPage from "@/pages/PlaceholderPage";
 
 function AuthRedirect(): React.ReactElement {
@@ -69,6 +71,7 @@ export default function App(): React.ReactElement {
   return (
     <HashRouter>
       <AuthProvider>
+        <SettingsProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterOwnerPage />} />
@@ -79,7 +82,7 @@ export default function App(): React.ReactElement {
           <Route path="/owner/compare" element={<OwnerLayout><FarmComparisonPage /></OwnerLayout>} />
           <Route path="/owner/reports" element={<OwnerLayout><PlaceholderPage title="Reports" description="View analytics and reports across all farms." /></OwnerLayout>} />
           <Route path="/owner/backup" element={<OwnerLayout><BackupRestorePage /></OwnerLayout>} />
-          <Route path="/owner/settings" element={<OwnerLayout><PlaceholderPage title="Settings" description="Manage your account settings." /></OwnerLayout>} />
+          <Route path="/owner/settings" element={<OwnerLayout><SettingsPage /></OwnerLayout>} />
 
           <Route path="/farm/dashboard" element={<FarmLayout><FarmDashboard /></FarmLayout>} />
           <Route path="/farm/daily-entry" element={<FarmLayout><DailyEntryPage /></FarmLayout>} />
@@ -105,12 +108,13 @@ export default function App(): React.ReactElement {
           <Route path="/farm/pricing" element={<FarmLayout><EggPricingPage /></FarmLayout>} />
           <Route path="/farm/reports" element={<FarmLayout><ReportsPage /></FarmLayout>} />
           <Route path="/farm/backup" element={<FarmLayout><BackupRestorePage /></FarmLayout>} />
-          <Route path="/farm/settings" element={<FarmLayout><PlaceholderPage title="Settings" description="Manage farm settings and preferences." /></FarmLayout>} />
+          <Route path="/farm/settings" element={<FarmLayout><SettingsPage /></FarmLayout>} />
 
           <Route path="/dashboard" element={<AuthRedirect />} />
           <Route path="/" element={<AuthRedirect />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
+        </SettingsProvider>
       </AuthProvider>
     </HashRouter>
   );

@@ -1,0 +1,216 @@
+OBJECTIVE: Build a comprehensive settings page for app configuration and user preferences
+
+REQUIREMENTS:
+- User profile settings
+- App preferences (theme, language placeholder)
+- Farm-specific settings
+- Notification preferences
+- Data management options
+
+FILES TO CREATE/MODIFY:
+
+1. src/pages/settings/SettingsPage.tsx
+   - Route: /owner/settings or /farm/settings
+   - Header: "Settings"
+   
+   - Settings navigation/tabs:
+     * Profile
+     * Preferences
+     * Farm Settings (farm users only)
+     * Notifications
+     * Data Management
+     * About
+
+2. src/pages/settings/ProfileSettings.tsx
+   - Route: /settings/profile
+   - Owner Profile:
+     * Name (editable)
+     * Email (display only or editable)
+     * Phone (editable)
+     * Change Password section
+   - Farm User Profile:
+     * Name (editable)
+     * Role (display only)
+     * Farm (display only)
+     * Change Password section
+
+3. src/pages/settings/PreferencesSettings.tsx
+   - Route: /settings/preferences
+   - Display Preferences:
+     * Date format: DD/MM/YYYY, MM/DD/YYYY, YYYY-MM-DD
+     * Currency display: PKR, Rs, Rs.
+     * Number format: 1,000.00 or 1.000,00
+   - Egg Counting:
+     * Default unit: Eggs or Trays
+     * Tray size: 30 (configurable)
+   - Dashboard:
+     * Default date range: Today, This Week, This Month
+     * Auto-refresh interval: 1, 5, 10 minutes or Off
+   - Theme (placeholder for future):
+     * Light / Dark / System (show as coming soon)
+
+4. src/pages/settings/FarmSettings.tsx
+   - Route: /settings/farm (farm users only)
+   - Farm Information:
+     * Farm name (editable by manager)
+     * Location (editable)
+     * Capacity (editable)
+   - Farm Credentials:
+     * Current username (display)
+     * Reset password button (manager only)
+   - Default Values:
+     * Default feed bag weight (kg)
+     * Default death causes list (editable)
+   - Vaccination:
+     * Link to vaccination template
+     * Auto-generate vaccinations toggle
+
+5. src/pages/settings/NotificationSettings.tsx
+   - Route: /settings/notifications
+   - Alert Preferences:
+     * Low stock alerts: On/Off
+     * Low stock threshold warning level
+     * Vaccination reminders: On/Off
+     * Days before vaccination to remind
+     * High mortality alerts: On/Off
+     * Mortality threshold for alert
+   - Dashboard Alerts:
+     * Show alerts on dashboard: On/Off
+     * Alert sound: On/Off (placeholder)
+
+6. src/pages/settings/DataManagementSettings.tsx
+   - Route: /settings/data
+   - Backup & Restore:
+     * Link to Backup page
+   - Data Export:
+     * Export all farm data (CSV/Excel)
+     * Select date range
+     * Select data types to include
+   - Data Cleanup:
+     * Archive old entries (older than X months)
+     * Delete archived data
+     * Clear dismissed alerts
+   - Danger Zone:
+     * Reset farm data (with confirmation)
+     * Delete account (owner only, with confirmation)
+
+7. src/pages/settings/AboutPage.tsx
+   - Route: /settings/about
+   - App Information:
+     * App name and logo
+     * Version number
+     * Build date
+   - Developer Info:
+     * Developed by House of Developers
+     * Website link
+     * Support email
+   - System Info:
+     * Database location
+     * Database size
+     * Electron version
+     * Node version
+   - Legal:
+     * Terms of Service link (placeholder)
+     * Privacy Policy link (placeholder)
+   - Check for Updates (placeholder)
+
+8. src/components/settings/SettingSection.tsx
+   - Reusable section wrapper
+   - Title, description, children
+   - Consistent styling
+
+9. src/components/settings/SettingRow.tsx
+   - Single setting row component
+   - Label, description, control (toggle, select, input)
+   - Consistent layout
+
+10. src/components/settings/ChangePasswordForm.tsx
+    - Current password input
+    - New password input
+    - Confirm password input
+    - Password strength indicator
+    - Save button
+
+11. src/components/settings/DangerZoneCard.tsx
+    - Red-bordered card for dangerous actions
+    - Warning icon and text
+    - Action button with confirmation
+
+12. electron/ipc-handlers.ts (add handlers)
+    - settings.get(key): get setting value
+    - settings.set(key, value): save setting
+    - settings.getAll(): get all settings
+    - settings.resetToDefaults(): reset settings
+    
+    - profile.update(data): update user profile
+    - profile.changePassword(currentPw, newPw): change password
+    
+    - farm.updateSettings(farmId, data): update farm settings
+    - farm.resetPassword(farmId): reset farm password (owner only)
+    
+    - data.exportAll(farmId, options): export all data
+    - data.archiveOld(farmId, beforeDate): archive old entries
+    - data.deleteArchived(farmId): delete archived data
+    - data.resetFarm(farmId): reset all farm data
+    - data.deleteAccount(ownerId): delete owner account
+
+13. electron/settings.ts (new file)
+    - Settings storage using electron-store
+    - Default settings values
+    - Settings schema/types
+
+14. src/lib/api.ts (add settings functions)
+    - getSetting(key)
+    - setSetting(key, value)
+    - getAllSettings()
+    - updateProfile(data)
+    - changePassword(currentPw, newPw)
+    - exportAllData(farmId, options)
+
+15. src/hooks/useSettings.ts
+    - Hook for accessing settings
+    - Return: { settings, updateSetting, isLoading }
+
+16. src/contexts/SettingsContext.tsx
+    - Context for app-wide settings
+    - Provides settings to all components
+    - Updates trigger re-renders where needed
+
+17. src/App.tsx (add routes)
+    - /owner/settings - SettingsPage (owner)
+    - /owner/settings/profile - ProfileSettings
+    - /owner/settings/preferences - PreferencesSettings
+    - /owner/settings/notifications - NotificationSettings
+    - /owner/settings/data - DataManagementSettings
+    - /owner/settings/about - AboutPage
+    - /farm/settings - SettingsPage (farm)
+    - Similar sub-routes for farm
+
+DEFAULT SETTINGS:
+```typescript
+const defaultSettings = {
+  dateFormat: 'DD/MM/YYYY',
+  currencySymbol: 'PKR',
+  numberFormat: 'comma',
+  defaultEggUnit: 'eggs',
+  traySize: 30,
+  defaultDateRange: 'week',
+  autoRefreshInterval: 5,
+  lowStockAlerts: true,
+  vaccinationReminders: true,
+  vaccinationReminderDays: 3,
+  mortalityAlerts: true,
+  mortalityThreshold: 1,
+  showDashboardAlerts: true,
+};
+```
+
+UI/UX REQUIREMENTS:
+- Organized into clear sections
+- Changes save automatically or with explicit save button
+- Confirmation for destructive actions
+- Success/error feedback
+- Settings persist across sessions
+- Reset to defaults option
+
+OUTPUT: Comprehensive settings page allowing users to customize the app, manage their profile, configure notifications, and handle data management tasks.

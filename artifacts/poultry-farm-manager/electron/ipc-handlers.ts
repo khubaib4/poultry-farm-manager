@@ -19,6 +19,14 @@ import {
   saveAutoBackupSettings,
   runAutoBackup,
 } from "./autoBackup";
+import {
+  getAllSettings,
+  updateSettings,
+  resetSettings,
+} from "./settings";
+import type { AppSettings } from "./settings";
+import { getDatabasePath } from "./database";
+import { statSync } from "fs";
 
 interface SessionData {
   type: "owner" | "farm" | "user";
@@ -3196,6 +3204,180 @@ export function registerIpcHandlers(): void {
       });
       if (result.canceled || result.filePaths.length === 0) throw new Error("Selection cancelled");
       return result.filePaths[0];
+    })
+  );
+
+  ipcMain.handle("settings:getAll",
+    wrapHandler(() => {
+      requireAuth();
+      return getAllSettings();
+    })
+  );
+
+  ipcMain.handle("settings:update",
+    wrapHandler((_e: unknown, partial: Partial<AppSettings>) => {
+      requireAuth();
+      return updateSettings(partial);
+    })
+  );
+
+  ipcMain.handle("settings:reset",
+    wrapHandler(() => {
+      requireAuth();
+      return resetSettings();
+    })
+  );
+
+  ipcMain.handle("profile:changePassword",
+    wrapHandler((_e: unknown, currentPassword: string, newPassword: string) => {
+      const session = requireAuth();
+      if (session.type === "owner") {
+        const owner = db.select().from(schema.owners).where(eq(schema.owners.id, session.id)).get();
+        if (!owner) throw new Error("Owner not found");
+        if (!bcrypt.compareSync(currentPassword, owner.passwordHash)) throw new Error("Current password is incorrect");
+        const hash = bcrypt.hashSync(newPassword, 10);
+        db.update(schema.owners).set({ passwordHash: hash, updatedAt: new Date().toISOString() }).where(eq(schema.owners.id, session.id)).run();
+        return { success: true };
+      } else if (session.type === "farm") {
+        const farm = db.select().from(schema.farms).where(eq(schema.farms.id, session.farmId!)).get();
+        if (!farm) throw new Error("Farm not found");
+        if (!bcrypt.compareSync(currentPassword, farm.loginPasswordHash)) throw new Error("Current password is incorrect");
+        const hash = bcrypt.hashSync(newPassword, 10);
+        db.update(schema.farms).set({ loginPasswordHash: hash }).where(eq(schema.farms.id, session.farmId!)).run();
+        return { success: true };
+      }
+      throw new Error("Password change not supported for this account type");
+    })
+  );
+
+  ipcMain.handle("profile:getOwnerProfile",
+    wrapHandler(() => {
+      const session = requireOwner();
+      const owner = db.select().from(schema.owners).where(eq(schema.owners.id, session.id)).get();
+      if (!owner) throw new Error("Owner not found");
+      const { passwordHash: _, ...safe } = owner;
+      return safe;
+    })
+  );
+
+  ipcMain.handle("profile:getFarmProfile",
+    wrapHandler(() => {
+      const session = requireAuth();
+      if (!session.farmId) throw new Error("No farm associated");
+      const farm = db.select().from(schema.farms).where(eq(schema.farms.id, session.farmId)).get();
+      if (!farm) throw new Error("Farm not found");
+      const { loginPasswordHash: _, ...safe } = farm;
+      return safe;
+    })
+  );
+
+  ipcMain.handle("data:getSystemInfo",
+    wrapHandler(() => {
+      requireAuth();
+      const dbPath = getDatabasePath();
+      let dbSize = 0;
+      try { dbSize = statSync(dbPath).size; } catch {}
+      return {
+        dbPath,
+        dbSize,
+        electronVersion: process.versions.electron || "N/A",
+        nodeVersion: process.versions.node || "N/A",
+        chromeVersion: process.versions.chrome || "N/A",
+        appVersion: app.getVersion(),
+        platform: process.platform,
+      };
+    })
+  );
+
+  ipcMain.handle("data:exportAllData",
+    wrapHandler((_e: unknown, farmId: number, options: { startDate?: string; endDate?: string; includeFlocks?: boolean; includeEntries?: boolean; includeExpenses?: boolean; includeInventory?: boolean; includeVaccinations?: boolean }) => {
+      requireFarmAccess(farmId);
+      const result: Record<string, unknown[]> = {};
+
+      if (options.includeFlocks !== false) {
+        result.flocks = db.select().from(schema.flocks).where(eq(schema.flocks.farmId, farmId)).all();
+      }
+      if (options.includeEntries !== false) {
+        let q = db.select().from(schema.dailyEntries)
+          .innerJoin(schema.flocks, eq(schema.dailyEntries.flockId, schema.flocks.id))
+          .where(eq(schema.flocks.farmId, farmId));
+        if (options.startDate) q = q.where(gte(schema.dailyEntries.entryDate, options.startDate)) as typeof q;
+        if (options.endDate) q = q.where(lte(schema.dailyEntries.entryDate, options.endDate)) as typeof q;
+        result.dailyEntries = q.all();
+      }
+      if (options.includeExpenses !== false) {
+        let conditions = [eq(schema.expenses.farmId, farmId)];
+        if (options.startDate) conditions.push(gte(schema.expenses.expenseDate, options.startDate));
+        if (options.endDate) conditions.push(lte(schema.expenses.expenseDate, options.endDate));
+        result.expenses = db.select().from(schema.expenses).where(and(...conditions)).all();
+      }
+      if (options.includeInventory !== false) {
+        result.inventory = db.select().from(schema.inventory).where(eq(schema.inventory.farmId, farmId)).all();
+      }
+      if (options.includeVaccinations !== false) {
+        result.vaccinations = db.select().from(schema.vaccinations)
+          .innerJoin(schema.flocks, eq(schema.vaccinations.flockId, schema.flocks.id))
+          .where(eq(schema.flocks.farmId, farmId)).all();
+      }
+      return result;
+    })
+  );
+
+  ipcMain.handle("data:clearDismissedAlerts",
+    wrapHandler((_e: unknown, farmId: number) => {
+      requireFarmAccess(farmId);
+      db.delete(schema.dismissedAlerts).where(eq(schema.dismissedAlerts.farmId, farmId)).run();
+      return { success: true };
+    })
+  );
+
+  ipcMain.handle("data:resetFarmData",
+    wrapHandler((_e: unknown, farmId: number) => {
+      requireFarmAccess(farmId);
+      const flockIds = db.select({ id: schema.flocks.id }).from(schema.flocks).where(eq(schema.flocks.farmId, farmId)).all().map(f => f.id);
+      if (flockIds.length > 0) {
+        for (const fid of flockIds) {
+          db.delete(schema.dailyEntries).where(eq(schema.dailyEntries.flockId, fid)).run();
+          db.delete(schema.vaccinations).where(eq(schema.vaccinations.flockId, fid)).run();
+        }
+        db.delete(schema.flocks).where(eq(schema.flocks.farmId, farmId)).run();
+      }
+      db.delete(schema.expenses).where(eq(schema.expenses.farmId, farmId)).run();
+      db.delete(schema.inventory).where(eq(schema.inventory.farmId, farmId)).run();
+      db.delete(schema.eggPrices).where(eq(schema.eggPrices.farmId, farmId)).run();
+      db.delete(schema.dismissedAlerts).where(eq(schema.dismissedAlerts.farmId, farmId)).run();
+      return { success: true };
+    })
+  );
+
+  ipcMain.handle("data:deleteOwnerAccount",
+    wrapHandler((_e: unknown, ownerId: number, password: string) => {
+      const session = requireOwner();
+      if (session.id !== ownerId) throw new Error("Access denied");
+      const owner = db.select().from(schema.owners).where(eq(schema.owners.id, ownerId)).get();
+      if (!owner) throw new Error("Owner not found");
+      if (!bcrypt.compareSync(password, owner.passwordHash)) throw new Error("Incorrect password");
+
+      const ownerFarms = db.select().from(schema.farms).where(eq(schema.farms.ownerId, ownerId)).all();
+      for (const farm of ownerFarms) {
+        const flockIds = db.select({ id: schema.flocks.id }).from(schema.flocks).where(eq(schema.flocks.farmId, farm.id)).all().map(f => f.id);
+        for (const fid of flockIds) {
+          db.delete(schema.dailyEntries).where(eq(schema.dailyEntries.flockId, fid)).run();
+          db.delete(schema.vaccinations).where(eq(schema.vaccinations.flockId, fid)).run();
+        }
+        db.delete(schema.flocks).where(eq(schema.flocks.farmId, farm.id)).run();
+        db.delete(schema.expenses).where(eq(schema.expenses.farmId, farm.id)).run();
+        db.delete(schema.inventory).where(eq(schema.inventory.farmId, farm.id)).run();
+        db.delete(schema.eggPrices).where(eq(schema.eggPrices.farmId, farm.id)).run();
+        db.delete(schema.dismissedAlerts).where(eq(schema.dismissedAlerts.farmId, farm.id)).run();
+        db.delete(schema.users).where(eq(schema.users.farmId, farm.id)).run();
+      }
+      db.delete(schema.farms).where(eq(schema.farms.ownerId, ownerId)).run();
+      db.delete(schema.owners).where(eq(schema.owners.id, ownerId)).run();
+
+      currentSession = null;
+      store.set("session", null);
+      return { success: true };
     })
   );
 }

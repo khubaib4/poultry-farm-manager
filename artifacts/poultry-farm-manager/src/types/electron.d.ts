@@ -658,6 +658,65 @@ export interface RestorePreview {
   metadata: BackupMetadata | null;
 }
 
+export interface AppSettings {
+  dateFormat: "DD/MM/YYYY" | "MM/DD/YYYY" | "YYYY-MM-DD";
+  currencySymbol: "PKR" | "Rs" | "Rs.";
+  numberFormat: "comma" | "dot";
+  defaultEggUnit: "eggs" | "trays";
+  traySize: number;
+  defaultDateRange: "today" | "week" | "month";
+  autoRefreshInterval: number;
+  lowStockAlerts: boolean;
+  vaccinationReminders: boolean;
+  vaccinationReminderDays: number;
+  mortalityAlerts: boolean;
+  mortalityThreshold: number;
+  showDashboardAlerts: boolean;
+  defaultFeedBagWeight: number;
+  defaultDeathCauses: string[];
+  autoGenerateVaccinations: boolean;
+}
+
+export interface OwnerProfile {
+  id: number;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface FarmProfile {
+  id: number;
+  ownerId: number | null;
+  name: string;
+  location: string | null;
+  capacity: number | null;
+  loginUsername: string;
+  isActive: number | null;
+  createdAt: string | null;
+}
+
+export interface SystemInfo {
+  dbPath: string;
+  dbSize: number;
+  electronVersion: string;
+  nodeVersion: string;
+  chromeVersion: string;
+  appVersion: string;
+  platform: string;
+}
+
+export interface DataExportOptions {
+  startDate?: string;
+  endDate?: string;
+  includeFlocks?: boolean;
+  includeEntries?: boolean;
+  includeExpenses?: boolean;
+  includeInventory?: boolean;
+  includeVaccinations?: boolean;
+}
+
 export interface VaccinationScheduleData {
   vaccineName: string;
   ageDays: number;
@@ -804,6 +863,23 @@ export interface ElectronAPI {
     saveSettings: (settings: Partial<AutoBackupSettings>) => Promise<IpcResponse<AutoBackupSettings>>;
     runAutoBackup: () => Promise<IpcResponse>;
     selectDirectory: () => Promise<IpcResponse<string>>;
+  };
+  settings: {
+    getAll: () => Promise<IpcResponse<AppSettings>>;
+    update: (partial: Partial<AppSettings>) => Promise<IpcResponse<AppSettings>>;
+    reset: () => Promise<IpcResponse<AppSettings>>;
+  };
+  profile: {
+    changePassword: (currentPassword: string, newPassword: string) => Promise<IpcResponse>;
+    getOwnerProfile: () => Promise<IpcResponse<OwnerProfile>>;
+    getFarmProfile: () => Promise<IpcResponse<FarmProfile>>;
+  };
+  data: {
+    getSystemInfo: () => Promise<IpcResponse<SystemInfo>>;
+    exportAllData: (farmId: number, options: DataExportOptions) => Promise<IpcResponse<Record<string, unknown[]>>>;
+    clearDismissedAlerts: (farmId: number) => Promise<IpcResponse>;
+    resetFarmData: (farmId: number) => Promise<IpcResponse>;
+    deleteOwnerAccount: (ownerId: number, password: string) => Promise<IpcResponse>;
   };
   owner: {
     getDashboardStats: (ownerId: number) => Promise<IpcResponse<OwnerDashboardStats>>;

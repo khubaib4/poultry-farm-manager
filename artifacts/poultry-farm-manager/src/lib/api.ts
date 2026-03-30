@@ -49,6 +49,11 @@ import type {
   AutoBackupSettings,
   BackupValidation,
   RestorePreview,
+  AppSettings,
+  OwnerProfile,
+  FarmProfile,
+  SystemInfo,
+  DataExportOptions,
 } from "@/types/electron";
 
 function getApi() {
@@ -407,6 +412,45 @@ export const backup = {
 
   selectDirectory: () =>
     invoke<string>(() => getApi()!.backup.selectDirectory()),
+};
+
+export const settings = {
+  getAll: () =>
+    invoke<AppSettings>(() => getApi()!.settings.getAll()),
+
+  update: (partial: Partial<AppSettings>) =>
+    invoke<AppSettings>(() => getApi()!.settings.update(partial)),
+
+  reset: () =>
+    invoke<AppSettings>(() => getApi()!.settings.reset()),
+};
+
+export const profile = {
+  changePassword: (currentPassword: string, newPassword: string) =>
+    invoke(() => getApi()!.profile.changePassword(currentPassword, newPassword)),
+
+  getOwnerProfile: () =>
+    invoke<OwnerProfile>(() => getApi()!.profile.getOwnerProfile()),
+
+  getFarmProfile: () =>
+    invoke<FarmProfile>(() => getApi()!.profile.getFarmProfile()),
+};
+
+export const data = {
+  getSystemInfo: () =>
+    invoke<SystemInfo>(() => getApi()!.data.getSystemInfo()),
+
+  exportAllData: (farmId: number, options: DataExportOptions) =>
+    invoke<Record<string, unknown[]>>(() => getApi()!.data.exportAllData(farmId, options)),
+
+  clearDismissedAlerts: (farmId: number) =>
+    invoke(() => getApi()!.data.clearDismissedAlerts(farmId)),
+
+  resetFarmData: (farmId: number) =>
+    invoke(() => getApi()!.data.resetFarmData(farmId)),
+
+  deleteOwnerAccount: (ownerId: number, password: string) =>
+    invoke(() => getApi()!.data.deleteOwnerAccount(ownerId, password)),
 };
 
 export const isElectron = (): boolean => {
