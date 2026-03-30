@@ -38,6 +38,7 @@ import VaccinationTemplatePage from "@/pages/farm/VaccinationTemplatePage";
 import VaccinationHistoryPage from "@/pages/farm/VaccinationHistoryPage";
 import FlockVaccinationPage from "@/pages/farm/FlockVaccinationPage";
 import ReportsPage from "@/pages/farm/ReportsPage";
+import BackupRestorePage from "@/pages/BackupRestorePage";
 import PlaceholderPage from "@/pages/PlaceholderPage";
 
 function AuthRedirect(): React.ReactElement {
@@ -77,6 +78,7 @@ export default function App(): React.ReactElement {
           <Route path="/owner/add-farm" element={<OwnerLayout><AddFarmPage /></OwnerLayout>} />
           <Route path="/owner/compare" element={<OwnerLayout><FarmComparisonPage /></OwnerLayout>} />
           <Route path="/owner/reports" element={<OwnerLayout><PlaceholderPage title="Reports" description="View analytics and reports across all farms." /></OwnerLayout>} />
+          <Route path="/owner/backup" element={<OwnerLayout><BackupRestorePage /></OwnerLayout>} />
           <Route path="/owner/settings" element={<OwnerLayout><PlaceholderPage title="Settings" description="Manage your account settings." /></OwnerLayout>} />
 
           <Route path="/farm/dashboard" element={<FarmLayout><FarmDashboard /></FarmLayout>} />
@@ -102,6 +104,7 @@ export default function App(): React.ReactElement {
           <Route path="/farm/alerts" element={<FarmLayout><AlertsPage /></FarmLayout>} />
           <Route path="/farm/pricing" element={<FarmLayout><EggPricingPage /></FarmLayout>} />
           <Route path="/farm/reports" element={<FarmLayout><ReportsPage /></FarmLayout>} />
+          <Route path="/farm/backup" element={<FarmLayout><BackupRestorePage /></FarmLayout>} />
           <Route path="/farm/settings" element={<FarmLayout><PlaceholderPage title="Settings" description="Manage farm settings and preferences." /></FarmLayout>} />
 
           <Route path="/dashboard" element={<AuthRedirect />} />

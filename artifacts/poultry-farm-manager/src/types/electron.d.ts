@@ -613,6 +613,51 @@ export interface RecentActivity {
   amount?: number;
 }
 
+export interface BackupMetadata {
+  version: string;
+  createdAt: string;
+  dbVersion: number;
+  appName: string;
+  stats: {
+    farms: number;
+    flocks: number;
+    dailyEntries: number;
+    expenses: number;
+    vaccinations: number;
+    owners: number;
+    inventory: number;
+  };
+}
+
+export interface BackupInfo {
+  path: string;
+  filename: string;
+  size: number;
+  createdAt: string;
+  metadata: BackupMetadata | null;
+}
+
+export interface AutoBackupSettings {
+  enabled: boolean;
+  frequency: "daily" | "weekly";
+  time: string;
+  location: string;
+  retention: number;
+  lastBackup: string | null;
+  nextBackup: string | null;
+}
+
+export interface BackupValidation {
+  valid: boolean;
+  metadata: BackupMetadata | null;
+  error?: string;
+}
+
+export interface RestorePreview {
+  backupPath: string;
+  metadata: BackupMetadata | null;
+}
+
 export interface VaccinationScheduleData {
   vaccineName: string;
   ageDays: number;
@@ -745,6 +790,20 @@ export interface ElectronAPI {
     addCustom: (flockId: number, data: AddCustomVaccinationData) => Promise<IpcResponse>;
     getComplianceStats: (farmId: number) => Promise<IpcResponse<ComplianceStats>>;
     exportHistory: (farmId: number, filters: { flockId?: number; startDate?: string; endDate?: string; status?: string }) => Promise<IpcResponse<VaccinationExportItem[]>>;
+  };
+  backup: {
+    create: () => Promise<IpcResponse<BackupInfo>>;
+    createToPath: (path: string) => Promise<IpcResponse<BackupInfo>>;
+    restore: () => Promise<IpcResponse<RestorePreview>>;
+    confirmRestore: (backupPath: string) => Promise<IpcResponse>;
+    validate: (backupPath: string) => Promise<IpcResponse<BackupValidation>>;
+    getHistory: () => Promise<IpcResponse<BackupInfo[]>>;
+    delete: (backupPath: string) => Promise<IpcResponse>;
+    openFolder: () => Promise<IpcResponse>;
+    getSettings: () => Promise<IpcResponse<AutoBackupSettings>>;
+    saveSettings: (settings: Partial<AutoBackupSettings>) => Promise<IpcResponse<AutoBackupSettings>>;
+    runAutoBackup: () => Promise<IpcResponse>;
+    selectDirectory: () => Promise<IpcResponse<string>>;
   };
   owner: {
     getDashboardStats: (ownerId: number) => Promise<IpcResponse<OwnerDashboardStats>>;

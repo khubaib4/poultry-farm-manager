@@ -19,6 +19,7 @@ import {
   Bell,
   PanelLeftClose,
   PanelLeft,
+  HardDrive,
 } from "lucide-react";
 import AlertBadge from "@/components/alerts/AlertBadge";
 
@@ -34,6 +35,7 @@ const ownerNavItems: NavItem[] = [
   { label: "All Farms", path: "/owner/farms", icon: <Building2 className="h-5 w-5" /> },
   { label: "Compare Farms", path: "/owner/compare", icon: <BarChart3 className="h-5 w-5" /> },
   { label: "Reports", path: "/owner/reports", icon: <Receipt className="h-5 w-5" /> },
+  { label: "Backup", path: "/owner/backup", icon: <HardDrive className="h-5 w-5" /> },
   { label: "Settings", path: "/owner/settings", icon: <Settings className="h-5 w-5" /> },
 ];
 
@@ -49,6 +51,7 @@ const farmNavItems: NavItem[] = [
   { label: "Pricing", path: "/farm/pricing", icon: <Tag className="h-5 w-5" /> },
   { label: "Alerts", path: "/farm/alerts", icon: <Bell className="h-5 w-5" />, badgeKey: "alerts" },
   { label: "Reports", path: "/farm/reports", icon: <BarChart3 className="h-5 w-5" /> },
+  { label: "Backup", path: "/farm/backup", icon: <HardDrive className="h-5 w-5" /> },
   { label: "Settings", path: "/farm/settings", icon: <Settings className="h-5 w-5" /> },
 ];
 

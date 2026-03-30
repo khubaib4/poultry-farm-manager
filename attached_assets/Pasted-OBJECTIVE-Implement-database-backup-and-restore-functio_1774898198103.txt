@@ -1,0 +1,213 @@
+OBJECTIVE: Implement database backup and restore functionality for data safety
+
+REQUIREMENTS:
+- Manual backup to user-selected location
+- Auto-backup option (daily)
+- Restore from backup file
+- Backup includes all data (farms, flocks, entries, finances, etc.)
+- Backup file validation before restore
+
+FILES TO CREATE/MODIFY:
+
+1. src/pages/settings/BackupRestorePage.tsx
+   - Route: /settings/backup (or /owner/settings/backup)
+   - Header: "Backup & Restore"
+   
+   - Backup Section:
+     * "Create Backup Now" button
+     * Choose location (save dialog)
+     * Last backup info (date, location, size)
+     * Backup progress indicator
+   
+   - Auto-Backup Section:
+     * Enable/disable toggle
+     * Frequency: Daily, Weekly
+     * Backup location setting
+     * Retention: Keep last X backups
+     * Next scheduled backup time
+   
+   - Restore Section:
+     * "Restore from Backup" button
+     * File picker to select backup
+     * Backup info preview (date created, farms count, etc.)
+     * Warning: "This will replace all current data"
+     * Confirmation checkbox
+     * Restore button (disabled until confirmed)
+   
+   - Backup History:
+     * List of recent backups
+     * Date, size, location
+     * Actions: Restore, Delete, Open folder
+
+2. src/components/backup/BackupButton.tsx
+   - Prominent backup button
+   - Shows loading state during backup
+   - Success/error toast
+
+3. src/components/backup/RestoreDialog.tsx
+   - Modal/dialog for restore process
+   - Step 1: Select backup file
+   - Step 2: Preview backup contents
+   - Step 3: Confirm with warning
+   - Step 4: Restore progress
+   - Step 5: Success/restart prompt
+
+4. src/components/backup/BackupHistoryList.tsx
+   - List of backup files
+   - Shows: filename, date, size
+   - Actions per item
+   - Empty state
+
+5. src/components/backup/AutoBackupSettings.tsx
+   - Toggle for auto-backup
+   - Frequency selector
+   - Location picker
+   - Retention settings
+
+6. electron/backup.ts (new file)
+   - Backup logic in main process
+   
+   - createBackup(destinationPath):
+     * Copy SQLite database file
+     * Add metadata (version, date, stats)
+     * Compress to .zip (optional)
+     * Return backup info
+   
+   - restoreBackup(backupPath):
+     * Validate backup file
+     * Check version compatibility
+     * Close current DB connection
+     * Replace database file
+     * Reopen connection
+     * Return success/error
+   
+   - validateBackup(backupPath):
+     * Check file exists
+     * Check file is valid SQLite
+     * Check schema version
+     * Return backup metadata
+   
+   - getBackupInfo(backupPath):
+     * Read metadata
+     * Count records (farms, flocks, entries)
+     * Return info object
+
+7. electron/ipc-handlers.ts (add handlers)
+   - backup.create(destinationPath):
+     * Call createBackup
+     * Return result
+   
+   - backup.restore(backupPath):
+     * Validate backup
+     * Confirm with user
+     * Call restoreBackup
+     * Trigger app restart if needed
+   
+   - backup.validate(backupPath):
+     * Call validateBackup
+     * Return metadata and validity
+   
+   - backup.getHistory():
+     * Read backup history from settings
+     * Return list of backups
+   
+   - backup.deleteBackup(backupPath):
+     * Delete backup file
+     * Update history
+   
+   - backup.openBackupFolder():
+     * Open backup directory in file explorer
+   
+   - backup.getSettings():
+     * Get auto-backup settings
+   
+   - backup.saveSettings(settings):
+     * Save auto-backup settings
+
+8. electron/autoBackup.ts (new file)
+   - Auto-backup scheduler
+   
+   - initAutoBackup():
+     * Check settings
+     * Schedule next backup
+   
+   - runAutoBackup():
+     * Create backup to configured location
+     * Clean up old backups based on retention
+     * Log result
+   
+   - scheduleNextBackup():
+     * Calculate next backup time
+     * Set timeout/interval
+
+9. electron/main.ts (modify)
+   - Initialize auto-backup on app start
+   - Handle backup-related IPC
+
+10. src/lib/api.ts (add backup functions)
+    - createBackup(path)
+    - restoreBackup(path)
+    - validateBackup(path)
+    - getBackupHistory()
+    - deleteBackup(path)
+    - openBackupFolder()
+    - getBackupSettings()
+    - saveBackupSettings(settings)
+
+11. electron/preload.ts (add backup channels)
+    - Expose backup IPC methods
+    - Add dialog methods for file save/open
+
+12. Add to Settings navigation
+    - "Backup & Restore" menu item with download-cloud icon
+
+BACKUP FILE FORMAT:
+- Filename: `poultry_backup_{YYYY-MM-DD_HH-mm-ss}.db` or `.zip`
+- Contains: SQLite database file
+- Optional: metadata.json with backup info
+
+BACKUP METADATA:
+```typescript
+interface BackupMetadata {
+  version: string;          // App version
+  createdAt: string;        // ISO timestamp
+  dbVersion: number;        // Schema version
+  stats: {
+    farms: number;
+    flocks: number;
+    dailyEntries: number;
+    expenses: number;
+    vaccinations: number;
+  };
+}
+```
+
+AUTO-BACKUP SETTINGS:
+```typescript
+interface AutoBackupSettings {
+  enabled: boolean;
+  frequency: 'daily' | 'weekly';
+  time: string;             // HH:mm format
+  location: string;         // Directory path
+  retention: number;        // Number of backups to keep
+  lastBackup: string | null;
+  nextBackup: string | null;
+}
+```
+
+UI/UX REQUIREMENTS:
+- Clear warnings before restore
+- Progress indicators for long operations
+- Success confirmations
+- Error messages with solutions
+- Easy to find backup location
+- Prevent accidental data loss
+
+SAFETY MEASURES:
+- Validate backup before restore
+- Create automatic backup before restore
+- Check disk space before backup
+- Handle locked database gracefully
+- App restart after restore if needed
+
+OUTPUT: Users can create manual backups, enable auto-backups, and restore from backup files. Data is protected against loss.

@@ -1,9 +1,24 @@
-import { ipcMain } from "electron";
+import { ipcMain, dialog, shell, app } from "electron";
+import { join } from "path";
 import { eq, and, gte, lte, sql, sum, like, desc, isNotNull, inArray } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import Store from "electron-store";
 import { getDatabase } from "./database";
 import * as schema from "../drizzle/schema";
+import {
+  createBackup,
+  restoreBackup,
+  validateBackup,
+  validateBackupPath,
+  deleteBackupFile,
+  listBackupsInDirectory,
+  generateBackupFilename,
+} from "./backup";
+import {
+  getAutoBackupSettings,
+  saveAutoBackupSettings,
+  runAutoBackup,
+} from "./autoBackup";
 
 interface SessionData {
   type: "owner" | "farm" | "user";
@@ -3067,6 +3082,120 @@ export function registerIpcHandlers(): void {
 
       activities.sort((a, b) => b.date.localeCompare(a.date));
       return activities.slice(0, limit);
+    })
+  );
+
+  ipcMain.handle("backup:create",
+    wrapHandler(async () => {
+      requireAuth();
+      const result = await dialog.showSaveDialog({
+        title: "Save Backup",
+        defaultPath: join(app.getPath("documents"), generateBackupFilename()),
+        filters: [{ name: "Database Backup", extensions: ["db"] }],
+      });
+      if (result.canceled || !result.filePath) throw new Error("Backup cancelled");
+      return createBackup(result.filePath);
+    })
+  );
+
+  ipcMain.handle("backup:createToPath",
+    wrapHandler((_e: unknown, destinationPath: string) => {
+      requireAuth();
+      validateBackupPath(destinationPath);
+      return createBackup(destinationPath);
+    })
+  );
+
+  ipcMain.handle("backup:restore",
+    wrapHandler(async () => {
+      requireAuth();
+      const result = await dialog.showOpenDialog({
+        title: "Select Backup File",
+        filters: [{ name: "Database Backup", extensions: ["db"] }],
+        properties: ["openFile"],
+      });
+      if (result.canceled || result.filePaths.length === 0) throw new Error("Restore cancelled");
+      const backupPath = result.filePaths[0];
+      const validation = validateBackup(backupPath);
+      if (!validation.valid) throw new Error(validation.error || "Invalid backup file");
+      return { backupPath, metadata: validation.metadata };
+    })
+  );
+
+  ipcMain.handle("backup:confirmRestore",
+    wrapHandler((_e: unknown, backupPath: string) => {
+      requireAuth();
+      const result = restoreBackup(backupPath);
+      if (!result.success) throw new Error(result.error || "Restore failed");
+      return { success: true };
+    })
+  );
+
+  ipcMain.handle("backup:validate",
+    wrapHandler((_e: unknown, backupPath: string) => {
+      requireAuth();
+      return validateBackup(backupPath);
+    })
+  );
+
+  ipcMain.handle("backup:getHistory",
+    wrapHandler(() => {
+      requireAuth();
+      const settings = getAutoBackupSettings();
+      const dir = settings.location || join(app.getPath("userData"), "backups");
+      return listBackupsInDirectory(dir);
+    })
+  );
+
+  ipcMain.handle("backup:delete",
+    wrapHandler((_e: unknown, backupPath: string) => {
+      requireAuth();
+      validateBackupPath(backupPath);
+      deleteBackupFile(backupPath);
+      return { success: true };
+    })
+  );
+
+  ipcMain.handle("backup:openFolder",
+    wrapHandler(async () => {
+      requireAuth();
+      const settings = getAutoBackupSettings();
+      const dir = settings.location || join(app.getPath("userData"), "backups");
+      await shell.openPath(dir);
+      return { success: true };
+    })
+  );
+
+  ipcMain.handle("backup:getSettings",
+    wrapHandler(() => {
+      requireAuth();
+      return getAutoBackupSettings();
+    })
+  );
+
+  ipcMain.handle("backup:saveSettings",
+    wrapHandler((_e: unknown, settings: Record<string, unknown>) => {
+      requireAuth();
+      return saveAutoBackupSettings(settings);
+    })
+  );
+
+  ipcMain.handle("backup:runAutoBackup",
+    wrapHandler(() => {
+      requireAuth();
+      return runAutoBackup();
+    })
+  );
+
+  ipcMain.handle("backup:selectDirectory",
+    wrapHandler(async () => {
+      requireAuth();
+      const result = await dialog.showOpenDialog({
+        title: "Select Backup Directory",
+        properties: ["openDirectory"],
+      });
+      if (result.canceled || result.filePaths.length === 0) throw new Error("Selection cancelled");
+      return result.filePaths[0];
     })
   );
 }

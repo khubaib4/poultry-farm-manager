@@ -45,6 +45,10 @@ import type {
   FarmComparisonData,
   OwnerAlert,
   RecentActivity,
+  BackupInfo,
+  AutoBackupSettings,
+  BackupValidation,
+  RestorePreview,
 } from "@/types/electron";
 
 function getApi() {
@@ -365,6 +369,44 @@ export const owner = {
 
   getRecentActivity: (ownerId: number, limit: number = 20) =>
     invoke<RecentActivity[]>(() => getApi()!.owner.getRecentActivity(ownerId, limit)),
+};
+
+export const backup = {
+  create: () =>
+    invoke<BackupInfo>(() => getApi()!.backup.create()),
+
+  createToPath: (path: string) =>
+    invoke<BackupInfo>(() => getApi()!.backup.createToPath(path)),
+
+  restore: () =>
+    invoke<RestorePreview>(() => getApi()!.backup.restore()),
+
+  confirmRestore: (backupPath: string) =>
+    invoke(() => getApi()!.backup.confirmRestore(backupPath)),
+
+  validate: (backupPath: string) =>
+    invoke<BackupValidation>(() => getApi()!.backup.validate(backupPath)),
+
+  getHistory: () =>
+    invoke<BackupInfo[]>(() => getApi()!.backup.getHistory()),
+
+  delete: (backupPath: string) =>
+    invoke(() => getApi()!.backup.delete(backupPath)),
+
+  openFolder: () =>
+    invoke(() => getApi()!.backup.openFolder()),
+
+  getSettings: () =>
+    invoke<AutoBackupSettings>(() => getApi()!.backup.getSettings()),
+
+  saveSettings: (settings: Partial<AutoBackupSettings>) =>
+    invoke<AutoBackupSettings>(() => getApi()!.backup.saveSettings(settings)),
+
+  runAutoBackup: () =>
+    invoke(() => getApi()!.backup.runAutoBackup()),
+
+  selectDirectory: () =>
+    invoke<string>(() => getApi()!.backup.selectDirectory()),
 };
 
 export const isElectron = (): boolean => {

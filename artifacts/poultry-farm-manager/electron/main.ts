@@ -2,6 +2,7 @@ import { app, BrowserWindow, shell } from "electron";
 import { join } from "path";
 import { initializeDatabase, closeDatabase } from "./database";
 import { registerIpcHandlers } from "./ipc-handlers";
+import { initAutoBackup } from "./autoBackup";
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -43,6 +44,7 @@ function createWindow(): void {
 app.whenReady().then(() => {
   initializeDatabase();
   registerIpcHandlers();
+  initAutoBackup();
 
   createWindow();
 

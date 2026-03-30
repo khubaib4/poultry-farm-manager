@@ -190,6 +190,20 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getFinancialReport: (farmId: number, startDate: string, endDate: string) =>
       ipcRenderer.invoke("reports:getFinancialReport", farmId, startDate, endDate),
   },
+  backup: {
+    create: () => ipcRenderer.invoke("backup:create"),
+    createToPath: (path: string) => ipcRenderer.invoke("backup:createToPath", path),
+    restore: () => ipcRenderer.invoke("backup:restore"),
+    confirmRestore: (backupPath: string) => ipcRenderer.invoke("backup:confirmRestore", backupPath),
+    validate: (backupPath: string) => ipcRenderer.invoke("backup:validate", backupPath),
+    getHistory: () => ipcRenderer.invoke("backup:getHistory"),
+    delete: (backupPath: string) => ipcRenderer.invoke("backup:delete", backupPath),
+    openFolder: () => ipcRenderer.invoke("backup:openFolder"),
+    getSettings: () => ipcRenderer.invoke("backup:getSettings"),
+    saveSettings: (settings: unknown) => ipcRenderer.invoke("backup:saveSettings", settings),
+    runAutoBackup: () => ipcRenderer.invoke("backup:runAutoBackup"),
+    selectDirectory: () => ipcRenderer.invoke("backup:selectDirectory"),
+  },
   vaccinationSchedule: {
     create: (data: unknown) =>
       ipcRenderer.invoke("vaccinationSchedule:create", data),

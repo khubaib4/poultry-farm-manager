@@ -7,9 +7,25 @@ import * as schema from "../drizzle/schema";
 
 let db: ReturnType<typeof drizzle>;
 let sqlite: Database.Database;
+let currentDbPath: string;
+
+export function getDatabasePath(): string {
+  if (!currentDbPath) {
+    currentDbPath = join(app.getPath("userData"), "poultry-farm.db");
+  }
+  return currentDbPath;
+}
+
+export function reconnectDatabase(): typeof db {
+  if (sqlite) {
+    try { sqlite.close(); } catch {}
+  }
+  return initializeDatabase();
+}
 
 export function initializeDatabase(): typeof db {
-  const dbPath = join(app.getPath("userData"), "poultry-farm.db");
+  const dbPath = getDatabasePath();
+  currentDbPath = dbPath;
 
   sqlite = new Database(dbPath);
 
