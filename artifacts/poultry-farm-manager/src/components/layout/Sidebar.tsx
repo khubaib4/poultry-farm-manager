@@ -11,6 +11,7 @@ import {
   Package,
   Syringe,
   Receipt,
+  Tag,
   PanelLeftClose,
   PanelLeft,
 } from "lucide-react";
@@ -35,6 +36,7 @@ const farmNavItems: NavItem[] = [
   { label: "Inventory", path: "/farm/inventory", icon: <Package className="h-5 w-5" /> },
   { label: "Vaccinations", path: "/farm/vaccinations", icon: <Syringe className="h-5 w-5" /> },
   { label: "Expenses", path: "/farm/expenses", icon: <Receipt className="h-5 w-5" /> },
+  { label: "Pricing", path: "/farm/pricing", icon: <Tag className="h-5 w-5" /> },
   { label: "Reports", path: "/farm/reports", icon: <BarChart3 className="h-5 w-5" /> },
   { label: "Settings", path: "/farm/settings", icon: <Settings className="h-5 w-5" /> },
 ];

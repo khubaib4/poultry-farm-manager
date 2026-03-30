@@ -1,0 +1,120 @@
+OBJECTIVE: Allow farm managers to set and manage egg prices by grade, with price history tracking
+
+REQUIREMENTS:
+- Set prices for each egg grade (A, B, Cracked)
+- Support both per-egg and per-tray pricing
+- Track price history with effective dates
+- Current prices shown prominently
+- Calculate revenue based on daily production × current price
+
+FILES TO CREATE/MODIFY:
+
+1. src/pages/farm/EggPricingPage.tsx
+   - Route: /farm/settings/pricing (or /farm/pricing)
+   - Header: "Egg Pricing Configuration"
+   - Current Prices Card:
+     * Grade A: PKR XX per egg / PKR XX per tray
+     * Grade B: PKR XX per egg / PKR XX per tray
+     * Cracked: PKR XX per egg / PKR XX per tray
+     * Effective since: [date]
+     * "Update Prices" button
+   - Price History section:
+     * Table showing past prices
+     * Columns: Effective Date, Grade A, Grade B, Cracked
+     * Most recent first
+
+2. src/components/pricing/UpdatePricesModal.tsx
+   - Modal form to update all prices at once
+   - Input mode toggle: "Set Per Egg" | "Set Per Tray"
+   - If per egg: auto-calculate tray price (× 30)
+   - If per tray: auto-calculate egg price (÷ 30)
+   - Fields for each grade:
+     * Grade A price (required)
+     * Grade B price (required)
+     * Cracked price (required)
+   - Effective Date picker (default: today)
+   - Preview section showing both per-egg and per-tray prices
+   - Save button
+
+3. src/components/pricing/PriceHistoryTable.tsx
+   - Table component for price history
+   - Columns: Effective Date, Grade A (egg/tray), Grade B (egg/tray), Cracked (egg/tray)
+   - Pagination if many records
+   - No edit/delete (prices are historical record)
+
+4. src/components/pricing/CurrentPricesCard.tsx
+   - Reusable card showing current active prices
+   - Props: prices data
+   - Display both per-egg and per-tray
+   - Visual emphasis on Grade A (primary product)
+   - Use in pricing page and dashboard
+
+5. src/components/pricing/RevenueCalculator.tsx
+   - Quick calculator widget
+   - Input: number of eggs by grade
+   - Output: calculated revenue in PKR
+   - Useful for quick estimates
+
+6. electron/ipc-handlers.ts (add handlers)
+   - eggPrices.create(farmId, data):
+     * Validate farm access
+     * Save new price record with effective date
+     * Fields: grade, price_per_egg, price_per_tray, effective_date
+   - eggPrices.getCurrentPrices(farmId):
+     * Return latest prices for each grade
+     * Based on effective_date <= today, most recent
+   - eggPrices.getHistory(farmId, limit?):
+     * Return price history grouped by effective_date
+     * Most recent first
+   - eggPrices.getPriceOnDate(farmId, date):
+     * Return prices that were active on specific date
+     * For historical revenue calculations
+
+7. drizzle/schema.ts (verify egg_prices table)
+   - Ensure columns exist:
+     * id, farm_id, grade, price_per_egg, price_per_tray
+     * effective_date, created_at
+   - grade should be TEXT: 'A', 'B', 'cracked'
+
+8. src/lib/api.ts (add pricing functions)
+   - createEggPrices(farmId, prices[])
+   - getCurrentPrices(farmId)
+   - getPriceHistory(farmId, limit?)
+   - getPricesOnDate(farmId, date)
+
+9. src/lib/utils.ts (add helpers)
+   - calculateEggRevenue(eggs, prices): total revenue
+   - formatCurrency(amount): "PKR X,XXX.XX" format
+
+10. src/hooks/useCurrentPrices.ts
+    - Custom hook to fetch and cache current prices
+    - Auto-refresh on farm change
+    - Return: { prices, isLoading, refetch }
+
+11. src/App.tsx (add route)
+    - /farm/settings/pricing - EggPricingPage
+    - Add "Pricing" to settings submenu or sidebar
+
+VALIDATION RULES:
+- All prices required and must be positive numbers
+- Price per tray must equal price per egg × 30 (auto-calculated)
+- Effective date cannot be in the future
+- At least Grade A price is required
+
+PRICE CALCULATION LOGIC:
+- When updating prices, save 3 records (one per grade) with same effective_date
+- Current price = record where effective_date <= today, ordered by effective_date DESC, LIMIT 1
+- For historical reports, use getPriceOnDate to get correct price
+
+DEFAULT PRICES (for new farms):
+- If no prices set, prompt user to set prices
+- Suggest typical market rates (can be skipped)
+
+UI/UX REQUIREMENTS:
+- Currency formatted with PKR symbol and thousands separator
+- Clear distinction between per-egg and per-tray prices
+- Show last updated date prominently
+- Warn if prices haven't been updated in 30+ days
+- Price history sortable by date
+
+OUTPUT: Farm managers can set egg prices for all grades, view price history, and see current prices. Revenue calculations throughout the app will use these prices.

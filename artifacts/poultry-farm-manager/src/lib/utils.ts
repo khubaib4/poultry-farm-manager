@@ -111,6 +111,20 @@ export function addDays(dateStr: string, days: number): string {
   return d.toISOString().split("T")[0];
 }
 
+export function formatCurrency(amount: number): string {
+  return `PKR ${amount.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+export function calculateEggRevenue(
+  eggsA: number, eggsB: number, eggsCracked: number,
+  priceA: number, priceB: number, priceCracked: number
+): { revenueA: number; revenueB: number; revenueCracked: number; total: number } {
+  const revenueA = eggsA * priceA;
+  const revenueB = eggsB * priceB;
+  const revenueCracked = eggsCracked * priceCracked;
+  return { revenueA, revenueB, revenueCracked, total: revenueA + revenueB + revenueCracked };
+}
+
 export async function copyToClipboard(text: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text);

@@ -20,6 +20,7 @@ import FlockDetailPage from "@/pages/farm/FlockDetailPage";
 import EditFlockPage from "@/pages/farm/EditFlockPage";
 import DailyEntryPage from "@/pages/farm/DailyEntryPage";
 import DailyEntryHistoryPage from "@/pages/farm/DailyEntryHistoryPage";
+import EggPricingPage from "@/pages/farm/EggPricingPage";
 import PlaceholderPage from "@/pages/PlaceholderPage";
 
 function AuthRedirect(): React.ReactElement {
@@ -70,6 +71,7 @@ export default function App(): React.ReactElement {
           <Route path="/farm/inventory" element={<FarmLayout><PlaceholderPage title="Inventory" description="Track feed, medicine, and equipment stock." /></FarmLayout>} />
           <Route path="/farm/vaccinations" element={<FarmLayout><PlaceholderPage title="Vaccinations" description="Schedule and track vaccination programs." /></FarmLayout>} />
           <Route path="/farm/expenses" element={<FarmLayout><PlaceholderPage title="Expenses" description="Monitor and categorize farm spending." /></FarmLayout>} />
+          <Route path="/farm/pricing" element={<FarmLayout><EggPricingPage /></FarmLayout>} />
           <Route path="/farm/reports" element={<FarmLayout><PlaceholderPage title="Reports" description="View farm analytics and performance reports." /></FarmLayout>} />
           <Route path="/farm/settings" element={<FarmLayout><PlaceholderPage title="Settings" description="Manage farm settings and preferences." /></FarmLayout>} />
 

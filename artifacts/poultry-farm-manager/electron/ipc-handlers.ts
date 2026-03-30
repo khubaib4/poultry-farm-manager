@@ -702,37 +702,86 @@ export function registerIpcHandlers(): void {
   );
 
   ipcMain.handle(
-    "eggPrices:create",
-    wrapHandler((_e: unknown, data: { farmId: number; grade: string; pricePerEgg: number; pricePerTray: number; effectiveDate: string }) => {
-      requireFarmAccess(data.farmId);
-      return db.insert(schema.eggPrices).values(data).returning().get();
+    "eggPrices:createBatch",
+    wrapHandler((_e: unknown, farmId: number, prices: { grade: string; pricePerEgg: number; pricePerTray: number }[], effectiveDate: string) => {
+      requireFarmAccess(farmId);
+      if (!effectiveDate) throw new Error("Effective date is required");
+      const today = new Date().toISOString().split("T")[0];
+      if (effectiveDate > today) throw new Error("Effective date cannot be in the future");
+      if (!prices || prices.length === 0) throw new Error("At least one price entry is required");
+      const results: (typeof schema.eggPrices.$inferSelect)[] = [];
+      for (const p of prices) {
+        if (!p.grade || !["A", "B", "cracked"].includes(p.grade)) throw new Error(`Invalid grade: ${p.grade}`);
+        if (p.pricePerEgg <= 0) throw new Error(`Price per egg must be positive for grade ${p.grade}`);
+        if (p.pricePerTray <= 0) throw new Error(`Price per tray must be positive for grade ${p.grade}`);
+        const expectedTray = Math.round(p.pricePerEgg * 30 * 100) / 100;
+        if (Math.abs(p.pricePerTray - expectedTray) > 0.02) throw new Error(`Price per tray must equal price per egg × 30 for grade ${p.grade}`);
+        const row = db.insert(schema.eggPrices).values({
+          farmId,
+          grade: p.grade,
+          pricePerEgg: p.pricePerEgg,
+          pricePerTray: p.pricePerTray,
+          effectiveDate,
+        }).returning().get();
+        results.push(row);
+      }
+      return results;
     })
   );
 
   ipcMain.handle(
-    "eggPrices:getByFarm",
+    "eggPrices:getCurrentPrices",
     wrapHandler((_e: unknown, farmId: number) => {
       requireFarmAccess(farmId);
-      return db
-        .select()
-        .from(schema.eggPrices)
-        .where(eq(schema.eggPrices.farmId, farmId))
-        .all();
+      const today = new Date().toISOString().split("T")[0];
+      const grades = ["A", "B", "cracked"];
+      const current: Record<string, typeof schema.eggPrices.$inferSelect | null> = {};
+      for (const grade of grades) {
+        const row = db.select().from(schema.eggPrices)
+          .where(and(eq(schema.eggPrices.farmId, farmId), eq(schema.eggPrices.grade, grade), lte(schema.eggPrices.effectiveDate, today)))
+          .orderBy(sql`${schema.eggPrices.effectiveDate} DESC`)
+          .limit(1)
+          .get();
+        current[grade] = row || null;
+      }
+      return current;
     })
   );
 
   ipcMain.handle(
-    "eggPrices:update",
-    wrapHandler((_e: unknown, id: number, data: Partial<{ grade: string; pricePerEgg: number; pricePerTray: number; effectiveDate: string }>) => {
-      requireAuth();
-      const result = db
-        .update(schema.eggPrices)
-        .set(data)
-        .where(eq(schema.eggPrices.id, id))
-        .returning()
-        .get();
-      if (!result) throw new Error("Egg price not found");
-      return result;
+    "eggPrices:getHistory",
+    wrapHandler((_e: unknown, farmId: number, limit?: number) => {
+      requireFarmAccess(farmId);
+      const allPrices = db.select().from(schema.eggPrices)
+        .where(eq(schema.eggPrices.farmId, farmId))
+        .orderBy(sql`${schema.eggPrices.effectiveDate} DESC, ${schema.eggPrices.grade} ASC`)
+        .all();
+      const grouped: Record<string, (typeof schema.eggPrices.$inferSelect)[]> = {};
+      for (const p of allPrices) {
+        if (!grouped[p.effectiveDate]) grouped[p.effectiveDate] = [];
+        grouped[p.effectiveDate].push(p);
+      }
+      const dates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+      const limited = limit ? dates.slice(0, limit) : dates;
+      return limited.map(date => ({ effectiveDate: date, prices: grouped[date] }));
+    })
+  );
+
+  ipcMain.handle(
+    "eggPrices:getPriceOnDate",
+    wrapHandler((_e: unknown, farmId: number, date: string) => {
+      requireFarmAccess(farmId);
+      const grades = ["A", "B", "cracked"];
+      const prices: Record<string, typeof schema.eggPrices.$inferSelect | null> = {};
+      for (const grade of grades) {
+        const row = db.select().from(schema.eggPrices)
+          .where(and(eq(schema.eggPrices.farmId, farmId), eq(schema.eggPrices.grade, grade), lte(schema.eggPrices.effectiveDate, date)))
+          .orderBy(sql`${schema.eggPrices.effectiveDate} DESC`)
+          .limit(1)
+          .get();
+        prices[grade] = row || null;
+      }
+      return prices;
     })
   );
 

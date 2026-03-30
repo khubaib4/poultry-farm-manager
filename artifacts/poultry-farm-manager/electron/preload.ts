@@ -64,11 +64,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("dailyEntries:getPreviousDayStock", flockId, date),
   },
   eggPrices: {
-    create: (data: unknown) => ipcRenderer.invoke("eggPrices:create", data),
-    getByFarm: (farmId: number) =>
-      ipcRenderer.invoke("eggPrices:getByFarm", farmId),
-    update: (id: number, data: unknown) =>
-      ipcRenderer.invoke("eggPrices:update", id, data),
+    createBatch: (farmId: number, prices: unknown[], effectiveDate: string) =>
+      ipcRenderer.invoke("eggPrices:createBatch", farmId, prices, effectiveDate),
+    getCurrentPrices: (farmId: number) =>
+      ipcRenderer.invoke("eggPrices:getCurrentPrices", farmId),
+    getHistory: (farmId: number, limit?: number) =>
+      ipcRenderer.invoke("eggPrices:getHistory", farmId, limit),
+    getPriceOnDate: (farmId: number, date: string) =>
+      ipcRenderer.invoke("eggPrices:getPriceOnDate", farmId, date),
   },
   expenses: {
     create: (data: unknown) => ipcRenderer.invoke("expenses:create", data),

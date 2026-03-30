@@ -126,14 +126,17 @@ export const dailyEntries = {
 };
 
 export const eggPrices = {
-  create: (data: EggPriceData) =>
-    invoke(() => getApi()!.eggPrices.create(data)),
+  createBatch: (farmId: number, prices: { grade: string; pricePerEgg: number; pricePerTray: number }[], effectiveDate: string) =>
+    invoke(() => getApi()!.eggPrices.createBatch(farmId, prices, effectiveDate)),
 
-  getByFarm: (farmId: number) =>
-    invoke(() => getApi()!.eggPrices.getByFarm(farmId)),
+  getCurrentPrices: (farmId: number) =>
+    invoke(() => getApi()!.eggPrices.getCurrentPrices(farmId)),
 
-  update: (id: number, data: Partial<EggPriceData>) =>
-    invoke(() => getApi()!.eggPrices.update(id, data)),
+  getHistory: (farmId: number, limit?: number) =>
+    invoke(() => getApi()!.eggPrices.getHistory(farmId, limit)),
+
+  getPriceOnDate: (farmId: number, date: string) =>
+    invoke(() => getApi()!.eggPrices.getPriceOnDate(farmId, date)),
 };
 
 export const expenses = {

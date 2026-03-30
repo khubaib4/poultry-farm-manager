@@ -157,9 +157,10 @@ export interface ElectronAPI {
     getPreviousDayStock: (flockId: number, date: string) => Promise<IpcResponse>;
   };
   eggPrices: {
-    create: (data: EggPriceData) => Promise<IpcResponse>;
-    getByFarm: (farmId: number) => Promise<IpcResponse>;
-    update: (id: number, data: Partial<EggPriceData>) => Promise<IpcResponse>;
+    createBatch: (farmId: number, prices: { grade: string; pricePerEgg: number; pricePerTray: number }[], effectiveDate: string) => Promise<IpcResponse>;
+    getCurrentPrices: (farmId: number) => Promise<IpcResponse>;
+    getHistory: (farmId: number, limit?: number) => Promise<IpcResponse>;
+    getPriceOnDate: (farmId: number, date: string) => Promise<IpcResponse>;
   };
   expenses: {
     create: (data: ExpenseData) => Promise<IpcResponse>;
