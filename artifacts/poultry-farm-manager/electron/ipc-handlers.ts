@@ -1,16 +1,41 @@
 import { ipcMain } from "electron";
 import { eq, and, gte, lte } from "drizzle-orm";
 import bcrypt from "bcryptjs";
+import Store from "electron-store";
 import { getDatabase } from "./database";
 import * as schema from "../drizzle/schema";
 
-let currentSession: {
+interface SessionData {
   type: "owner" | "farm" | "user";
   id: number;
   name: string;
   farmId?: number;
   role?: string;
-} | null = null;
+}
+
+const store = new Store<{ session: SessionData | null }>({
+  defaults: { session: null },
+});
+
+let currentSession: SessionData | null = store.get("session", null);
+
+function requireAuth(): SessionData {
+  if (!currentSession) throw new Error("Authentication required");
+  return currentSession;
+}
+
+function requireOwner(): SessionData {
+  const session = requireAuth();
+  if (session.type !== "owner") throw new Error("Owner access required");
+  return session;
+}
+
+function requireFarmAccess(farmId: number): SessionData {
+  const session = requireAuth();
+  if (session.type === "owner") return session;
+  if (session.type === "farm" && session.farmId === farmId) return session;
+  throw new Error("You do not have access to this farm");
+}
 
 function wrapHandler<T>(
   fn: (...args: unknown[]) => Promise<T> | T
@@ -43,6 +68,7 @@ export function registerIpcHandlers(): void {
       const valid = bcrypt.compareSync(password, owner.passwordHash);
       if (!valid) throw new Error("Invalid email or password");
       currentSession = { type: "owner", id: owner.id, name: owner.name };
+      store.set("session", currentSession);
       return currentSession;
     })
   );
@@ -64,6 +90,7 @@ export function registerIpcHandlers(): void {
         name: farm.name,
         farmId: farm.id,
       };
+      store.set("session", currentSession);
       return currentSession;
     })
   );
@@ -72,6 +99,7 @@ export function registerIpcHandlers(): void {
     "auth:logout",
     wrapHandler(() => {
       currentSession = null;
+      store.set("session", null);
       return null;
     })
   );
@@ -86,6 +114,14 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "owners:create",
     wrapHandler((_e: unknown, data: { name: string; email?: string; phone?: string; password: string }) => {
+      if (data.email) {
+        const existing = db
+          .select()
+          .from(schema.owners)
+          .where(eq(schema.owners.email, data.email))
+          .get();
+        if (existing) throw new Error("An account with this email already exists");
+      }
       const hash = bcrypt.hashSync(data.password, 10);
       const result = db
         .insert(schema.owners)
@@ -105,6 +141,8 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "owners:getById",
     wrapHandler((_e: unknown, id: number) => {
+      const session = requireOwner();
+      if (session.id !== id) throw new Error("Access denied");
       const owner = db
         .select()
         .from(schema.owners)
@@ -119,6 +157,8 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "owners:update",
     wrapHandler((_e: unknown, id: number, data: Partial<{ name: string; email: string; phone: string; password: string }>) => {
+      const session = requireOwner();
+      if (session.id !== id) throw new Error("Access denied");
       const updates: Record<string, unknown> = {};
       if (data.name !== undefined) updates.name = data.name;
       if (data.email !== undefined) updates.email = data.email;
@@ -140,6 +180,8 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "farms:create",
     wrapHandler((_e: unknown, data: { ownerId: number; name: string; location?: string; capacity?: number; loginUsername: string; loginPassword: string }) => {
+      const session = requireOwner();
+      if (session.id !== data.ownerId) throw new Error("Access denied");
       const hash = bcrypt.hashSync(data.loginPassword, 10);
       const result = db
         .insert(schema.farms)
@@ -161,6 +203,8 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "farms:getAll",
     wrapHandler((_e: unknown, ownerId: number) => {
+      const session = requireOwner();
+      if (session.id !== ownerId) throw new Error("Access denied");
       const results = db
         .select()
         .from(schema.farms)
@@ -173,6 +217,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "farms:getById",
     wrapHandler((_e: unknown, id: number) => {
+      requireFarmAccess(id);
       const farm = db
         .select()
         .from(schema.farms)
@@ -187,6 +232,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "farms:update",
     wrapHandler((_e: unknown, id: number, data: Partial<{ name: string; location: string; capacity: number; loginUsername: string; loginPassword: string; isActive: number }>) => {
+      requireFarmAccess(id);
       const updates: Record<string, unknown> = {};
       if (data.name !== undefined) updates.name = data.name;
       if (data.location !== undefined) updates.location = data.location;
@@ -209,6 +255,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "farms:delete",
     wrapHandler((_e: unknown, id: number) => {
+      requireFarmAccess(id);
       db.update(schema.farms)
         .set({ isActive: 0 })
         .where(eq(schema.farms.id, id))
@@ -220,6 +267,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "users:create",
     wrapHandler((_e: unknown, data: { farmId: number; name: string; role: string; password: string }) => {
+      requireFarmAccess(data.farmId);
       const hash = bcrypt.hashSync(data.password, 10);
       const result = db
         .insert(schema.users)
@@ -239,6 +287,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "users:getByFarm",
     wrapHandler((_e: unknown, farmId: number) => {
+      requireFarmAccess(farmId);
       const results = db
         .select()
         .from(schema.users)
@@ -251,6 +300,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "users:getById",
     wrapHandler((_e: unknown, id: number) => {
+      requireAuth();
       const user = db
         .select()
         .from(schema.users)
@@ -265,6 +315,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "users:update",
     wrapHandler((_e: unknown, id: number, data: Partial<{ name: string; role: string; password: string; isActive: number }>) => {
+      requireAuth();
       const updates: Record<string, unknown> = {};
       if (data.name !== undefined) updates.name = data.name;
       if (data.role !== undefined) updates.role = data.role;
@@ -285,6 +336,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "users:delete",
     wrapHandler((_e: unknown, id: number) => {
+      requireAuth();
       db.update(schema.users)
         .set({ isActive: 0 })
         .where(eq(schema.users.id, id))
@@ -296,6 +348,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "flocks:create",
     wrapHandler((_e: unknown, data: { farmId: number; batchName: string; breed?: string; initialCount: number; currentCount: number; arrivalDate: string; ageAtArrivalDays?: number; status?: string }) => {
+      requireFarmAccess(data.farmId);
       return db.insert(schema.flocks).values(data).returning().get();
     })
   );
@@ -303,6 +356,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "flocks:getByFarm",
     wrapHandler((_e: unknown, farmId: number) => {
+      requireFarmAccess(farmId);
       return db
         .select()
         .from(schema.flocks)
@@ -314,6 +368,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "flocks:getById",
     wrapHandler((_e: unknown, id: number) => {
+      requireAuth();
       const flock = db
         .select()
         .from(schema.flocks)
@@ -327,6 +382,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "flocks:update",
     wrapHandler((_e: unknown, id: number, data: Partial<{ batchName: string; breed: string; currentCount: number; status: string }>) => {
+      requireAuth();
       const result = db
         .update(schema.flocks)
         .set(data)
@@ -341,6 +397,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "dailyEntries:create",
     wrapHandler((_e: unknown, data: { flockId: number; entryDate: string; deaths?: number; deathCause?: string; eggsGradeA?: number; eggsGradeB?: number; eggsCracked?: number; feedConsumedKg?: number; waterConsumedLiters?: number; notes?: string; recordedBy?: number }) => {
+      requireAuth();
       return db.insert(schema.dailyEntries).values(data).returning().get();
     })
   );
@@ -348,6 +405,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "dailyEntries:getByFlock",
     wrapHandler((_e: unknown, flockId: number, startDate?: string, endDate?: string) => {
+      requireAuth();
       const conditions = [eq(schema.dailyEntries.flockId, flockId)];
       if (startDate) conditions.push(gte(schema.dailyEntries.entryDate, startDate));
       if (endDate) conditions.push(lte(schema.dailyEntries.entryDate, endDate));
@@ -362,6 +420,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "dailyEntries:getByDate",
     wrapHandler((_e: unknown, flockId: number, date: string) => {
+      requireAuth();
       return db
         .select()
         .from(schema.dailyEntries)
@@ -378,6 +437,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "dailyEntries:update",
     wrapHandler((_e: unknown, id: number, data: Partial<{ deaths: number; deathCause: string; eggsGradeA: number; eggsGradeB: number; eggsCracked: number; feedConsumedKg: number; waterConsumedLiters: number; notes: string }>) => {
+      requireAuth();
       const result = db
         .update(schema.dailyEntries)
         .set(data)
@@ -392,6 +452,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "eggPrices:create",
     wrapHandler((_e: unknown, data: { farmId: number; grade: string; pricePerEgg: number; pricePerTray: number; effectiveDate: string }) => {
+      requireFarmAccess(data.farmId);
       return db.insert(schema.eggPrices).values(data).returning().get();
     })
   );
@@ -399,6 +460,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "eggPrices:getByFarm",
     wrapHandler((_e: unknown, farmId: number) => {
+      requireFarmAccess(farmId);
       return db
         .select()
         .from(schema.eggPrices)
@@ -410,6 +472,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "eggPrices:update",
     wrapHandler((_e: unknown, id: number, data: Partial<{ grade: string; pricePerEgg: number; pricePerTray: number; effectiveDate: string }>) => {
+      requireAuth();
       const result = db
         .update(schema.eggPrices)
         .set(data)
@@ -424,6 +487,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "expenses:create",
     wrapHandler((_e: unknown, data: { farmId: number; category: string; description?: string; amount: number; expenseDate: string; supplier?: string; receiptRef?: string }) => {
+      requireFarmAccess(data.farmId);
       return db.insert(schema.expenses).values(data).returning().get();
     })
   );
@@ -431,6 +495,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "expenses:getByFarm",
     wrapHandler((_e: unknown, farmId: number, startDate?: string, endDate?: string) => {
+      requireFarmAccess(farmId);
       const conditions = [eq(schema.expenses.farmId, farmId)];
       if (startDate) conditions.push(gte(schema.expenses.expenseDate, startDate));
       if (endDate) conditions.push(lte(schema.expenses.expenseDate, endDate));
@@ -445,6 +510,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "expenses:update",
     wrapHandler((_e: unknown, id: number, data: Partial<{ category: string; description: string; amount: number; expenseDate: string; supplier: string; receiptRef: string }>) => {
+      requireAuth();
       const result = db
         .update(schema.expenses)
         .set(data)
@@ -459,6 +525,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "expenses:delete",
     wrapHandler((_e: unknown, id: number) => {
+      requireAuth();
       db.delete(schema.expenses).where(eq(schema.expenses.id, id)).run();
       return { id };
     })
@@ -467,6 +534,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "inventory:create",
     wrapHandler((_e: unknown, data: { farmId: number; itemType: string; itemName: string; quantity: number; unit: string; minThreshold?: number; expiryDate?: string }) => {
+      requireFarmAccess(data.farmId);
       return db.insert(schema.inventory).values(data).returning().get();
     })
   );
@@ -474,6 +542,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "inventory:getByFarm",
     wrapHandler((_e: unknown, farmId: number) => {
+      requireFarmAccess(farmId);
       return db
         .select()
         .from(schema.inventory)
@@ -485,6 +554,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "inventory:update",
     wrapHandler((_e: unknown, id: number, data: Partial<{ itemType: string; itemName: string; quantity: number; unit: string; minThreshold: number; expiryDate: string }>) => {
+      requireAuth();
       const updates = { ...data, lastUpdated: new Date().toISOString() };
       const result = db
         .update(schema.inventory)
@@ -500,6 +570,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "inventory:delete",
     wrapHandler((_e: unknown, id: number) => {
+      requireAuth();
       db.delete(schema.inventory).where(eq(schema.inventory.id, id)).run();
       return { id };
     })
@@ -508,6 +579,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "vaccinations:create",
     wrapHandler((_e: unknown, data: { flockId: number; vaccineName: string; scheduledDate: string; administeredDate?: string; administeredBy?: string; batchNumber?: string; notes?: string; status?: string }) => {
+      requireAuth();
       return db.insert(schema.vaccinations).values(data).returning().get();
     })
   );
@@ -515,6 +587,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "vaccinations:getByFlock",
     wrapHandler((_e: unknown, flockId: number) => {
+      requireAuth();
       return db
         .select()
         .from(schema.vaccinations)
@@ -526,6 +599,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "vaccinations:update",
     wrapHandler((_e: unknown, id: number, data: Partial<{ vaccineName: string; scheduledDate: string; administeredDate: string; administeredBy: string; batchNumber: string; notes: string; status: string }>) => {
+      requireAuth();
       const result = db
         .update(schema.vaccinations)
         .set(data)
@@ -540,6 +614,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "vaccinationSchedule:create",
     wrapHandler((_e: unknown, data: { vaccineName: string; ageDays: number; isMandatory?: number; route?: string; notes?: string }) => {
+      requireAuth();
       return db
         .insert(schema.vaccinationSchedule)
         .values(data)
@@ -551,6 +626,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "vaccinationSchedule:getAll",
     wrapHandler(() => {
+      requireAuth();
       return db.select().from(schema.vaccinationSchedule).all();
     })
   );
@@ -558,6 +634,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "vaccinationSchedule:update",
     wrapHandler((_e: unknown, id: number, data: Partial<{ vaccineName: string; ageDays: number; isMandatory: number; route: string; notes: string }>) => {
+      requireAuth();
       const result = db
         .update(schema.vaccinationSchedule)
         .set(data)
@@ -572,6 +649,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "vaccinationSchedule:delete",
     wrapHandler((_e: unknown, id: number) => {
+      requireAuth();
       db.delete(schema.vaccinationSchedule)
         .where(eq(schema.vaccinationSchedule.id, id))
         .run();

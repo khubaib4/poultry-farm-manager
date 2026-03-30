@@ -1,0 +1,93 @@
+Prompt 1.5: Basic Navigation & Layout
+OBJECTIVE: Create the main application layout with sidebar navigation and header
+
+REQUIREMENTS:
+- Sidebar navigation (collapsible)
+- Top header with user info and logout
+- Different navigation items based on user type (owner vs farm)
+- Responsive layout
+- Active route highlighting
+
+FILES TO CREATE/MODIFY:
+
+1. src/components/layout/AppLayout.tsx
+   - Main layout wrapper with sidebar + header + content area
+   - Props: children (page content)
+   - Sidebar on left (240px width, collapsible to 60px)
+   - Header at top (60px height)
+   - Content area fills remaining space
+
+2. src/components/layout/Sidebar.tsx
+   - App logo at top
+   - Navigation menu items with icons
+   - Collapse/expand toggle button
+   - Active item highlighting based on current route
+   - Show different items based on userType
+
+   OWNER NAVIGATION ITEMS:
+   - Dashboard (home icon)
+   - All Farms (building icon)
+   - Reports (chart icon)
+   - Settings (gear icon)
+
+   FARM NAVIGATION ITEMS:
+   - Dashboard (home icon)
+   - Daily Entry (plus-circle icon)
+   - Flocks (bird icon)
+   - Inventory (package icon)
+   - Vaccinations (syringe icon)
+   - Expenses (receipt icon)
+   - Reports (chart icon)
+   - Settings (gear icon)
+
+3. src/components/layout/Header.tsx
+   - Current page title on left
+   - Farm selector dropdown (for owners with multiple farms)
+   - User name and role badge
+   - Notifications bell icon (placeholder for now)
+   - Logout button
+
+4. src/components/layout/Breadcrumb.tsx
+   - Show current navigation path
+   - Clickable links to parent pages
+
+5. src/pages/OwnerDashboard.tsx
+   - Placeholder page for owner dashboard
+   - Show welcome message with owner name
+   - Grid layout for farm cards (empty state for now)
+
+6. src/pages/FarmDashboard.tsx
+   - Placeholder page for farm dashboard
+   - Show welcome message with farm name
+   - Placeholder cards for key metrics
+
+7. src/App.tsx (modify)
+   - Set up React Router with routes:
+     * /login - LoginPage
+     * /register - RegisterOwnerPage
+     * /owner/dashboard - OwnerDashboard (protected, owner only)
+     * /owner/farms - FarmsListPage (placeholder)
+     * /owner/reports - ReportsPage (placeholder)
+     * /owner/settings - SettingsPage (placeholder)
+     * /farm/dashboard - FarmDashboard (protected, farm user)
+     * /farm/daily-entry - DailyEntryPage (placeholder)
+     * /farm/flocks - FlocksPage (placeholder)
+     * /farm/inventory - InventoryPage (placeholder)
+     * /farm/vaccinations - VaccinationsPage (placeholder)
+     * /farm/expenses - ExpensesPage (placeholder)
+     * /farm/reports - FarmReportsPage (placeholder)
+     * /farm/settings - FarmSettingsPage (placeholder)
+   - Redirect / to appropriate dashboard based on user type
+
+PACKAGES TO INSTALL:
+- react-router-dom
+- lucide-react (for icons)
+
+STYLING REQUIREMENTS:
+- Use Tailwind CSS
+- Sidebar: dark background (slate-900), white text
+- Header: white background, subtle bottom border
+- Content: light gray background (slate-50)
+- Use shadcn/ui components where possible
+
+OUTPUT: After login, user sees a proper app layout with working navigation. Clicking sidebar items changes the page. Owner and farm users see different navigation menus.

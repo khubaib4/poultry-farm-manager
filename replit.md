@@ -56,8 +56,12 @@ Electron + React + TypeScript desktop app for poultry farm management.
 
 - **Entry config**: `electron.vite.config.ts` (electron-vite requires this naming)
 - **Electron main**: `electron/main.ts` — creates BrowserWindow (1280×800, min 1024×768), loads renderer
-- **Preload**: `electron/preload.ts` — IPC bridge via `contextBridge` (exposes `window.api`)
+- **Preload**: `electron/preload.ts` — IPC bridge via `contextBridge` (exposes `window.electronAPI`)
 - **React renderer**: `src/` — React 18, Tailwind CSS (v3), shadcn/ui design tokens
+- **Routing**: `react-router-dom` v7 with `HashRouter` (routes: `/login`, `/register`, `/dashboard`)
+- **Auth**: Two login modes (Owner email/password, Farm username/password), session persisted via `electron-store`, server-side auth guards on all IPC handlers
+- **State**: Zustand auth store (`src/stores/authStore.ts`) + React context (`src/contexts/AuthContext.tsx`)
+- **Validation**: Zod for registration form, manual validation for login form
 - **Build output**: `out/` (main, preload, renderer sub-dirs)
 - **Windows installer**: `pnpm run dist` — uses electron-builder → NSIS `.exe` installer, output to `release/`
 - **Dev**: `pnpm --filter @workspace/poultry-farm-manager run dev`

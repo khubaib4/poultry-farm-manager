@@ -21,10 +21,14 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "catalog:",
+    "electron-store": "^11.0.2",
     "lucide-react": "^0.545.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "tailwind-merge": "^3.3.1"
+    "react-router-dom": "^7.13.2",
+    "tailwind-merge": "^3.3.1",
+    "zod": "catalog:",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",
