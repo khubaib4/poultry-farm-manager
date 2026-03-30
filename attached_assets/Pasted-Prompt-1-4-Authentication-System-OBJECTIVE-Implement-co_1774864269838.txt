@@ -1,0 +1,78 @@
+Prompt 1.4: Authentication System
+OBJECTIVE: Implement complete authentication system with Owner and Farm login modes
+
+REQUIREMENTS:
+- Two login modes: Owner Login and Farm Login
+- Owner can see all their farms
+- Farm login gives access to single farm only
+- Session persists until logout (store in electron-store)
+- Password hashing with bcryptjs
+
+PACKAGES TO INSTALL:
+- bcryptjs
+- electron-store (for session persistence)
+- zod (for validation)
+
+FILES TO CREATE/MODIFY:
+
+1. src/pages/LoginPage.tsx
+   - Toggle between "Owner Login" and "Farm Login" tabs
+   - Owner login: email + password fields
+   - Farm login: username + password fields
+   - Form validation using zod
+   - Show loading state during authentication
+   - Display error messages for invalid credentials
+   - Redirect to appropriate dashboard on success
+
+2. src/pages/RegisterOwnerPage.tsx
+   - Registration form for new owners
+   - Fields: name, email, phone, password, confirm password
+   - Validate email format and password strength
+   - Check if email already exists
+   - Auto-login after successful registration
+   - Link back to login page
+
+3. src/components/auth/LoginForm.tsx
+   - Reusable login form component
+   - Props: mode ('owner' | 'farm'), onSubmit, isLoading, error
+
+4. src/components/auth/ProtectedRoute.tsx
+   - Wrapper component that checks authentication
+   - Redirect to login if not authenticated
+   - Show loading while checking auth state
+   - Pass user data to child components via context
+
+5. src/stores/authStore.ts
+   - Zustand store for auth state
+   - State: user, userType ('owner' | 'farm'), isAuthenticated, isLoading
+   - Actions: login, logout, checkAuth, setUser
+
+6. src/contexts/AuthContext.tsx
+   - React context for auth state
+   - Provider wraps entire app
+   - useAuth() hook for accessing auth state
+
+7. electron/ipc-handlers.ts (modify)
+   - Implement auth.loginOwner: verify email/password, return owner data
+   - Implement auth.loginFarm: verify username/password, return farm + owner data
+   - Implement auth.logout: clear session
+   - Implement auth.getCurrentUser: return stored session
+   - Store session using electron-store
+
+8. src/App.tsx (modify)
+   - Wrap app with AuthProvider
+   - Set up routing: /login, /register, /dashboard (protected)
+
+VALIDATION RULES:
+- Email: valid email format
+- Password: minimum 6 characters
+- Farm username: minimum 4 characters, alphanumeric
+
+UI REQUIREMENTS:
+- Clean, professional login form centered on screen
+- App logo/name at top
+- Clear error messages below form
+- Loading spinner on submit button
+- "Remember me" checkbox (optional, for future)
+
+OUTPUT: Users can register as owner, login as owner or farm user, and are redirected to dashboard. Session persists after app restart.
