@@ -189,6 +189,17 @@ export const vaccinationSchedule = {
     invoke(() => getApi()!.vaccinationSchedule.delete(id)),
 };
 
+export const dashboard = {
+  getFarmStats: (farmId: number) =>
+    invoke(() => getApi()!.dashboard.getFarmStats(farmId)),
+
+  getWeeklyTrends: (farmId: number) =>
+    invoke(() => getApi()!.dashboard.getWeeklyTrends(farmId)),
+
+  getAlerts: (farmId: number) =>
+    invoke(() => getApi()!.dashboard.getAlerts(farmId)),
+};
+
 export const isElectron = (): boolean => {
   return typeof window !== "undefined" && !!window.electronAPI;
 };

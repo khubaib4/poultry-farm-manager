@@ -957,4 +957,216 @@ export function registerIpcHandlers(): void {
       return { id };
     })
   );
+
+  ipcMain.handle(
+    "dashboard:getFarmStats",
+    wrapHandler((_e: unknown, farmId: number) => {
+      requireFarmAccess(farmId);
+      const activeFlocks = db.select().from(schema.flocks)
+        .where(and(eq(schema.flocks.farmId, farmId), eq(schema.flocks.status, "active")))
+        .all();
+      const totalBirds = activeFlocks.reduce((s, f) => s + (f.currentCount || 0), 0);
+      const totalInitialBirds = activeFlocks.reduce((s, f) => s + (f.initialCount || 0), 0);
+      const today = new Date().toISOString().split("T")[0];
+      const todayEntries = db.select().from(schema.dailyEntries)
+        .innerJoin(schema.flocks, eq(schema.dailyEntries.flockId, schema.flocks.id))
+        .where(and(eq(schema.flocks.farmId, farmId), eq(schema.dailyEntries.entryDate, today), eq(schema.flocks.status, "active")))
+        .all();
+      const todayEggs = todayEntries.reduce((s, r) => s + (r.daily_entries.eggsGradeA || 0) + (r.daily_entries.eggsGradeB || 0) + (r.daily_entries.eggsCracked || 0), 0);
+      const todayDeaths = todayEntries.reduce((s, r) => s + (r.daily_entries.deaths || 0), 0);
+      const todayFeed = todayEntries.reduce((s, r) => s + (r.daily_entries.feedConsumedKg || 0), 0);
+      const flocksWithEntry = new Set(todayEntries.map(r => r.daily_entries.flockId));
+      const flocksCompleted = flocksWithEntry.size;
+      const flocksTotal = activeFlocks.length;
+      return {
+        totalBirds,
+        totalInitialBirds,
+        activeFlockCount: activeFlocks.length,
+        todayEggs,
+        todayDeaths,
+        todayFeed: Math.round(todayFeed * 100) / 100,
+        flocksCompleted,
+        flocksTotal,
+        flocks: activeFlocks.map(f => ({
+          id: f.id,
+          batchName: f.batchName,
+          breed: f.breed,
+          currentCount: f.currentCount,
+          initialCount: f.initialCount,
+          arrivalDate: f.arrivalDate,
+          ageAtArrivalDays: f.ageAtArrivalDays || 0,
+          hasEntryToday: flocksWithEntry.has(f.id),
+        })),
+      };
+    })
+  );
+
+  ipcMain.handle(
+    "dashboard:getWeeklyTrends",
+    wrapHandler((_e: unknown, farmId: number) => {
+      requireFarmAccess(farmId);
+      const today = new Date();
+      const todayStr = today.toISOString().split("T")[0];
+      function dateOffset(d: Date, offset: number): string {
+        const nd = new Date(d);
+        nd.setDate(nd.getDate() + offset);
+        return nd.toISOString().split("T")[0];
+      }
+      const thisWeekStart = dateOffset(today, -6);
+      const lastWeekStart = dateOffset(today, -13);
+      const lastWeekEnd = dateOffset(today, -7);
+
+      function getWeekData(startDate: string, endDate: string) {
+        const entries = db.select().from(schema.dailyEntries)
+          .innerJoin(schema.flocks, eq(schema.dailyEntries.flockId, schema.flocks.id))
+          .where(and(
+            eq(schema.flocks.farmId, farmId),
+            gte(schema.dailyEntries.entryDate, startDate),
+            lte(schema.dailyEntries.entryDate, endDate)
+          ))
+          .all();
+        const eggs = entries.reduce((s, r) => s + (r.daily_entries.eggsGradeA || 0) + (r.daily_entries.eggsGradeB || 0) + (r.daily_entries.eggsCracked || 0), 0);
+        const deaths = entries.reduce((s, r) => s + (r.daily_entries.deaths || 0), 0);
+        const feed = entries.reduce((s, r) => s + (r.daily_entries.feedConsumedKg || 0), 0);
+        const daysWithData = new Set(entries.map(r => r.daily_entries.entryDate)).size;
+        return { eggs, deaths, feed: Math.round(feed * 100) / 100, daysWithData };
+      }
+
+      const thisWeek = getWeekData(thisWeekStart, todayStr);
+      const lastWeek = getWeekData(lastWeekStart, lastWeekEnd);
+
+      const activeFlocks = db.select().from(schema.flocks)
+        .where(and(eq(schema.flocks.farmId, farmId), eq(schema.flocks.status, "active")))
+        .all();
+      const totalBirds = activeFlocks.reduce((s, f) => s + (f.currentCount || 0), 0);
+      const totalInitial = activeFlocks.reduce((s, f) => s + (f.initialCount || 0), 0);
+
+      const avgEggsThisWeek = thisWeek.eggs / 7;
+      const avgEggsLastWeek = lastWeek.eggs / 7;
+
+      const productionRate = totalBirds > 0
+        ? (thisWeek.eggs / (totalBirds * 7)) * 100 : 0;
+      const dailyMortalityRate = totalBirds > 0
+        ? (thisWeek.deaths / (totalBirds * 7)) * 100 : 0;
+      const cumulativeMortality = totalInitial > 0
+        ? ((totalInitial - totalBirds) / totalInitial) * 100 : 0;
+      const fcr = thisWeek.eggs > 0 ? thisWeek.feed / thisWeek.eggs : 0;
+
+      return {
+        thisWeek,
+        lastWeek,
+        avgEggsThisWeek: Math.round(avgEggsThisWeek),
+        avgEggsLastWeek: Math.round(avgEggsLastWeek),
+        productionRate: Math.round(productionRate * 10) / 10,
+        dailyMortalityRate: Math.round(dailyMortalityRate * 100) / 100,
+        cumulativeMortality: Math.round(cumulativeMortality * 10) / 10,
+        fcr: Math.round(fcr * 100) / 100,
+        totalBirds,
+      };
+    })
+  );
+
+  ipcMain.handle(
+    "dashboard:getAlerts",
+    wrapHandler((_e: unknown, farmId: number) => {
+      requireFarmAccess(farmId);
+      const alerts: { type: "critical" | "warning" | "info"; message: string; link?: string }[] = [];
+
+      const inventoryItems = db.select().from(schema.inventory)
+        .where(eq(schema.inventory.farmId, farmId))
+        .all();
+      for (const item of inventoryItems) {
+        if (item.minThreshold && item.quantity <= item.minThreshold) {
+          alerts.push({
+            type: item.quantity <= 0 ? "critical" : "warning",
+            message: `${item.itemName}: ${item.quantity <= 0 ? "Out of stock" : `Low stock (${item.quantity} ${item.unit} remaining)`}`,
+            link: "/farm/inventory",
+          });
+        }
+      }
+
+      const today = new Date();
+      const nextWeek = new Date(today);
+      nextWeek.setDate(nextWeek.getDate() + 7);
+      const todayStr = today.toISOString().split("T")[0];
+      const nextWeekStr = nextWeek.toISOString().split("T")[0];
+
+      const activeFlocks = db.select().from(schema.flocks)
+        .where(and(eq(schema.flocks.farmId, farmId), eq(schema.flocks.status, "active")))
+        .all();
+
+      for (const flock of activeFlocks) {
+        const pendingVax = db.select().from(schema.vaccinations)
+          .where(and(
+            eq(schema.vaccinations.flockId, flock.id),
+            eq(schema.vaccinations.status, "pending"),
+            lte(schema.vaccinations.scheduledDate, nextWeekStr)
+          ))
+          .all();
+        for (const v of pendingVax) {
+          if (v.scheduledDate < todayStr) {
+            alerts.push({
+              type: "critical",
+              message: `${flock.batchName}: ${v.vaccineName} overdue (was due ${new Date(v.scheduledDate + "T00:00:00").toLocaleDateString()})`,
+              link: `/farm/flocks/${flock.id}`,
+            });
+          } else {
+            alerts.push({
+              type: "warning",
+              message: `${flock.batchName}: ${v.vaccineName} due on ${new Date(v.scheduledDate + "T00:00:00").toLocaleDateString()}`,
+              link: `/farm/flocks/${flock.id}`,
+            });
+          }
+        }
+      }
+
+      const yesterdayDate = new Date(today);
+      yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+      const yesterdayStr = yesterdayDate.toISOString().split("T")[0];
+      for (const flock of activeFlocks) {
+        const yesterdayEntry = db.select().from(schema.dailyEntries)
+          .where(and(eq(schema.dailyEntries.flockId, flock.id), eq(schema.dailyEntries.entryDate, yesterdayStr)))
+          .get();
+        if (yesterdayEntry && yesterdayEntry.deaths && flock.currentCount > 0) {
+          const mortalityPct = (yesterdayEntry.deaths / (flock.currentCount + yesterdayEntry.deaths)) * 100;
+          if (mortalityPct > 0.3) {
+            alerts.push({
+              type: "critical",
+              message: `${flock.batchName}: High mortality yesterday (${mortalityPct.toFixed(1)}%, ${yesterdayEntry.deaths} deaths)`,
+              link: `/farm/flocks/${flock.id}`,
+            });
+          }
+        }
+      }
+
+      const eggPriceRecord = db.select().from(schema.eggPrices)
+        .where(eq(schema.eggPrices.farmId, farmId))
+        .orderBy(sql`${schema.eggPrices.effectiveDate} DESC`)
+        .limit(1)
+        .get();
+      if (!eggPriceRecord) {
+        alerts.push({
+          type: "info",
+          message: "No egg prices configured. Set prices to track revenue.",
+          link: "/farm/pricing",
+        });
+      } else {
+        const daysSince = Math.floor((today.getTime() - new Date(eggPriceRecord.effectiveDate).getTime()) / (1000 * 60 * 60 * 24));
+        if (daysSince > 30) {
+          alerts.push({
+            type: "info",
+            message: `Egg prices haven't been updated in ${daysSince} days.`,
+            link: "/farm/pricing",
+          });
+        }
+      }
+
+      alerts.sort((a, b) => {
+        const priority = { critical: 0, warning: 1, info: 2 };
+        return priority[a.type] - priority[b.type];
+      });
+
+      return alerts;
+    })
+  );
 }

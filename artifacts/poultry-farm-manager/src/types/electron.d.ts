@@ -179,6 +179,11 @@ export interface ElectronAPI {
     getByFlock: (flockId: number) => Promise<IpcResponse>;
     update: (id: number, data: Partial<VaccinationData>) => Promise<IpcResponse>;
   };
+  dashboard: {
+    getFarmStats: (farmId: number) => Promise<IpcResponse>;
+    getWeeklyTrends: (farmId: number) => Promise<IpcResponse>;
+    getAlerts: (farmId: number) => Promise<IpcResponse>;
+  };
   vaccinationSchedule: {
     create: (data: VaccinationScheduleData) => Promise<IpcResponse>;
     getAll: () => Promise<IpcResponse>;

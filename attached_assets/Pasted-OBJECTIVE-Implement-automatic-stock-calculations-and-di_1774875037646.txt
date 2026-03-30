@@ -1,0 +1,149 @@
+OBJECTIVE: Implement automatic stock calculations and display real-time statistics on the Farm Dashboard
+
+REQUIREMENTS:
+- Stock automatically updates when daily entries are recorded
+- Farm dashboard shows live stats: total birds, today's eggs, today's mortality
+- Flock-level stats: production rate, mortality rate, feed conversion
+- Visual indicators for performance (good/warning/critical)
+- Quick summary cards with trends (vs yesterday, vs last week)
+
+FILES TO CREATE/MODIFY:
+
+1. src/pages/farm/FarmDashboard.tsx (update existing)
+   - Header: Farm name, today's date
+   - Row 1 - Key Metrics Cards (4 cards):
+     * Total Live Birds (sum of all active flocks current_count)
+     * Today's Eggs (sum of all grades from today's entries)
+     * Today's Deaths (sum from today's entries)
+     * Today's Feed (kg, sum from today's entries)
+   
+   - Row 2 - Performance Cards (3 cards):
+     * Production Rate (last 7 days average, with trend arrow)
+     * Mortality Rate (last 7 days, with warning if > 0.5%)
+     * Feed Conversion Ratio (feed kg / eggs, last 7 days)
+   
+   - Row 3 - Quick Actions:
+     * "Add Today's Entry" button (prominent)
+     * Entry status: "X of Y flocks recorded today"
+     * List of flocks pending entry
+   
+   - Row 4 - Active Flocks Summary:
+     * Mini cards for each active flock
+     * Show: name, age, count, today's entry status
+     * Click to go to flock detail
+   
+   - Row 5 - Alerts Panel:
+     * Low stock alerts (from inventory)
+     * Upcoming vaccinations (next 7 days)
+     * High mortality warnings
+     * Price update reminders
+
+2. src/components/dashboard/StatCard.tsx
+   - Props: title, value, unit, icon, trend?, status?
+   - Large prominent value display
+   - Trend indicator: ↑ green (good), ↓ red (bad), → gray (same)
+   - Status colors: green (good), yellow (warning), red (critical)
+   - Subtitle for comparison text
+
+3. src/components/dashboard/PerformanceCard.tsx
+   - Props: title, value, target, unit, description
+   - Circular or bar progress indicator
+   - Show actual vs target
+   - Color based on performance threshold
+
+4. src/components/dashboard/FlockMiniCard.tsx
+   - Compact card for dashboard flock list
+   - Show: name, age badge, bird count
+   - Entry status icon (✓ done, ○ pending)
+   - Click navigates to flock detail
+
+5. src/components/dashboard/AlertsPanel.tsx
+   - Collapsible panel showing all alerts
+   - Alert types with icons:
+     * 🔴 Critical (high mortality, zero stock)
+     * 🟡 Warning (low inventory, vaccination due)
+     * 🔵 Info (price update reminder)
+   - Click alert to navigate to relevant page
+   - "Dismiss" option for info alerts
+
+6. src/components/dashboard/EntryStatusWidget.tsx
+   - Shows today's entry completion status
+   - Progress bar: X of Y flocks
+   - List of pending flocks with quick-add buttons
+   - Celebratory state when all complete ✓
+
+7. electron/ipc-handlers.ts (add handlers)
+   - dashboard.getFarmStats(farmId):
+     * Return aggregated stats for dashboard
+     * Calculate from flocks and daily_entries tables
+   - dashboard.getTodaysSummary(farmId):
+     * Today's totals: eggs, deaths, feed
+     * Entry completion status per flock
+   - dashboard.getWeeklyTrends(farmId):
+     * Last 7 days aggregated data
+     * Calculate averages and trends
+   - dashboard.getAlerts(farmId):
+     * Check inventory for low stock
+     * Check vaccinations due in 7 days
+     * Check mortality rate thresholds
+     * Return sorted by priority
+
+8. src/lib/calculations.ts (new file)
+   - calculateProductionRate(eggs, birds, days): percentage
+   - calculateMortalityRate(deaths, initialBirds): percentage
+   - calculateFCR(feedKg, eggsProduced): ratio
+   - calculateTrend(current, previous): 'up' | 'down' | 'same'
+   - getPerformanceStatus(value, thresholds): 'good' | 'warning' | 'critical'
+   
+   THRESHOLDS:
+   - Production Rate: >85% good, 70-85% warning, <70% critical
+   - Mortality Rate: <0.5% good, 0.5-1% warning, >1% critical
+   - FCR (layers): <2.0 good, 2.0-2.5 warning, >2.5 critical
+
+9. src/hooks/useDashboardData.ts
+   - Custom hook to fetch all dashboard data
+   - Auto-refresh every 5 minutes
+   - Return: { stats, trends, alerts, isLoading, refetch }
+
+10. src/hooks/useTodayEntryStatus.ts
+    - Hook to check today's entry status
+    - Return: { completed, pending, total, percentComplete }
+
+11. src/lib/api.ts (add dashboard functions)
+    - getFarmDashboardStats(farmId)
+    - getTodaysSummary(farmId)
+    - getWeeklyTrends(farmId)
+    - getAlerts(farmId)
+
+12. electron/ipc-handlers.ts (update stock calculation)
+    - Ensure flock.current_count updates correctly:
+      * On entry create: current_count -= deaths
+      * On entry update: current_count += old_deaths - new_deaths
+      * On entry delete: current_count += deleted_deaths
+    - Add transaction support for atomic updates
+
+CALCULATION FORMULAS:
+- Total Birds = SUM(current_count) from active flocks
+- Production Rate = (total_eggs / (total_birds × days)) × 100
+- Mortality Rate = (total_deaths / initial_total_birds) × 100
+- FCR = total_feed_kg / total_eggs
+- Trend = compare current week vs previous week
+
+PERFORMANCE THRESHOLDS (for layers):
+| Metric | Good | Warning | Critical |
+|--------|------|---------|----------|
+| Production Rate | >85% | 70-85% | <70% |
+| Daily Mortality | <0.1% | 0.1-0.3% | >0.3% |
+| Cumulative Mortality | <3% | 3-5% | >5% |
+| FCR | <2.0 | 2.0-2.3 | >2.3 |
+
+UI/UX REQUIREMENTS:
+- Dashboard loads fast (optimize queries)
+- Visual hierarchy: most important stats largest
+- Color coding consistent throughout app
+- Refresh button to manually update
+- Show "Last updated: X minutes ago"
+- Skeleton loaders while fetching
+- Empty states with helpful prompts
+
+OUTPUT: Farm dashboard displays real-time stats calculated from daily entries. Stock calculations are accurate and update automatically. Performance indicators help farmers quickly identify issues. Alerts surface important items needing attention.

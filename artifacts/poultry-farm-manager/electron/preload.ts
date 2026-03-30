@@ -97,6 +97,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
     update: (id: number, data: unknown) =>
       ipcRenderer.invoke("vaccinations:update", id, data),
   },
+  dashboard: {
+    getFarmStats: (farmId: number) =>
+      ipcRenderer.invoke("dashboard:getFarmStats", farmId),
+    getWeeklyTrends: (farmId: number) =>
+      ipcRenderer.invoke("dashboard:getWeeklyTrends", farmId),
+    getAlerts: (farmId: number) =>
+      ipcRenderer.invoke("dashboard:getAlerts", farmId),
+  },
   vaccinationSchedule: {
     create: (data: unknown) =>
       ipcRenderer.invoke("vaccinationSchedule:create", data),
