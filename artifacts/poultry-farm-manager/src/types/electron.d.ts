@@ -191,7 +191,7 @@ export interface ReduceStockData {
 
 export interface FarmAlert {
   id: string;
-  type: "low_stock" | "expiring" | "vaccination_due";
+  type: "low_stock" | "expiring" | "vaccination_due" | "payment_overdue" | "payment_due_today" | "payment_due_soon";
   severity: "critical" | "warning" | "info";
   title: string;
   message: string;
@@ -199,6 +199,20 @@ export interface FarmAlert {
   createdAt: string;
   isDismissed: boolean;
   actionUrl: string;
+}
+
+export interface PaymentAlert {
+  type: "overdue" | "due_today" | "due_soon";
+  priority: "critical" | "high" | "warning" | "info";
+  saleId: number;
+  invoiceNumber: string;
+  customerId: number;
+  customerName: string;
+  amount: number;
+  balanceDue: number;
+  dueDate: string;
+  daysOverdue?: number;
+  daysTillDue?: number;
 }
 
 export interface VaccinationData {
@@ -1026,6 +1040,7 @@ export interface ElectronAPI {
   };
   alerts: {
     getAll: (farmId: number) => Promise<IpcResponse<FarmAlert[]>>;
+    getPaymentAlerts: (farmId: number) => Promise<IpcResponse<PaymentAlert[]>>;
     dismiss: (farmId: number, alertType: string, referenceId: number) => Promise<IpcResponse>;
     undismiss: (farmId: number, alertType: string, referenceId: number) => Promise<IpcResponse>;
     clearDismissed: (farmId: number) => Promise<IpcResponse>;

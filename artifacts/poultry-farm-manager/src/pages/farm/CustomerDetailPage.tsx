@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { isElectron, customers as customersApi, payments as paymentsApi, receivables as receivablesApi } from "@/lib/api";
+import { isElectron, customers as customersApi, payments as paymentsApi, receivables as receivablesApi, alerts as alertsApi } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/ui/Toast";
 import {
@@ -12,7 +13,8 @@ import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import CategoryBadge from "@/components/customers/CategoryBadge";
 import PaymentHistoryTable from "@/components/payments/PaymentHistoryTable";
 import RecordPaymentModal from "@/components/payments/RecordPaymentModal";
-import type { CustomerWithStats, CustomerPayment, ReceivableItem } from "@/types/electron";
+import CustomerPaymentAlert from "@/components/alerts/CustomerPaymentAlert";
+import type { CustomerWithStats, CustomerPayment, ReceivableItem, PaymentAlert } from "@/types/electron";
 
 function getPaymentTermsLabel(days: number | null): string {
   if (days === null || days === 0) return "Cash on Delivery";
@@ -22,8 +24,10 @@ function getPaymentTermsLabel(days: number | null): string {
 export default function CustomerDetailPage(): React.ReactElement {
   const { customerId } = useParams<{ customerId: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { showToast } = useToast();
   const id = Number(customerId);
+  const farmId = user?.farmId ?? null;
 
   const [customer, setCustomer] = useState<CustomerWithStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -31,6 +35,7 @@ export default function CustomerDetailPage(): React.ReactElement {
   const [outstandingInvoices, setOutstandingInvoices] = useState<ReceivableItem[]>([]);
   const [paymentTarget, setPaymentTarget] = useState<ReceivableItem | null>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "payments" | "outstanding">("overview");
+  const [customerAlerts, setCustomerAlerts] = useState<PaymentAlert[]>([]);
 
   async function loadData() {
     if (!isElectron() || !id) return;
@@ -43,6 +48,12 @@ export default function CustomerDetailPage(): React.ReactElement {
       setCustomer(data);
       setCustomerPayments(payments);
       setOutstandingInvoices(outstanding);
+
+      if (farmId) {
+        alertsApi.getPaymentAlerts(farmId)
+          .then(all => setCustomerAlerts(all.filter(a => a.customerId === id)))
+          .catch(() => {});
+      }
     } catch (err) {
       showToast("Failed to load customer details", "error");
       navigate("/farm/customers");
@@ -53,7 +64,7 @@ export default function CustomerDetailPage(): React.ReactElement {
 
   useEffect(() => {
     loadData();
-  }, [id]);
+  }, [id, farmId]);
 
   if (!isElectron()) {
     return <div className="p-6 text-center text-gray-500">This feature is only available in the desktop app.</div>;
@@ -99,6 +110,16 @@ export default function CustomerDetailPage(): React.ReactElement {
           </span>
         )}
       </div>
+
+      {customerAlerts.length > 0 && (
+        <div className="mb-6">
+          <CustomerPaymentAlert
+            customerId={id}
+            alerts={customerAlerts}
+            totalOutstanding={customer.stats.balanceDue}
+          />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <div className="bg-white rounded-xl border border-gray-200 p-5">

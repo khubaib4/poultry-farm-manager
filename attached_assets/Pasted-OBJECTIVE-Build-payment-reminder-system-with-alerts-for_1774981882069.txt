@@ -1,0 +1,138 @@
+OBJECTIVE: Build payment reminder system with alerts for overdue invoices
+
+REQUIREMENTS:
+- Alert for overdue payments
+- Alert for payments due soon
+- Reminder notifications in dashboard
+- Customer-specific payment alerts
+- Integrate with existing alerts system
+
+FILES TO CREATE/MODIFY:
+
+1. src/components/alerts/PaymentAlerts.tsx
+   - Component showing payment-related alerts
+   - Types:
+     * Overdue payments (red, critical)
+     * Due today (orange, warning)
+     * Due this week (yellow, info)
+   - Shows: customer name, invoice #, amount, days overdue
+   - Actions: Record Payment, View Invoice
+
+2. src/components/alerts/OverduePaymentsAlert.tsx
+   - Prominent alert banner for overdue payments
+   - Shows total overdue amount and count
+   - "View All" link to receivables page
+   - Dismissible (per session)
+
+3. src/components/alerts/PaymentDueAlert.tsx
+   - Alert for single payment due
+   - Customer name, amount, due date
+   - Quick payment action
+
+4. src/components/alerts/CustomerPaymentAlert.tsx
+   - Alert shown on customer detail page
+   - If customer has overdue: red alert
+   - If customer has due soon: yellow alert
+   - Shows total outstanding
+
+5. Update FarmDashboard.tsx
+   - Add PaymentAlerts section
+   - Show top 5 overdue/due soon
+   - Prominent if any overdue
+   - Link to full receivables
+
+6. Update AlertsPanel.tsx (existing alerts component)
+   - Include payment alerts alongside other alerts
+   - Payment alerts with money icon
+   - Priority: overdue first, then due soon
+
+7. Update OwnerDashboard.tsx
+   - Add consolidated payment alerts across all farms
+   - Show total receivables per farm
+   - Overdue highlight
+
+8. electron/ipc-handlers.ts (add/update handlers)
+   - alerts.getPaymentAlerts(farmId):
+     * Get overdue invoices
+     * Get invoices due within 7 days
+     * Return sorted by urgency
+   
+   - alerts.getOverdueCount(farmId):
+     * Count of overdue invoices
+     * Used for badge
+   
+   - alerts.dismissPaymentAlert(saleId):
+     * Mark alert as dismissed
+     * Store in dismissed_alerts table
+   
+   - Update alerts.getAll(farmId):
+     * Include payment alerts
+     * Merge with inventory and vaccination alerts
+
+9. Update existing alerts system
+   - Add payment alert type
+   - Include in consolidated alerts
+   - Priority sorting (overdue payments = critical)
+
+10. src/lib/api.ts (add functions)
+    - getPaymentAlerts(farmId)
+    - getOverdueCount(farmId)
+    - dismissPaymentAlert(saleId)
+
+11. src/hooks/usePaymentAlerts.ts
+    - Hook for payment alerts
+    - Auto-refresh periodically
+    - Return: { alerts, overdueCount, isLoading }
+
+12. Update sidebar
+    - Show overdue count badge on Sales or Receivables
+
+ALERT TYPES AND PRIORITY:
+
+| Type | Priority | Color | Icon | Condition |
+|------|----------|-------|------|-----------|
+| Overdue | Critical | Red | alert-circle | Past due date, balance > 0 |
+| Due Today | High | Orange | clock | Due today, balance > 0 |
+| Due Tomorrow | Warning | Yellow | calendar | Due tomorrow, balance > 0 |
+| Due This Week | Info | Blue | info | Due within 7 days, balance > 0 |
+
+ALERT DATA STRUCTURE:
+```typescript
+interface PaymentAlert {
+  type: 'overdue' | 'due_today' | 'due_soon';
+  priority: 'critical' | 'high' | 'warning' | 'info';
+  saleId: number;
+  invoiceNumber: string;
+  customerId: number;
+  customerName: string;
+  amount: number;
+  balanceDue: number;
+  dueDate: string;
+  daysOverdue?: number;
+  daysTillDue?: number;
+}
+```
+
+ALERT MESSAGE FORMATS:
+- Overdue: "{Customer} - Invoice {#} overdue by {X} days (PKR {amount})"
+- Due Today: "{Customer} - Invoice {#} due today (PKR {amount})"
+- Due Soon: "{Customer} - Invoice {#} due in {X} days (PKR {amount})"
+
+DASHBOARD INTEGRATION:
+- Show in existing AlertsPanel
+- Group payment alerts together
+- Show count badge
+- Quick actions available
+
+CONSOLIDATED VIEW:
+- Farm Dashboard: Show farm's payment alerts
+- Owner Dashboard: Show alerts from all farms
+
+UI/UX REQUIREMENTS:
+- Overdue alerts very prominent (red)
+- Non-intrusive for due-soon
+- Easy to take action (payment button)
+- Dismissible but returns next day
+- Count badges on navigation
+
+OUTPUT: Payment alerts integrated into dashboard and alerts system. Overdue payments highlighted. Easy to see and act on payment dues.

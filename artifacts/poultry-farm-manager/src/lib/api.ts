@@ -71,6 +71,7 @@ import type {
   PaymentFilters,
   PaymentsSummary,
   ReceivableItem,
+  PaymentAlert,
 } from "@/types/electron";
 
 function getApi() {
@@ -277,6 +278,9 @@ export const inventory = {
 export const alerts = {
   getAll: (farmId: number) =>
     invoke<FarmAlert[]>(() => getApi()!.alerts.getAll(farmId)),
+
+  getPaymentAlerts: (farmId: number) =>
+    invoke<PaymentAlert[]>(() => getApi()!.alerts.getPaymentAlerts(farmId)),
 
   dismiss: (farmId: number, alertType: string, referenceId: number) =>
     invoke(() => getApi()!.alerts.dismiss(farmId, alertType, referenceId)),

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { isElectron, payments as paymentsApi } from "@/lib/api";
 import { useDashboardData } from "@/hooks/useDashboardData";
+import { usePaymentAlerts } from "@/hooks/usePaymentAlerts";
 import { getPerformanceStatus, calculateTrend, THRESHOLDS } from "@/lib/calculations";
 import { formatCurrency } from "@/lib/utils";
 import { Bird, Egg, Skull, Wheat, RefreshCw, TrendingUp } from "lucide-react";
@@ -14,6 +15,7 @@ import EntryStatusWidget from "@/components/dashboard/EntryStatusWidget";
 import FlockMiniCard from "@/components/dashboard/FlockMiniCard";
 import AlertsPanel from "@/components/dashboard/AlertsPanel";
 import OverdueAlert from "@/components/payments/OverdueAlert";
+import PaymentAlerts from "@/components/alerts/PaymentAlerts";
 import type { PaymentsSummary } from "@/types/electron";
 
 export default function FarmDashboard(): React.ReactElement {
@@ -22,6 +24,7 @@ export default function FarmDashboard(): React.ReactElement {
   const { stats, trends, alerts, isLoading, lastUpdated, refetch } = useDashboardData();
   const [paymentsSummary, setPaymentsSummary] = useState<PaymentsSummary | null>(null);
   const farmId = user?.farmId ?? null;
+  const { alerts: paymentAlerts } = usePaymentAlerts(farmId);
 
   useEffect(() => {
     if (!isElectron() || !farmId) return;
@@ -130,6 +133,10 @@ export default function FarmDashboard(): React.ReactElement {
                 View All
               </button>
             </div>
+          )}
+
+          {paymentAlerts.length > 0 && (
+            <PaymentAlerts alerts={paymentAlerts} maxItems={5} />
           )}
 
           {trends && (trends.productionRate > 0 || trends.dailyMortalityRate > 0 || trends.fcr > 0) && (

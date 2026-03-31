@@ -2262,6 +2262,52 @@ export function registerIpcHandlers(): void {
         }
       }
 
+      const paymentOutstanding = db.select({
+        id: schema.sales.id,
+        invoiceNumber: schema.sales.invoiceNumber,
+        balanceDue: schema.sales.balanceDue,
+        dueDate: schema.sales.dueDate,
+        customerName: schema.customers.name,
+      })
+        .from(schema.sales)
+        .innerJoin(schema.customers, eq(schema.sales.customerId, schema.customers.id))
+        .where(and(
+          eq(schema.sales.farmId, farmId),
+          eq(schema.sales.isDeleted, 0),
+          sql`${schema.sales.paymentStatus} != 'paid'`,
+          sql`${schema.sales.balanceDue} > 0`,
+          sql`${schema.sales.dueDate} IS NOT NULL`,
+          lte(schema.sales.dueDate, nextWeekStr)
+        ))
+        .all();
+
+      const todayStartMs = new Date(todayStr + "T00:00:00").getTime();
+      for (const s of paymentOutstanding) {
+        const due = s.dueDate || "";
+        const bal = s.balanceDue ?? 0;
+        if (due < todayStr) {
+          const daysOver = Math.floor((todayStartMs - new Date(due + "T00:00:00").getTime()) / 86400000);
+          alerts.push({
+            type: "critical",
+            message: `${s.customerName} — ${s.invoiceNumber} overdue by ${daysOver} day${daysOver !== 1 ? "s" : ""} (PKR ${bal.toLocaleString()})`,
+            link: `/farm/sales/${s.id}`,
+          });
+        } else if (due === todayStr) {
+          alerts.push({
+            type: "warning",
+            message: `${s.customerName} — ${s.invoiceNumber} due today (PKR ${bal.toLocaleString()})`,
+            link: `/farm/sales/${s.id}`,
+          });
+        } else {
+          const daysTill = Math.floor((new Date(due + "T00:00:00").getTime() - todayStartMs) / 86400000);
+          alerts.push({
+            type: "info",
+            message: `${s.customerName} — ${s.invoiceNumber} due in ${daysTill} day${daysTill !== 1 ? "s" : ""} (PKR ${bal.toLocaleString()})`,
+            link: `/farm/sales/${s.id}`,
+          });
+        }
+      }
+
       alerts.sort((a, b) => {
         const priority = { critical: 0, warning: 1, info: 2 };
         return priority[a.type] - priority[b.type];
@@ -2351,7 +2397,7 @@ export function registerIpcHandlers(): void {
         const f = row.flocks;
         const key = `vaccination_due:${v.id}`;
         const isDismissed = dismissedKeys.has(key);
-        const daysOverdue = Math.floor((today.getTime() - new Date(v.scheduledDate).getTime()) / (1000 * 60 * 60 * 24));
+        const daysOverdue = Math.floor((new Date(todayStr + "T00:00:00").getTime() - new Date(v.scheduledDate + "T00:00:00").getTime()) / 86400000);
         const severity = daysOverdue > 7 ? "critical" : daysOverdue > 0 ? "warning" : "info";
 
         alerts.push({
@@ -2367,8 +2413,169 @@ export function registerIpcHandlers(): void {
         });
       }
 
+      const weekFromNow = new Date(today);
+      weekFromNow.setDate(weekFromNow.getDate() + 7);
+      const weekFromNowStr = weekFromNow.toISOString().split("T")[0];
+
+      const paymentOutstanding = db.select({
+        id: schema.sales.id,
+        invoiceNumber: schema.sales.invoiceNumber,
+        balanceDue: schema.sales.balanceDue,
+        dueDate: schema.sales.dueDate,
+        customerName: schema.customers.name,
+      })
+        .from(schema.sales)
+        .innerJoin(schema.customers, eq(schema.sales.customerId, schema.customers.id))
+        .where(and(
+          eq(schema.sales.farmId, farmId),
+          eq(schema.sales.isDeleted, 0),
+          sql`${schema.sales.paymentStatus} != 'paid'`,
+          sql`${schema.sales.balanceDue} > 0`,
+          sql`${schema.sales.dueDate} IS NOT NULL`,
+          lte(schema.sales.dueDate, weekFromNowStr)
+        ))
+        .all();
+
+      for (const s of paymentOutstanding) {
+        const due = s.dueDate || "";
+        const bal = s.balanceDue ?? 0;
+        const alertType = due < todayStr ? "payment_overdue" : due === todayStr ? "payment_due_today" : "payment_due_soon";
+        const key = `${alertType}:${s.id}`;
+        const isDismissedFlag = dismissedKeys.has(key);
+
+        let severity: "critical" | "warning" | "info" = "info";
+        let title = "";
+        let message = "";
+        const todayMs = new Date(todayStr + "T00:00:00").getTime();
+        if (due < todayStr) {
+          const daysOver = Math.floor((todayMs - new Date(due + "T00:00:00").getTime()) / 86400000);
+          severity = "critical";
+          title = `Payment Overdue: ${s.invoiceNumber}`;
+          message = `${s.customerName} — overdue by ${daysOver} day${daysOver !== 1 ? "s" : ""} (PKR ${bal.toLocaleString()})`;
+        } else if (due === todayStr) {
+          severity = "warning";
+          title = `Payment Due Today: ${s.invoiceNumber}`;
+          message = `${s.customerName} — due today (PKR ${bal.toLocaleString()})`;
+        } else {
+          const daysTill = Math.floor((new Date(due + "T00:00:00").getTime() - todayMs) / 86400000);
+          severity = daysTill <= 1 ? "warning" : "info";
+          title = `Payment Due Soon: ${s.invoiceNumber}`;
+          message = `${s.customerName} — due in ${daysTill} day${daysTill !== 1 ? "s" : ""} (PKR ${bal.toLocaleString()})`;
+        }
+
+        alerts.push({
+          id: key,
+          type: alertType as "payment_overdue" | "payment_due_today" | "payment_due_soon",
+          severity,
+          title,
+          message,
+          referenceId: s.id,
+          createdAt: todayStr,
+          isDismissed: isDismissedFlag,
+          actionUrl: `/farm/sales/${s.id}`,
+        });
+      }
+
       const priorityMap: Record<string, number> = { critical: 0, warning: 1, info: 2 };
       alerts.sort((a, b) => priorityMap[a.severity] - priorityMap[b.severity]);
+
+      return alerts;
+    })
+  );
+
+  ipcMain.handle(
+    "alerts:getPaymentAlerts",
+    wrapHandler((_e: unknown, farmId: number) => {
+      requireFarmAccess(farmId);
+      const now = new Date();
+      const todayStr = now.toISOString().split("T")[0];
+      const today = new Date(todayStr + "T00:00:00");
+      const weekFromNow = new Date(today.getTime() + 7 * 86400000).toISOString().split("T")[0];
+
+      const outstanding = db.select({
+        id: schema.sales.id,
+        invoiceNumber: schema.sales.invoiceNumber,
+        totalAmount: schema.sales.totalAmount,
+        balanceDue: schema.sales.balanceDue,
+        dueDate: schema.sales.dueDate,
+        customerId: schema.sales.customerId,
+        customerName: schema.customers.name,
+      })
+        .from(schema.sales)
+        .innerJoin(schema.customers, eq(schema.sales.customerId, schema.customers.id))
+        .where(and(
+          eq(schema.sales.farmId, farmId),
+          eq(schema.sales.isDeleted, 0),
+          sql`${schema.sales.paymentStatus} != 'paid'`,
+          sql`${schema.sales.balanceDue} > 0`
+        ))
+        .all();
+
+      const alerts: Array<{
+        type: "overdue" | "due_today" | "due_soon";
+        priority: "critical" | "high" | "warning" | "info";
+        saleId: number;
+        invoiceNumber: string;
+        customerId: number;
+        customerName: string;
+        amount: number;
+        balanceDue: number;
+        dueDate: string;
+        daysOverdue?: number;
+        daysTillDue?: number;
+      }> = [];
+
+      for (const s of outstanding) {
+        const due = s.dueDate || "";
+        const bal = s.balanceDue ?? 0;
+        if (!due) continue;
+
+        if (due < todayStr) {
+          const daysOverdue = Math.floor((today.getTime() - new Date(due + "T00:00:00").getTime()) / 86400000);
+          alerts.push({
+            type: "overdue",
+            priority: "critical",
+            saleId: s.id,
+            invoiceNumber: s.invoiceNumber,
+            customerId: s.customerId,
+            customerName: s.customerName,
+            amount: s.totalAmount ?? 0,
+            balanceDue: bal,
+            dueDate: due,
+            daysOverdue,
+          });
+        } else if (due === todayStr) {
+          alerts.push({
+            type: "due_today",
+            priority: "high",
+            saleId: s.id,
+            invoiceNumber: s.invoiceNumber,
+            customerId: s.customerId,
+            customerName: s.customerName,
+            amount: s.totalAmount ?? 0,
+            balanceDue: bal,
+            dueDate: due,
+            daysTillDue: 0,
+          });
+        } else if (due <= weekFromNow) {
+          const daysTillDue = Math.floor((new Date(due + "T00:00:00").getTime() - today.getTime()) / 86400000);
+          alerts.push({
+            type: "due_soon",
+            priority: daysTillDue <= 1 ? "warning" : "info",
+            saleId: s.id,
+            invoiceNumber: s.invoiceNumber,
+            customerId: s.customerId,
+            customerName: s.customerName,
+            amount: s.totalAmount ?? 0,
+            balanceDue: bal,
+            dueDate: due,
+            daysTillDue,
+          });
+        }
+      }
+
+      const priorityMap: Record<string, number> = { critical: 0, high: 1, warning: 2, info: 3 };
+      alerts.sort((a, b) => priorityMap[a.priority] - priorityMap[b.priority]);
 
       return alerts;
     })
@@ -2988,6 +3195,29 @@ export function registerIpcHandlers(): void {
           .all();
         for (const v of upcomingVax) {
           alerts.push({ farmId: farm.id, farmName: farm.name, type: "vaccination_overdue", severity: "critical", message: `${v.vaccinations.vaccineName} overdue for ${v.flocks.batchName}`, referenceId: v.vaccinations.id, date: v.vaccinations.scheduledDate });
+        }
+
+        const overduePayments = db.select({
+          id: schema.sales.id,
+          invoiceNumber: schema.sales.invoiceNumber,
+          balanceDue: schema.sales.balanceDue,
+          dueDate: schema.sales.dueDate,
+          customerName: schema.customers.name,
+        })
+          .from(schema.sales)
+          .innerJoin(schema.customers, eq(schema.sales.customerId, schema.customers.id))
+          .where(and(
+            eq(schema.sales.farmId, farm.id),
+            eq(schema.sales.isDeleted, 0),
+            sql`${schema.sales.paymentStatus} != 'paid'`,
+            sql`${schema.sales.balanceDue} > 0`,
+            sql`${schema.sales.dueDate} IS NOT NULL`,
+            sql`${schema.sales.dueDate} < ${today}`
+          ))
+          .all();
+        for (const s of overduePayments) {
+          const daysOver = Math.floor((new Date().getTime() - new Date(s.dueDate + "T00:00:00").getTime()) / 86400000);
+          alerts.push({ farmId: farm.id, farmName: farm.name, type: "payment_overdue", severity: "critical", message: `${s.customerName} — ${s.invoiceNumber} overdue by ${daysOver} day${daysOver !== 1 ? "s" : ""} (PKR ${(s.balanceDue ?? 0).toLocaleString()})`, referenceId: s.id, date: s.dueDate || today });
         }
       }
 

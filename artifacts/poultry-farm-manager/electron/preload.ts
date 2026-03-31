@@ -123,6 +123,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   alerts: {
     getAll: (farmId: number) => ipcRenderer.invoke("alerts:getAll", farmId),
+    getPaymentAlerts: (farmId: number) => ipcRenderer.invoke("alerts:getPaymentAlerts", farmId),
     dismiss: (farmId: number, alertType: string, referenceId: number) =>
       ipcRenderer.invoke("alerts:dismiss", farmId, alertType, referenceId),
     undismiss: (farmId: number, alertType: string, referenceId: number) =>

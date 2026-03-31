@@ -1,8 +1,6 @@
 # Overview
 
-This project is a pnpm workspace monorepo utilizing TypeScript, designed for a poultry farm management system. It comprises a desktop application (Electron + React) for farm operations and an Express API server for backend services. The system aims to provide comprehensive tools for managing flocks, daily entries, expenses, revenue, inventory, vaccinations, and financial reporting, offering a robust solution for poultry farm owners.
-
-The project's vision is to streamline farm management processes, improve efficiency, and provide actionable insights through data-driven reporting.
+This project is a pnpm workspace monorepo using TypeScript, designed for a comprehensive poultry farm management system. It features an Electron-based desktop application for farm operations and an Express API server for backend services. The system aims to optimize farm management by providing tools for flock, daily entry, expenses, revenue, inventory, vaccinations, and financial reporting, ultimately improving efficiency and offering data-driven insights to poultry farm owners.
 
 # User Preferences
 
@@ -17,12 +15,12 @@ Ensure all code is well-documented, especially public interfaces and complex log
 
 # System Architecture
 
-The project is structured as a pnpm workspace monorepo, facilitating shared libraries and modular development.
+The project is structured as a pnpm workspace monorepo to promote modularity and shared code.
 
 **Monorepo Structure:**
-- `artifacts/`: Deployable applications (e.g., `api-server`, `poultry-farm-manager`).
-- `lib/`: Shared libraries (`api-spec`, `api-client-react`, `api-zod`, `db`).
-- `scripts/`: Utility scripts.
+- `artifacts/`: Contains deployable applications.
+- `lib/`: Houses shared libraries (e.g., API specifications, database utilities).
+- `scripts/`: Holds utility scripts.
 
 **Core Technologies:**
 - **Node.js**: 24
@@ -31,72 +29,63 @@ The project is structured as a pnpm workspace monorepo, facilitating shared libr
 - **API Framework**: Express 5
 - **Desktop Application Framework**: Electron with React 18
 - **Database**: PostgreSQL with Drizzle ORM for the API server, SQLite with Drizzle ORM for the Electron app.
-- **Validation**: Zod (v4), `drizzle-zod`.
-- **API Codegen**: Orval (from OpenAPI spec).
-- **Build Tool**: esbuild.
+- **Validation**: Zod (v4).
 
-**TypeScript & Composite Projects:**
-- All packages extend a base `tsconfig.base.json` with `composite: true`.
-- The root `tsconfig.json` lists all packages as project references, enabling cross-package type-checking and dependency resolution.
-- `emitDeclarationOnly` is used for type-checking, with actual JS bundling handled by esbuild.
+**TypeScript Configuration:**
+- Utilizes TypeScript composite projects for efficient type-checking and dependency management across packages.
 
 **Electron Desktop Application (`poultry-farm-manager`):**
-- **UI/UX**: React 18, Tailwind CSS v3, shadcn/ui for design tokens. Responsive design with desktop-first approach.
-- **Routing**: `react-router-dom` v7 with `HashRouter` for navigation within the app, implementing role-based access control for routes.
+- **UI/UX**: React 18, Tailwind CSS for styling with a desktop-first, responsive approach.
+- **Routing**: `react-router-dom` v7 with `HashRouter` and role-based access control.
 - **State Management**: Zustand for authentication, React Context for shared state.
-- **Authentication**: Supports Owner (email/password) and Farm (username/password) login modes, with session persistence via `electron-store`. Server-side auth guards protect IPC handlers.
+- **Authentication**: Supports Owner and Farm login modes with session persistence.
 - **Key Features:**
-    - **Flock Management**: CRUD operations, auto-vaccination scheduling, status tracking, computed stats (age, mortality, production).
-    - **Daily Entry**: Record mortality, egg production, feed consumption, water, notes. Enforces one entry per flock per day.
-    - **Farm Dashboard**: Live stats (total birds, today's eggs, deaths, feed), performance metrics (production rate, mortality, FCR), entry status, and alerts panel. Auto-refreshes.
-    - **Expenses**: Full CRUD for expense tracking across categories. Filtering, monthly summaries, supplier autocomplete.
-    - **Revenue**: Tracks revenue from egg production against prices. Summaries, charts, and daily revenue tables.
-    - **Financial Dashboard & P&L**: Comprehensive profit/loss reporting, financial trend charts, expense/revenue breakdown, per-unit metrics. Print and CSV export.
-    - **Inventory Management**: Full CRUD for feed, medicine, and equipment. Stock status, low stock alerts, transaction history.
-    - **Vaccination Management**: Automated scheduling based on flock age, upcoming/completed tracking, template management, and detailed history with compliance stats.
-    - **Report Generation**: Five types of reports (Daily Summary, Weekly Performance, Monthly Summary, Flock Performance, Financial Report) with configurable parameters. Export to PDF, Excel, and Print.
-    - **Low Stock Alerts**: Centralized system for low stock, expiring items, and overdue vaccinations, with severity levels and dismissal management.
-    - **Customer Management**: Full CRUD for tracking egg buyers with categories (Retailer, Wholesaler, Restaurant/Hotel, Individual, Other). Contact details, payment terms (cash/credit), default pricing. Search/filter by name, phone, business, category, status. Grid and table view toggle. Customer detail page with contact info, payment/pricing, stats cards. Deactivate/reactivate support. IPC channels: `customers:create`, `customers:getByFarm`, `customers:getById`, `customers:update`, `customers:delete`, `customers:search`. Components: `src/components/customers/` (CategoryBadge, CustomerCard, CustomerTable). Hook: `src/hooks/useCustomers.ts`. Pages: CustomersPage, AddCustomerPage, EditCustomerPage, CustomerDetailPage. Routes: `/farm/customers`, `/farm/customers/new`, `/farm/customers/:customerId`, `/farm/customers/:customerId/edit`.
-    - **Sales Recording System**: Full sales CRUD with automatic invoice generation (format `INV-{year}-{seq}`, auto-incremented per farm). Customer selection with search, item entry (eggs/trays by grade A/B/cracked), discount support (none/percentage/fixed), payment recording with multiple methods (cash/bank_transfer/cheque/online/other). Payment status tracking (paid/partial/unpaid) with overdue detection. Sale detail page with item table, payment history, and record-payment modal. Edit/delete restricted when payments exist. Customer stats (totalPurchases, totalPaid, balanceDue) computed from sales data. IPC channels: `sales:getNextInvoiceNumber`, `sales:create`, `sales:getByFarm`, `sales:getById`, `sales:update`, `sales:delete`, `sales:getSummary`, `sales:recordPayment`. Components: `src/components/sales/` (PaymentStatusBadge, DiscountInput, SaleItemsInput, SaleSummaryCard, SalesTable). Hook: `src/hooks/useSales.ts`. Pages: SalesPage, NewSalePage, SaleDetailPage, EditSalePage. Routes: `/farm/sales`, `/farm/sales/new`, `/farm/sales/:id`, `/farm/sales/:id/edit`. Schema tables: `sales`, `saleItems`, `salePayments`. Calculations: `src/lib/salesCalculations.ts`.
-    - **Payment Recording & Receivables System**: Comprehensive receivables management with credit/balance tracking. Payments page with summary cards (Payments Today, Pending Receivables, Overdue Amount, Due This Week), filter bar (date range, payment method, search), and payments table with delete support. Receivables page with tabs (All Outstanding, Overdue, Due Soon), color-coded status indicators, and quick payment actions. Record Payment modal available from multiple entry points (Sales detail, Customer detail, Receivables page) with amount validation, payment method selection (Cash, Bank Transfer, Cheque, Mobile Payment, Other), and running balance display. Customer detail page enhanced with Payment History and Outstanding Invoices tabs. Farm Dashboard shows overdue alert and total receivables card. Sidebar shows overdue count badge on Receivables nav item. Payment deletion recalculates sale balance automatically. IPC channels: `payments:getByFarm`, `payments:getByCustomer`, `payments:delete`, `payments:getSummary`, `receivables:getByFarm`, `receivables:getByCustomer`. Components: `src/components/payments/` (RecordPaymentModal, PaymentMethodBadge, PaymentHistoryTable, ReceivablesTable, CustomerBalanceCard, OverdueAlert). Hooks: `src/hooks/usePayments.ts`, `src/hooks/useReceivables.ts`. Pages: PaymentsPage, ReceivablesPage. Routes: `/farm/payments`, `/farm/receivables`.
-    - **PDF Invoice System**: Generate, download, and print professional PDF invoices from sale records. Invoice preview (HTML) available on SaleDetailPage via "Sale Details" / "Invoice Preview" toggle tabs. Download PDF and Print buttons in SaleDetailPage header and download icon in SalesTable row actions. Farm branding (name, location, phone, email) auto-loaded from profile API with graceful fallback. Core library: `src/lib/invoicePdf.ts` (generates jsPDF document with header, bill-to, items table, totals, payment history, PAID watermark). Components: `src/components/invoices/` (DownloadInvoiceButton, PrintInvoiceButton, InvoiceActions, InvoicePreview). Dependencies: `jspdf`, `jspdf-autotable`.
-    - **Egg Pricing**: Manages egg prices by grade with effective dates and history.
-    - **UI Components Library** (`src/components/ui/`): Reusable components used across all pages — `LoadingSpinner` (sizes: sm/md/lg), `EmptyState` (icon, title, description, optional action button), `ErrorState` (error message, retry button), `ConfirmDialog` (accessible modal with keyboard dismiss, danger/warning variants), `Skeleton` variants (SkeletonCard, SkeletonTable, SkeletonDashboard, SkeletonForm), `Toast` (success/error/warning/info notifications via ToastProvider context and useToast hook), `PageHeader`. Also `ErrorBoundary` (`src/components/ErrorBoundary.tsx`) wrapping the entire app, and `print.css` (`src/styles/print.css`) for print-friendly output. Color palette standardized to `gray-*` (not `slate-*`). All routes use React lazy/Suspense for code splitting.
-    - **Owner Dashboard**: Comprehensive multi-farm overview at `/owner/dashboard`. Global summary cards (Total Birds, Today's Eggs, Revenue, Profit) with trend indicators. Farm overview grid with per-farm stats (birds, eggs, production rate, mortality, profit margin), color-coded performance indicators (good/warning/critical), and entry status tracking. Farm comparison chart (recharts bar chart with metric selector: production rate, mortality, profit margin, birds, eggs, revenue, expenses, profit). Consolidated alerts grouped by farm with severity (critical/warning/info). Recent activity feed (entries, expenses, vaccinations) across all farms.
-    - **Farm Comparison**: Dedicated comparison page at `/owner/compare`. Select farms via checkboxes, date range selector, bar chart comparison by metric, sortable comparison table with all KPIs, Excel export. IPC: `owner:getDashboardStats`, `owner:getFarmsOverview`, `owner:getFarmComparison`, `owner:getConsolidatedAlerts`, `owner:getRecentActivity`. Components: `src/components/owner/` (GlobalStatsCard, FarmOverviewCard, FarmComparisonChart, FarmComparisonTable, ConsolidatedAlerts, RecentActivityFeed). Hook: `src/hooks/useOwnerDashboard.ts` (auto-refresh every 5 minutes). Pages: `src/pages/owner/OwnerDashboardPage.tsx`, `src/pages/owner/FarmComparisonPage.tsx`. Performance thresholds: Good (production >85%, mortality <0.5%, profit margin >20%), Warning (70-85%, 0.5-1%, 10-20%), Critical (<70%, >1%, <10%).
-    - **Database Backup & Restore**: Full backup/restore system accessible from both owner (`/owner/backup`) and farm (`/farm/backup`) sidebars. Manual backup via native Save dialog, restore via native Open dialog with validation and confirmation modal. Auto-backup scheduler with configurable frequency (daily/weekly), time, retention count, and custom directory. Safety backup created before every restore. WAL files properly handled. Path validation restricts file operations to allowed directories. IPC channels: `backup:create`, `backup:createToPath`, `backup:restore`, `backup:confirmRestore`, `backup:validate`, `backup:getHistory`, `backup:delete`, `backup:openFolder`, `backup:getSettings`, `backup:saveSettings`, `backup:runAutoBackup`, `backup:selectDirectory`. Core modules: `electron/backup.ts` (backup/restore/validate logic), `electron/autoBackup.ts` (scheduler with electron-store persistence). Page: `src/pages/BackupRestorePage.tsx`.
+    - **Flock Management**: CRUD operations, auto-vaccination scheduling, status, and performance tracking.
+    - **Daily Entry**: Records mortality, egg production, feed, water, and notes.
+    - **Farm Dashboard**: Displays live stats, performance metrics, and alerts.
+    - **Expenses & Revenue**: Full CRUD for financial tracking and reporting.
+    - **Financial Dashboard & P&L**: Comprehensive financial reporting and trend analysis.
+    - **Inventory Management**: Tracks feed, medicine, and equipment with stock alerts.
+    - **Vaccination Management**: Automated scheduling and history tracking.
+    - **Report Generation**: Multiple report types (PDF, Excel, Print export).
+    - **Alerts System**: Centralized system for low stock, expiring items, and overdue tasks.
+    - **Customer Management**: CRUD for tracking egg buyers, including contact details and payment terms.
+    - **Sales Recording System**: Full sales CRUD, automatic invoice generation, customer selection, item entry, discount support, and payment tracking.
+    - **Payment Recording & Receivables System**: Manages receivables, credit, and balance tracking with payment reminders and alerts.
+    - **PDF Invoice System**: Generates, downloads, and prints professional PDF invoices.
+    - **Owner Dashboard**: Provides a multi-farm overview with global summaries, farm comparison, and consolidated alerts.
+    - **Farm Comparison**: Dedicated page for comparing farm performance with charts and detailed KPIs.
+    - **Database Backup & Restore**: Manual and auto-backup capabilities with configurable settings and restore functionality.
+- **UI Components**: Reusable components (`LoadingSpinner`, `EmptyState`, `ErrorState`, `ConfirmDialog`, `Skeleton`, `Toast`, `PageHeader`) for consistent UI.
 
 **API Server (`api-server`):**
-- Express 5 server handling API requests.
-- Uses `@workspace/api-zod` for request/response validation and `@workspace/db` for database interactions.
-- Routes are organized in `src/routes/` and mounted under `/api`.
+- An Express 5 server that handles all API requests.
+- Integrates with `@workspace/api-zod` for request validation and `@workspace/db` for database operations.
 
 **Database Layer (`lib/db`):**
-- Uses Drizzle ORM. PostgreSQL for the API server, SQLite for the Electron app.
-- Exports a Drizzle client instance and schema models.
-- Drizzle Kit is used for migrations.
+- Utilizes Drizzle ORM for database interactions, supporting PostgreSQL for the API and SQLite for the Electron app.
+- Drizzle Kit is used for database migrations.
 
 **API Specification and Codegen (`lib/api-spec`):**
-- Contains the OpenAPI 3.1 spec (`openapi.yaml`) and Orval configuration.
-- Generates React Query hooks for client-side API interaction (`lib/api-client-react`) and Zod schemas for validation (`lib/api-zod`).
+- Defines the OpenAPI 3.1 specification (`openapi.yaml`).
+- Employs Orval for generating React Query hooks (`lib/api-client-react`) and Zod schemas (`lib/api-zod`) from the OpenAPI spec.
 
 # External Dependencies
 
-- **PostgreSQL**: Primary database for the API server.
-- **SQLite**: Local database for the Electron desktop application (`better-sqlite3`).
-- **Drizzle ORM**: Object-relational mapper for database interactions.
-- **Express**: Web application framework for the API server.
+- **PostgreSQL**: Main database for the API server.
+- **SQLite**: Local database for the Electron application.
+- **Drizzle ORM**: For database interactions.
+- **Express**: API server framework.
 - **React**: Frontend library for the desktop application.
-- **Electron**: Framework for building cross-platform desktop applications.
-- **Tailwind CSS**: Utility-first CSS framework for styling.
-- **Note**: No shadcn/ui — plain Tailwind CSS only.
-- **Zod**: Schema declaration and validation library.
+- **Electron**: Desktop application framework.
+- **Tailwind CSS**: Utility-first CSS framework.
+- **Zod**: Schema validation.
 - **Orval**: OpenAPI client code generator.
-- **`react-router-dom`**: For client-side routing in the React application.
-- **Zustand**: State management library.
-- **`electron-store`**: Simple data persistence for Electron apps.
-- **`recharts`**: Charting library for React.
-- **`jspdf` and `jspdf-autotable`**: For generating PDF reports.
-- **`xlsx/SheetJS`**: For generating Excel reports.
-- **`pnpm`**: Package manager used across the monorepo.
-- **`esbuild`**: Fast JavaScript bundler.
+- **`react-router-dom`**: For client-side routing.
+- **Zustand**: State management.
+- **`electron-store`**: Data persistence in Electron.
+- **`recharts`**: Charting library.
+- **`jspdf` and `jspdf-autotable`**: For PDF report generation.
+- **`xlsx/SheetJS`**: For Excel report generation.
+- **`pnpm`**: Package manager.
+- **`esbuild`**: JavaScript bundler.
