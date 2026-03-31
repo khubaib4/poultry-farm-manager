@@ -32,6 +32,7 @@ export default function AddCustomerPage(): React.ReactElement {
   const [defaultPricePerTray, setDefaultPricePerTray] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   if (!isElectron()) {
@@ -56,7 +57,7 @@ export default function AddCustomerPage(): React.ReactElement {
   }
 
   async function handleSave() {
-    if (!farmId || !validate()) return;
+    if (!farmId || saving || saved || !validate()) return;
 
     try {
       setSaving(true);
@@ -73,11 +74,11 @@ export default function AddCustomerPage(): React.ReactElement {
         defaultPricePerTray: defaultPricePerTray !== "" ? Number(defaultPricePerTray) : undefined,
         notes: notes.trim() || undefined,
       });
+      setSaved(true);
       showToast("Customer added successfully", "success");
       navigate("/farm/customers");
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Failed to add customer", "error");
-    } finally {
       setSaving(false);
     }
   }
@@ -223,10 +224,10 @@ export default function AddCustomerPage(): React.ReactElement {
         <div className="flex items-center gap-3 pt-4 border-t border-gray-100">
           <button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || saved}
             className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {saving ? "Saving..." : "Save Customer"}
+            {saved ? "Saved! Redirecting..." : saving ? "Saving..." : "Save Customer"}
           </button>
           <button
             onClick={() => navigate("/farm/customers")}
