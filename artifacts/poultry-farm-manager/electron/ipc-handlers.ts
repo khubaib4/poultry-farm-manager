@@ -4464,4 +4464,337 @@ export function registerIpcHandlers(): void {
         });
     })
   );
+
+  ipcMain.handle(
+    "salesReports:getSummary",
+    wrapHandler((_e: unknown, farmId: number, startDate: string, endDate: string) => {
+      requireFarmAccess(farmId);
+      const allSales = db.select()
+        .from(schema.sales)
+        .where(and(
+          eq(schema.sales.farmId, farmId),
+          eq(schema.sales.isDeleted, 0),
+          gte(schema.sales.saleDate, startDate),
+          lte(schema.sales.saleDate, endDate)
+        ))
+        .all();
+
+      let totalAmount = 0;
+      let totalCollected = 0;
+      let totalOutstanding = 0;
+      for (const s of allSales) {
+        totalAmount += s.totalAmount ?? 0;
+        totalCollected += s.paidAmount ?? 0;
+        totalOutstanding += s.balanceDue ?? 0;
+      }
+
+      const dailyMap: Record<string, { salesCount: number; amount: number; collected: number }> = {};
+      for (const s of allSales) {
+        const d = s.saleDate;
+        if (!dailyMap[d]) dailyMap[d] = { salesCount: 0, amount: 0, collected: 0 };
+        dailyMap[d].salesCount++;
+        dailyMap[d].amount += s.totalAmount ?? 0;
+        dailyMap[d].collected += s.paidAmount ?? 0;
+      }
+      const dailyBreakdown = Object.entries(dailyMap)
+        .map(([date, v]) => ({ date, ...v }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      const saleIds = allSales.map(s => s.id);
+      let paymentRows: { paymentMethod: string; amount: number }[] = [];
+      if (saleIds.length > 0) {
+        paymentRows = db.select({
+          paymentMethod: schema.salePayments.paymentMethod,
+          amount: schema.salePayments.amount,
+        })
+          .from(schema.salePayments)
+          .where(inArray(schema.salePayments.saleId, saleIds))
+          .all();
+      }
+      const pmMap: Record<string, { count: number; amount: number }> = {};
+      for (const p of paymentRows) {
+        const m = p.paymentMethod || "cash";
+        if (!pmMap[m]) pmMap[m] = { count: 0, amount: 0 };
+        pmMap[m].count++;
+        pmMap[m].amount += p.amount ?? 0;
+      }
+      const totalPaymentAmount = paymentRows.reduce((s, p) => s + (p.amount ?? 0), 0);
+      const paymentMethods = Object.entries(pmMap).map(([method, v]) => ({
+        method,
+        count: v.count,
+        amount: v.amount,
+        percentage: totalPaymentAmount > 0 ? Math.round((v.amount / totalPaymentAmount) * 100) : 0,
+      }));
+
+      let itemRows: { itemType: string; grade: string; quantity: number; lineTotal: number }[] = [];
+      if (saleIds.length > 0) {
+        itemRows = db.select({
+          itemType: schema.saleItems.itemType,
+          grade: schema.saleItems.grade,
+          quantity: schema.saleItems.quantity,
+          lineTotal: schema.saleItems.lineTotal,
+        })
+          .from(schema.saleItems)
+          .where(inArray(schema.saleItems.saleId, saleIds))
+          .all();
+      }
+      const gradeMap: Record<string, { eggsQty: number; eggsAmount: number; traysQty: number; traysAmount: number }> = {};
+      for (const it of itemRows) {
+        const g = it.grade || "other";
+        if (!gradeMap[g]) gradeMap[g] = { eggsQty: 0, eggsAmount: 0, traysQty: 0, traysAmount: 0 };
+        const isEgg = (it.itemType || "").toLowerCase().includes("egg");
+        if (isEgg) {
+          gradeMap[g].eggsQty += it.quantity ?? 0;
+          gradeMap[g].eggsAmount += it.lineTotal ?? 0;
+        } else {
+          gradeMap[g].traysQty += it.quantity ?? 0;
+          gradeMap[g].traysAmount += it.lineTotal ?? 0;
+        }
+      }
+      const gradeBreakdown = Object.entries(gradeMap).map(([grade, v]) => ({ grade, ...v }));
+
+      return {
+        period: { start: startDate, end: endDate },
+        totals: {
+          salesCount: allSales.length,
+          totalAmount,
+          totalCollected,
+          totalOutstanding,
+          averageSaleValue: allSales.length > 0 ? Math.round(totalAmount / allSales.length) : 0,
+        },
+        dailyBreakdown,
+        paymentMethods,
+        gradeBreakdown,
+      };
+    })
+  );
+
+  ipcMain.handle(
+    "salesReports:getCustomerHistory",
+    wrapHandler((_e: unknown, customerId: number, startDate: string, endDate: string) => {
+      const customer = db.select().from(schema.customers).where(eq(schema.customers.id, customerId)).get();
+      if (!customer) throw new Error("Customer not found");
+      requireFarmAccess(customer.farmId);
+
+      const custSales = db.select()
+        .from(schema.sales)
+        .where(and(
+          eq(schema.sales.customerId, customerId),
+          eq(schema.sales.isDeleted, 0),
+          gte(schema.sales.saleDate, startDate),
+          lte(schema.sales.saleDate, endDate)
+        ))
+        .orderBy(desc(schema.sales.saleDate))
+        .all();
+
+      const salesWithItems = custSales.map(s => {
+        const items = db.select().from(schema.saleItems).where(eq(schema.saleItems.saleId, s.id)).all();
+        return {
+          id: s.id,
+          invoiceNumber: s.invoiceNumber,
+          saleDate: s.saleDate,
+          totalAmount: s.totalAmount ?? 0,
+          paidAmount: s.paidAmount ?? 0,
+          balanceDue: s.balanceDue ?? 0,
+          paymentStatus: s.paymentStatus ?? "unpaid",
+          items: items.map(i => ({
+            itemType: i.itemType,
+            grade: i.grade,
+            quantity: i.quantity ?? 0,
+            unitPrice: i.unitPrice ?? 0,
+            lineTotal: i.lineTotal ?? 0,
+          })),
+        };
+      });
+
+      const saleIds = custSales.map(s => s.id);
+      let allPayments: { id: number; saleId: number; amount: number; paymentDate: string; paymentMethod: string }[] = [];
+      if (saleIds.length > 0) {
+        const raw = db.select({
+          id: schema.salePayments.id,
+          saleId: schema.salePayments.saleId,
+          amount: schema.salePayments.amount,
+          paymentDate: schema.salePayments.paymentDate,
+          paymentMethod: schema.salePayments.paymentMethod,
+        })
+          .from(schema.salePayments)
+          .where(inArray(schema.salePayments.saleId, saleIds))
+          .orderBy(desc(schema.salePayments.paymentDate))
+          .all();
+        const saleInvMap: Record<number, string> = {};
+        for (const s of custSales) saleInvMap[s.id] = s.invoiceNumber;
+        allPayments = raw.map(p => ({
+          id: p.id,
+          saleId: p.saleId,
+          invoiceNumber: saleInvMap[p.saleId] || "",
+          amount: p.amount ?? 0,
+          paymentDate: p.paymentDate,
+          paymentMethod: p.paymentMethod || "cash",
+        }));
+      }
+
+      let totalPurchases = 0;
+      let totalPaid = 0;
+      let balanceDue = 0;
+      for (const s of custSales) {
+        totalPurchases += s.totalAmount ?? 0;
+        totalPaid += s.paidAmount ?? 0;
+        balanceDue += s.balanceDue ?? 0;
+      }
+
+      return {
+        customer: {
+          id: customer.id,
+          name: customer.name,
+          businessName: customer.businessName || "",
+          phone: customer.phone || "",
+          category: customer.category || "individual",
+        },
+        period: { start: startDate, end: endDate },
+        totals: { totalPurchases, totalPaid, balanceDue, salesCount: custSales.length },
+        sales: salesWithItems,
+        payments: allPayments,
+      };
+    })
+  );
+
+  ipcMain.handle(
+    "salesReports:getTopCustomers",
+    wrapHandler((_e: unknown, farmId: number, limit: number, startDate: string, endDate: string) => {
+      requireFarmAccess(farmId);
+      const rows = db.select({
+        customerId: schema.sales.customerId,
+        customerName: schema.customers.name,
+        businessName: schema.customers.businessName,
+        category: schema.customers.category,
+        totalPurchases: sql<number>`SUM(${schema.sales.totalAmount})`,
+        totalPaid: sql<number>`SUM(${schema.sales.paidAmount})`,
+        balanceDue: sql<number>`SUM(${schema.sales.balanceDue})`,
+        salesCount: sql<number>`COUNT(*)`,
+        lastPurchase: sql<string>`MAX(${schema.sales.saleDate})`,
+      })
+        .from(schema.sales)
+        .innerJoin(schema.customers, eq(schema.sales.customerId, schema.customers.id))
+        .where(and(
+          eq(schema.sales.farmId, farmId),
+          eq(schema.sales.isDeleted, 0),
+          gte(schema.sales.saleDate, startDate),
+          lte(schema.sales.saleDate, endDate)
+        ))
+        .groupBy(schema.sales.customerId)
+        .orderBy(sql`SUM(${schema.sales.totalAmount}) DESC`)
+        .limit(limit)
+        .all();
+
+      return rows.map((r, i) => ({
+        rank: i + 1,
+        customerId: r.customerId,
+        customerName: r.customerName,
+        businessName: r.businessName || "",
+        category: r.category || "individual",
+        totalPurchases: r.totalPurchases ?? 0,
+        totalPaid: r.totalPaid ?? 0,
+        balanceDue: r.balanceDue ?? 0,
+        salesCount: r.salesCount ?? 0,
+        lastPurchase: r.lastPurchase || "",
+      }));
+    })
+  );
+
+  ipcMain.handle(
+    "salesReports:getSalesTrend",
+    wrapHandler((_e: unknown, farmId: number, period: string, startDate: string, endDate: string) => {
+      requireFarmAccess(farmId);
+      const allSales = db.select()
+        .from(schema.sales)
+        .where(and(
+          eq(schema.sales.farmId, farmId),
+          eq(schema.sales.isDeleted, 0),
+          gte(schema.sales.saleDate, startDate),
+          lte(schema.sales.saleDate, endDate)
+        ))
+        .all();
+
+      const buckets: Record<string, { label: string; revenue: number; collected: number; outstanding: number; salesCount: number }> = {};
+
+      function getBucketKey(dateStr: string): { key: string; label: string } {
+        const d = new Date(dateStr + "T00:00:00");
+        if (period === "daily") return { key: dateStr, label: dateStr };
+        if (period === "weekly") {
+          const day = d.getDay();
+          const weekStart = new Date(d);
+          weekStart.setDate(d.getDate() - day);
+          const ws = weekStart.toISOString().split("T")[0];
+          return { key: ws, label: `Week of ${ws}` };
+        }
+        const m = dateStr.substring(0, 7);
+        return { key: m, label: m };
+      }
+
+      for (const s of allSales) {
+        const { key, label } = getBucketKey(s.saleDate);
+        if (!buckets[key]) buckets[key] = { label, revenue: 0, collected: 0, outstanding: 0, salesCount: 0 };
+        buckets[key].revenue += s.totalAmount ?? 0;
+        buckets[key].collected += s.paidAmount ?? 0;
+        buckets[key].outstanding += s.balanceDue ?? 0;
+        buckets[key].salesCount++;
+      }
+
+      return Object.entries(buckets)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([period, v]) => ({ period, ...v }));
+    })
+  );
+
+  ipcMain.handle(
+    "salesReports:getGradeBreakdown",
+    wrapHandler((_e: unknown, farmId: number, startDate: string, endDate: string) => {
+      requireFarmAccess(farmId);
+      const saleIds = db.select({ id: schema.sales.id })
+        .from(schema.sales)
+        .where(and(
+          eq(schema.sales.farmId, farmId),
+          eq(schema.sales.isDeleted, 0),
+          gte(schema.sales.saleDate, startDate),
+          lte(schema.sales.saleDate, endDate)
+        ))
+        .all()
+        .map(r => r.id);
+
+      if (saleIds.length === 0) return [];
+
+      const items = db.select({
+        itemType: schema.saleItems.itemType,
+        grade: schema.saleItems.grade,
+        quantity: schema.saleItems.quantity,
+        lineTotal: schema.saleItems.lineTotal,
+      })
+        .from(schema.saleItems)
+        .where(inArray(schema.saleItems.saleId, saleIds))
+        .all();
+
+      const gradeMap: Record<string, { eggsQty: number; eggsAmount: number; traysQty: number; traysAmount: number }> = {};
+      for (const it of items) {
+        const g = it.grade || "other";
+        if (!gradeMap[g]) gradeMap[g] = { eggsQty: 0, eggsAmount: 0, traysQty: 0, traysAmount: 0 };
+        const isEgg = (it.itemType || "").toLowerCase().includes("egg");
+        if (isEgg) {
+          gradeMap[g].eggsQty += it.quantity ?? 0;
+          gradeMap[g].eggsAmount += it.lineTotal ?? 0;
+        } else {
+          gradeMap[g].traysQty += it.quantity ?? 0;
+          gradeMap[g].traysAmount += it.lineTotal ?? 0;
+        }
+      }
+
+      return Object.entries(gradeMap).map(([grade, v]) => ({
+        grade,
+        eggsQty: v.eggsQty,
+        eggsAmount: v.eggsAmount,
+        traysQty: v.traysQty,
+        traysAmount: v.traysAmount,
+        totalAmount: v.eggsAmount + v.traysAmount,
+      }));
+    })
+  );
 }

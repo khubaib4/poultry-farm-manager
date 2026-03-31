@@ -966,6 +966,102 @@ export interface AuthSession {
   role?: string;
 }
 
+export interface SalesSummaryReport {
+  period: { start: string; end: string };
+  totals: {
+    salesCount: number;
+    totalAmount: number;
+    totalCollected: number;
+    totalOutstanding: number;
+    averageSaleValue: number;
+  };
+  dailyBreakdown: {
+    date: string;
+    salesCount: number;
+    amount: number;
+    collected: number;
+  }[];
+  paymentMethods: {
+    method: string;
+    count: number;
+    amount: number;
+    percentage: number;
+  }[];
+  gradeBreakdown: {
+    grade: string;
+    eggsQty: number;
+    eggsAmount: number;
+    traysQty: number;
+    traysAmount: number;
+  }[];
+}
+
+export interface CustomerHistoryReport {
+  customer: {
+    id: number;
+    name: string;
+    businessName: string;
+    phone: string;
+    category: string;
+  };
+  period: { start: string; end: string };
+  totals: {
+    totalPurchases: number;
+    totalPaid: number;
+    balanceDue: number;
+    salesCount: number;
+  };
+  sales: {
+    id: number;
+    invoiceNumber: string;
+    saleDate: string;
+    totalAmount: number;
+    paidAmount: number;
+    balanceDue: number;
+    paymentStatus: string;
+    items: { itemType: string; grade: string; quantity: number; unitPrice: number; lineTotal: number }[];
+  }[];
+  payments: {
+    id: number;
+    saleId: number;
+    invoiceNumber: string;
+    amount: number;
+    paymentDate: string;
+    paymentMethod: string;
+  }[];
+}
+
+export interface TopCustomer {
+  rank: number;
+  customerId: number;
+  customerName: string;
+  businessName: string;
+  category: string;
+  totalPurchases: number;
+  totalPaid: number;
+  balanceDue: number;
+  salesCount: number;
+  lastPurchase: string;
+}
+
+export interface SalesTrendPoint {
+  period: string;
+  label: string;
+  revenue: number;
+  collected: number;
+  outstanding: number;
+  salesCount: number;
+}
+
+export interface GradeBreakdownReport {
+  grade: string;
+  eggsQty: number;
+  eggsAmount: number;
+  traysQty: number;
+  traysAmount: number;
+  totalAmount: number;
+}
+
 export interface ElectronAPI {
   auth: {
     loginOwner: (email: string, password: string) => Promise<IpcResponse<AuthSession>>;
@@ -1157,6 +1253,13 @@ export interface ElectronAPI {
   receivables: {
     getByFarm: (farmId: number, filter?: string) => Promise<IpcResponse<ReceivableItem[]>>;
     getByCustomer: (customerId: number) => Promise<IpcResponse<ReceivableItem[]>>;
+  };
+  salesReports: {
+    getSummary: (farmId: number, startDate: string, endDate: string) => Promise<IpcResponse<SalesSummaryReport>>;
+    getCustomerHistory: (customerId: number, startDate: string, endDate: string) => Promise<IpcResponse<CustomerHistoryReport>>;
+    getTopCustomers: (farmId: number, limit: number, startDate: string, endDate: string) => Promise<IpcResponse<TopCustomer[]>>;
+    getSalesTrend: (farmId: number, period: string, startDate: string, endDate: string) => Promise<IpcResponse<SalesTrendPoint[]>>;
+    getGradeBreakdown: (farmId: number, startDate: string, endDate: string) => Promise<IpcResponse<GradeBreakdownReport[]>>;
   };
 }
 

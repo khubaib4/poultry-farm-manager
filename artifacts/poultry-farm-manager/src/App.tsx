@@ -43,6 +43,7 @@ const VaccinationTemplatePage = lazy(() => import("@/pages/farm/VaccinationTempl
 const VaccinationHistoryPage = lazy(() => import("@/pages/farm/VaccinationHistoryPage"));
 const FlockVaccinationPage = lazy(() => import("@/pages/farm/FlockVaccinationPage"));
 const ReportsPage = lazy(() => import("@/pages/farm/ReportsPage"));
+const SalesReportPage = lazy(() => import("@/pages/farm/SalesReportPage"));
 const BackupRestorePage = lazy(() => import("@/pages/BackupRestorePage"));
 const SettingsPage = lazy(() => import("@/pages/settings/SettingsPage"));
 const CustomersPage = lazy(() => import("@/pages/farm/CustomersPage"));
@@ -138,6 +139,7 @@ export default function App(): React.ReactElement {
                 <Route path="/farm/alerts" element={<FarmLayout><AlertsPage /></FarmLayout>} />
                 <Route path="/farm/pricing" element={<FarmLayout><EggPricingPage /></FarmLayout>} />
                 <Route path="/farm/reports" element={<FarmLayout><ReportsPage /></FarmLayout>} />
+                <Route path="/farm/reports/sales" element={<FarmLayout><SalesReportPage /></FarmLayout>} />
                 <Route path="/farm/backup" element={<FarmLayout><BackupRestorePage /></FarmLayout>} />
                 <Route path="/farm/settings" element={<FarmLayout><SettingsPage /></FarmLayout>} />
 

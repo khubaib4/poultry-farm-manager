@@ -1,0 +1,202 @@
+OBJECTIVE: Build comprehensive sales reports and customer history views
+
+REQUIREMENTS:
+- Sales summary reports (daily, weekly, monthly)
+- Customer purchase history
+- Top customers report
+- Sales trends and analytics
+- Export to PDF and Excel
+
+FILES TO CREATE/MODIFY:
+
+1. src/pages/farm/SalesReportPage.tsx
+   - Route: /farm/reports/sales
+   - Header: "Sales Report"
+   
+   - Report Type Selector:
+     * Daily Sales Report
+     * Weekly Sales Report
+     * Monthly Sales Report
+     * Customer Sales Report
+     * Top Customers Report
+   
+   - Date Range Picker
+   - Customer Filter (for customer-specific reports)
+   - Generate Report Button
+   - Export buttons (PDF, Excel)
+
+2. src/components/reports/SalesSummaryReport.tsx
+   - Summary report component
+   - Sections:
+     * Total Sales
+     * Total Collected
+     * Outstanding
+     * Sales Count
+     * Average Sale Value
+   - Daily/Weekly breakdown table
+   - Payment method breakdown
+   - Top selling items (eggs vs trays, by grade)
+
+3. src/components/reports/CustomerSalesReport.tsx
+   - Report for specific customer
+   - Customer info header
+   - Purchase history table
+   - Payment history
+   - Balance summary
+   - Charts: purchase trend over time
+
+4. src/components/reports/TopCustomersReport.tsx
+   - Ranking of customers by sales
+   - Columns: Rank, Customer, Total Purchases, Total Paid, Balance
+   - Configurable: Top 10, 20, All
+   - Chart: pie chart of sales distribution
+
+5. src/components/reports/SalesTrendChart.tsx
+   - Line/bar chart showing sales over time
+   - Configurable period (daily, weekly, monthly)
+   - Shows: revenue, collections, outstanding
+
+6. src/components/reports/PaymentMethodBreakdown.tsx
+   - Pie chart of payment methods
+   - Shows: Cash, Bank Transfer, etc.
+   - Percentage and amounts
+
+7. src/components/reports/SalesByGradeChart.tsx
+   - Bar chart showing sales by egg grade
+   - Grade A, Grade B, Cracked
+   - Eggs vs Trays comparison
+
+8. Update CustomerDetailPage.tsx
+   - Add "Purchase History" tab (enhanced)
+   - Show all purchases with pagination
+   - Filter by date range
+   - Summary stats
+   - Export customer history
+
+9. src/lib/salesReportPdf.ts
+   - PDF generation for sales reports
+   - generateSalesSummaryPDF(data, dateRange)
+   - generateCustomerReportPDF(customer, sales, payments)
+   - generateTopCustomersPDF(data)
+
+10. src/lib/salesReportExcel.ts
+    - Excel generation for sales reports
+    - exportSalesSummaryExcel(data, dateRange)
+    - exportCustomerHistoryExcel(customer, sales, payments)
+    - exportTopCustomersExcel(data)
+
+11. electron/ipc-handlers.ts (add handlers)
+    - salesReports.getSummary(farmId, startDate, endDate):
+      * Total sales, collected, outstanding
+      * Daily/weekly breakdown
+      * Payment method breakdown
+      * Grade breakdown
+    
+    - salesReports.getCustomerHistory(customerId, startDate, endDate):
+      * All sales for customer
+      * All payments
+      * Running balance
+    
+    - salesReports.getTopCustomers(farmId, limit, startDate, endDate):
+      * Top customers by sales volume
+      * Include totals and balances
+    
+    - salesReports.getSalesTrend(farmId, period, startDate, endDate):
+      * Sales data for charting
+      * Period: daily, weekly, monthly
+    
+    - salesReports.getGradeBreakdown(farmId, startDate, endDate):
+      * Sales by egg grade
+      * Eggs vs trays
+
+12. src/lib/api.ts (add report functions)
+    - getSalesSummaryReport(farmId, startDate, endDate)
+    - getCustomerHistoryReport(customerId, startDate, endDate)
+    - getTopCustomersReport(farmId, limit, startDate, endDate)
+    - getSalesTrendReport(farmId, period, startDate, endDate)
+    - getGradeBreakdownReport(farmId, startDate, endDate)
+
+13. src/hooks/useSalesReports.ts
+    - Hook for sales report data
+    - Return: { data, isLoading, generate }
+
+14. Update ReportsPage.tsx
+    - Add "Sales Report" option
+    - Link to SalesReportPage
+
+15. src/App.tsx (add route)
+    - /farm/reports/sales - SalesReportPage
+
+REPORT DATA STRUCTURES:
+```typescript
+interface SalesSummaryReport {
+  period: { start: string; end: string };
+  totals: {
+    salesCount: number;
+    totalAmount: number;
+    totalCollected: number;
+    totalOutstanding: number;
+    averageSaleValue: number;
+  };
+  dailyBreakdown: {
+    date: string;
+    salesCount: number;
+    amount: number;
+    collected: number;
+  }[];
+  paymentMethods: {
+    method: string;
+    count: number;
+    amount: number;
+    percentage: number;
+  }[];
+  gradeBreakdown: {
+    grade: string;
+    eggsQty: number;
+    eggsAmount: number;
+    traysQty: number;
+    traysAmount: number;
+  }[];
+}
+
+interface TopCustomer {
+  rank: number;
+  customerId: number;
+  customerName: string;
+  businessName: string;
+  category: string;
+  totalPurchases: number;
+  totalPaid: number;
+  balanceDue: number;
+  salesCount: number;
+  lastPurchase: string;
+}
+```
+
+TOP CUSTOMERS RANKING:
+- Rank by total purchases (descending)
+- Show: rank, name, business, total, paid, balance
+- Highlight if balance due
+- Click to view customer
+
+CUSTOMER HISTORY EXPORT:
+- Include: all sales with items
+- Include: all payments
+- Summary at top
+- Suitable for sharing with customer
+
+CHART REQUIREMENTS:
+- Use recharts library
+- Responsive sizing
+- Tooltips on hover
+- Legend where needed
+- Print-friendly colors
+
+UI/UX REQUIREMENTS:
+- Quick date range selection
+- Real-time report preview
+- Export clearly accessible
+- Charts are informative
+- Mobile-friendly tables
+
+OUTPUT: Comprehensive sales reports available. Customer purchase history viewable and exportable. Top customers ranking. Sales trends visualized with charts.

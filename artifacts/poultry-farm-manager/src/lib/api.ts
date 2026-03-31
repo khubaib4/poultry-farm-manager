@@ -28,6 +28,11 @@ import type {
   CompletedVaccination,
   CompleteVaccinationData,
   SkipVaccinationData,
+  SalesSummaryReport,
+  CustomerHistoryReport,
+  TopCustomer,
+  SalesTrendPoint,
+  GradeBreakdownReport,
   VaccinationHistoryFilters,
   VaccinationHistoryResponse,
   FlockVaccinationDetailed,
@@ -541,6 +546,23 @@ export const receivables = {
 
   getByCustomer: (customerId: number) =>
     invoke<ReceivableItem[]>(() => getApi()!.receivables.getByCustomer(customerId)),
+};
+
+export const salesReports = {
+  getSummary: (farmId: number, startDate: string, endDate: string) =>
+    invoke<SalesSummaryReport>(() => getApi()!.salesReports.getSummary(farmId, startDate, endDate)),
+
+  getCustomerHistory: (customerId: number, startDate: string, endDate: string) =>
+    invoke<CustomerHistoryReport>(() => getApi()!.salesReports.getCustomerHistory(customerId, startDate, endDate)),
+
+  getTopCustomers: (farmId: number, limit: number, startDate: string, endDate: string) =>
+    invoke<TopCustomer[]>(() => getApi()!.salesReports.getTopCustomers(farmId, limit, startDate, endDate)),
+
+  getSalesTrend: (farmId: number, period: string, startDate: string, endDate: string) =>
+    invoke<SalesTrendPoint[]>(() => getApi()!.salesReports.getSalesTrend(farmId, period, startDate, endDate)),
+
+  getGradeBreakdown: (farmId: number, startDate: string, endDate: string) =>
+    invoke<GradeBreakdownReport[]>(() => getApi()!.salesReports.getGradeBreakdown(farmId, startDate, endDate)),
 };
 
 export const isElectron = (): boolean => {

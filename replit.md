@@ -53,6 +53,7 @@ The project is structured as a pnpm workspace monorepo to promote modularity and
     - **Sales Recording System**: Full sales CRUD, automatic invoice generation, customer selection, item entry, discount support, and payment tracking.
     - **Payment Recording & Receivables System**: Manages receivables, credit, and balance tracking with payment reminders and alerts.
     - **PDF Invoice System**: Generates, downloads, and prints professional PDF invoices.
+    - **Sales Reports & Analytics**: Comprehensive sales reporting with daily/weekly/monthly summaries, customer history, top customers ranking. Charts (Recharts), PDF and Excel export. Route: `/farm/reports/sales`.
     - **Owner Dashboard**: Provides a multi-farm overview with global summaries, farm comparison, and consolidated alerts.
     - **Farm Comparison**: Dedicated page for comparing farm performance with charts and detailed KPIs.
     - **Database Backup & Restore**: Manual and auto-backup capabilities with configurable settings and restore functionality.

@@ -284,4 +284,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getByCustomer: (customerId: number) =>
       ipcRenderer.invoke("receivables:getByCustomer", customerId),
   },
+  salesReports: {
+    getSummary: (farmId: number, startDate: string, endDate: string) =>
+      ipcRenderer.invoke("salesReports:getSummary", farmId, startDate, endDate),
+    getCustomerHistory: (customerId: number, startDate: string, endDate: string) =>
+      ipcRenderer.invoke("salesReports:getCustomerHistory", customerId, startDate, endDate),
+    getTopCustomers: (farmId: number, limit: number, startDate: string, endDate: string) =>
+      ipcRenderer.invoke("salesReports:getTopCustomers", farmId, limit, startDate, endDate),
+    getSalesTrend: (farmId: number, period: string, startDate: string, endDate: string) =>
+      ipcRenderer.invoke("salesReports:getSalesTrend", farmId, period, startDate, endDate),
+    getGradeBreakdown: (farmId: number, startDate: string, endDate: string) =>
+      ipcRenderer.invoke("salesReports:getGradeBreakdown", farmId, startDate, endDate),
+  },
 });
