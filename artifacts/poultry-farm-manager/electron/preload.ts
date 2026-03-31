@@ -250,4 +250,19 @@ contextBridge.exposeInMainWorld("electronAPI", {
     search: (farmId: number, query: string) =>
       ipcRenderer.invoke("customers:search", farmId, query),
   },
+  sales: {
+    create: (data: unknown) => ipcRenderer.invoke("sales:create", data),
+    getByFarm: (farmId: number, filters?: unknown) =>
+      ipcRenderer.invoke("sales:getByFarm", farmId, filters),
+    getById: (id: number) => ipcRenderer.invoke("sales:getById", id),
+    update: (id: number, data: unknown) =>
+      ipcRenderer.invoke("sales:update", id, data),
+    delete: (id: number) => ipcRenderer.invoke("sales:delete", id),
+    getNextInvoiceNumber: (farmId: number) =>
+      ipcRenderer.invoke("sales:getNextInvoiceNumber", farmId),
+    getSummary: (farmId: number, startDate: string, endDate: string) =>
+      ipcRenderer.invoke("sales:getSummary", farmId, startDate, endDate),
+    recordPayment: (data: unknown) =>
+      ipcRenderer.invoke("sales:recordPayment", data),
+  },
 });

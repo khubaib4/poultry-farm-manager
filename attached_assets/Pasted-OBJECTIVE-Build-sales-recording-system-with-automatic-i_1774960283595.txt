@@ -1,0 +1,255 @@
+OBJECTIVE: Build sales recording system with automatic invoice generation
+
+REQUIREMENTS:
+- Record sales to customers with custom pricing
+- Support both eggs and trays in same sale
+- Apply discounts (percentage or fixed)
+- Auto-generate invoice numbers (INV-2026-001)
+- Calculate totals, balance due
+- Set payment due date based on customer terms
+
+FILES TO CREATE/MODIFY:
+
+1. src/pages/farm/SalesPage.tsx
+   - Route: /farm/sales
+   - Header: "Sales" with "New Sale" button
+   
+   - Filter bar:
+     * Date range picker
+     * Customer filter
+     * Payment status filter (All, Paid, Partial, Unpaid)
+     * Search by invoice number
+   
+   - Summary cards:
+     * Total Sales (period)
+     * Total Received
+     * Total Outstanding
+     * Sales Count
+   
+   - Sales table:
+     * Invoice #, Date, Customer, Total, Paid, Balance, Status
+     * Status badges: Paid (green), Partial (yellow), Unpaid (red)
+     * Actions: View, Record Payment, Download Invoice
+
+2. src/pages/farm/NewSalePage.tsx
+   - Route: /farm/sales/new
+   - Header: "New Sale"
+   
+   - Form sections:
+   
+   Section 1 - Customer:
+     * Customer selector (searchable dropdown)
+     * "Add New Customer" quick link
+     * Shows: customer name, payment terms, default prices
+   
+   Section 2 - Sale Details:
+     * Sale Date (default today)
+     * Due Date (auto-calculated from payment terms, editable)
+   
+   Section 3 - Items:
+     * Toggle: Eggs / Trays / Both
+     
+     If Eggs:
+       * Grade A: Quantity, Price per egg (pre-filled from customer default or farm price)
+       * Grade B: Quantity, Price per egg
+       * Cracked: Quantity, Price per egg
+     
+     If Trays:
+       * Grade A Trays: Quantity, Price per tray
+       * Grade B Trays: Quantity, Price per tray
+       * Cracked Trays: Quantity, Price per tray
+     
+     * Real-time line totals
+   
+   Section 4 - Discount:
+     * Discount type: None, Percentage, Fixed Amount
+     * Discount value input
+     * Discount amount displayed
+   
+   Section 5 - Summary:
+     * Subtotal
+     * Discount
+     * Total Amount
+     * Amount Paid Now (optional, for immediate payment)
+     * Payment Method (if paying now)
+     * Balance Due
+   
+   Section 6 - Notes:
+     * Optional notes textarea
+   
+   - Buttons: "Create Sale", "Create & Print Invoice", "Cancel"
+
+3. src/pages/farm/SaleDetailPage.tsx
+   - Route: /farm/sales/:saleId
+   - Header: Invoice number, status badge
+   
+   - Customer Info:
+     * Name, phone, address
+   
+   - Sale Info:
+     * Date, Due date
+     * Items breakdown
+     * Subtotal, discount, total
+   
+   - Payment Info:
+     * Amount paid, balance due
+     * Payment history table
+   
+   - Actions:
+     * Record Payment
+     * Download Invoice
+     * Print Invoice
+     * Edit (if no payments made)
+     * Delete (if no payments made)
+
+4. src/pages/farm/EditSalePage.tsx
+   - Route: /farm/sales/:saleId/edit
+   - Same form as NewSale, pre-filled
+   - Only editable if no payments recorded
+   - Warning if payments exist
+
+5. src/components/sales/SaleForm.tsx
+   - Reusable form component
+   - Handles all calculations
+   - Real-time total updates
+
+6. src/components/sales/SaleItemsInput.tsx
+   - Component for entering egg/tray quantities and prices
+   - Toggle between eggs and trays view
+   - Grade selection
+   - Price inputs with defaults
+
+7. src/components/sales/SaleSummaryCard.tsx
+   - Shows subtotal, discount, total, paid, balance
+   - Updates in real-time
+
+8. src/components/sales/DiscountInput.tsx
+   - Discount type selector
+   - Value input
+   - Shows calculated discount amount
+
+9. src/components/sales/SalesTable.tsx
+   - Table for sales list
+   - Sortable columns
+   - Status badges
+   - Action buttons
+
+10. src/components/sales/PaymentStatusBadge.tsx
+    - Paid: green badge
+    - Partial: yellow badge with percentage
+    - Unpaid: red badge
+    - Overdue: red badge with "Overdue" text
+
+11. electron/ipc-handlers.ts (add handlers)
+    - sales.create(data):
+      * Generate invoice number
+      * Calculate totals
+      * Create sale record
+      * Create initial payment if amount paid > 0
+      * Return sale with invoice number
+    
+    - sales.getByFarm(farmId, filters):
+      * Get sales with filters
+      * Include customer name
+      * Calculate payment status
+    
+    - sales.getById(saleId):
+      * Get sale with all details
+      * Include customer info
+      * Include payment history
+    
+    - sales.update(saleId, data):
+      * Only if no payments
+      * Recalculate totals
+    
+    - sales.delete(saleId):
+      * Only if no payments
+      * Soft delete or hard delete
+    
+    - sales.getNextInvoiceNumber(farmId):
+      * Get next invoice number
+      * Format: INV-{YEAR}-{SEQUENCE}
+      * Example: INV-2026-001
+    
+    - sales.getSummary(farmId, startDate, endDate):
+      * Total sales
+      * Total received
+      * Total outstanding
+
+12. src/lib/api.ts (add sales functions)
+    - createSale(data)
+    - getSales(farmId, filters)
+    - getSaleById(id)
+    - updateSale(id, data)
+    - deleteSale(id)
+    - getNextInvoiceNumber(farmId)
+    - getSalesSummary(farmId, startDate, endDate)
+
+13. src/hooks/useSales.ts
+    - Hook for sales list with filters
+    - Return: { sales, summary, isLoading, filters, setFilters }
+
+14. src/lib/salesCalculations.ts
+    - calculateSubtotal(items)
+    - calculateDiscount(subtotal, discountType, discountValue)
+    - calculateTotal(subtotal, discount)
+    - calculateDueDate(saleDate, paymentTermsDays)
+
+15. src/App.tsx (add routes)
+    - /farm/sales - SalesPage
+    - /farm/sales/new - NewSalePage
+    - /farm/sales/:saleId - SaleDetailPage
+    - /farm/sales/:saleId/edit - EditSalePage
+
+16. Update sidebar navigation
+    - Add "Sales" menu item with shopping-cart icon
+    - Place after Customers
+
+INVOICE NUMBER FORMAT:
+- Pattern: INV-{YEAR}-{SEQUENCE}
+- Example: INV-2026-001, INV-2026-002
+- Sequence resets each year
+- Padded to 3 digits minimum
+
+SALE CALCULATIONS:
+```typescript
+// Items total
+const eggsTotal = (gradeAQty * gradeAPrice) + (gradeBQty * gradeBPrice) + (crackedQty * crackedPrice);
+const traysTotal = (gradeATrays * gradeATrayPrice) + (gradeBTrays * gradeBTrayPrice) + (crackedTrays * crackedTrayPrice);
+const subtotal = eggsTotal + traysTotal;
+
+// Discount
+const discountAmount = discountType === 'percentage' 
+  ? subtotal * (discountPercent / 100) 
+  : fixedDiscount;
+
+// Total
+const total = subtotal - discountAmount;
+
+// Balance
+const balanceDue = total - paidAmount;
+
+// Status
+const status = paidAmount >= total ? 'paid' : paidAmount > 0 ? 'partial' : 'unpaid';
+```
+
+DUE DATE CALCULATION:
+- Due Date = Sale Date + Customer Payment Terms Days
+- If payment terms = 0, due date = sale date (cash)
+
+VALIDATION RULES:
+- Customer required
+- At least one item with quantity > 0
+- Prices must be positive
+- Discount cannot exceed subtotal
+- Paid amount cannot exceed total
+
+UI/UX REQUIREMENTS:
+- Real-time calculation as user types
+- Customer's default prices auto-fill
+- Clear visual of what's being charged
+- Easy to add items
+- Summary always visible
+- Prominent "Overdue" indicator
+
+OUTPUT: Sales can be recorded with custom pricing, discounts. Invoice numbers auto-generated. Totals calculated automatically. Sales list shows payment status.

@@ -3342,6 +3342,14 @@ export function registerIpcHandlers(): void {
         }
         db.delete(schema.flocks).where(eq(schema.flocks.farmId, farmId)).run();
       }
+      const saleIds = db.select({ id: schema.sales.id }).from(schema.sales).where(eq(schema.sales.farmId, farmId)).all().map(s => s.id);
+      if (saleIds.length > 0) {
+        for (const sid of saleIds) {
+          db.delete(schema.salePayments).where(eq(schema.salePayments.saleId, sid)).run();
+          db.delete(schema.saleItems).where(eq(schema.saleItems.saleId, sid)).run();
+        }
+        db.delete(schema.sales).where(eq(schema.sales.farmId, farmId)).run();
+      }
       db.delete(schema.customers).where(eq(schema.customers.farmId, farmId)).run();
       db.delete(schema.expenses).where(eq(schema.expenses.farmId, farmId)).run();
       db.delete(schema.inventory).where(eq(schema.inventory.farmId, farmId)).run();
@@ -3367,6 +3375,14 @@ export function registerIpcHandlers(): void {
           db.delete(schema.vaccinations).where(eq(schema.vaccinations.flockId, fid)).run();
         }
         db.delete(schema.flocks).where(eq(schema.flocks.farmId, farm.id)).run();
+        const farmSaleIds = db.select({ id: schema.sales.id }).from(schema.sales).where(eq(schema.sales.farmId, farm.id)).all().map(s => s.id);
+        if (farmSaleIds.length > 0) {
+          for (const sid of farmSaleIds) {
+            db.delete(schema.salePayments).where(eq(schema.salePayments.saleId, sid)).run();
+            db.delete(schema.saleItems).where(eq(schema.saleItems.saleId, sid)).run();
+          }
+          db.delete(schema.sales).where(eq(schema.sales.farmId, farm.id)).run();
+        }
         db.delete(schema.customers).where(eq(schema.customers.farmId, farm.id)).run();
         db.delete(schema.expenses).where(eq(schema.expenses.farmId, farm.id)).run();
         db.delete(schema.inventory).where(eq(schema.inventory.farmId, farm.id)).run();
@@ -3456,12 +3472,29 @@ export function registerIpcHandlers(): void {
       if (!customer) throw new Error("Customer not found");
       requireFarmAccess(customer.farmId);
 
+      const customerSales = db.select().from(schema.sales)
+        .where(and(
+          eq(schema.sales.customerId, customerId),
+          eq(schema.sales.isDeleted, 0)
+        ))
+        .orderBy(desc(schema.sales.saleDate))
+        .all();
+
+      let totalPurchases = 0;
+      let totalPaid = 0;
+      let balanceDue = 0;
+      for (const s of customerSales) {
+        totalPurchases += s.totalAmount ?? 0;
+        totalPaid += s.paidAmount ?? 0;
+        balanceDue += s.balanceDue ?? 0;
+      }
+
       const stats = {
-        totalPurchases: 0,
-        totalPaid: 0,
-        balanceDue: 0,
-        lastPurchaseDate: null as string | null,
-        totalOrders: 0,
+        totalPurchases: Math.round(totalPurchases * 100) / 100,
+        totalPaid: Math.round(totalPaid * 100) / 100,
+        balanceDue: Math.round(balanceDue * 100) / 100,
+        lastPurchaseDate: customerSales.length > 0 ? customerSales[0].saleDate : null,
+        totalOrders: customerSales.length,
       };
 
       return { ...customer, stats };
@@ -3541,6 +3574,374 @@ export function registerIpcHandlers(): void {
         (c.phone && c.phone.toLowerCase().includes(q)) ||
         (c.businessName && c.businessName.toLowerCase().includes(q))
       );
+    })
+  );
+
+  ipcMain.handle(
+    "sales:getNextInvoiceNumber",
+    wrapHandler(async (_e: unknown, farmId: number) => {
+      requireFarmAccess(farmId);
+      const year = new Date().getFullYear();
+      const prefix = `INV-${year}-`;
+      const lastSale = db.select({ invoiceNumber: schema.sales.invoiceNumber })
+        .from(schema.sales)
+        .where(and(
+          eq(schema.sales.farmId, farmId),
+          like(schema.sales.invoiceNumber, `${prefix}%`)
+        ))
+        .orderBy(desc(schema.sales.id))
+        .limit(1)
+        .get();
+
+      let nextSeq = 1;
+      if (lastSale) {
+        const lastNum = parseInt(lastSale.invoiceNumber.replace(prefix, ""), 10);
+        if (!isNaN(lastNum)) nextSeq = lastNum + 1;
+      }
+      return `${prefix}${String(nextSeq).padStart(3, "0")}`;
+    })
+  );
+
+  ipcMain.handle(
+    "sales:create",
+    wrapHandler(async (_e: unknown, data: {
+      farmId: number; customerId: number; saleDate: string; dueDate?: string;
+      items: { itemType: string; grade: string; quantity: number; unitPrice: number; lineTotal: number }[];
+      discountType?: string; discountValue?: number; amountPaid?: number;
+      paymentMethod?: string; notes?: string;
+    }) => {
+      requireFarmAccess(data.farmId);
+      if (!data.customerId) throw new Error("Customer is required");
+      if (!data.items || data.items.length === 0) throw new Error("At least one item is required");
+
+      const validItems = data.items.filter(i => i.quantity > 0 && i.unitPrice > 0);
+      if (validItems.length === 0) throw new Error("At least one item with quantity > 0 is required");
+
+      const customer = db.select().from(schema.customers)
+        .where(eq(schema.customers.id, data.customerId)).get();
+      if (!customer) throw new Error("Customer not found");
+      requireFarmAccess(customer.farmId);
+
+      const year = new Date().getFullYear();
+      const prefix = `INV-${year}-`;
+      const lastSale = db.select({ invoiceNumber: schema.sales.invoiceNumber })
+        .from(schema.sales)
+        .where(and(
+          eq(schema.sales.farmId, data.farmId),
+          like(schema.sales.invoiceNumber, `${prefix}%`)
+        ))
+        .orderBy(desc(schema.sales.id))
+        .limit(1)
+        .get();
+      let nextSeq = 1;
+      if (lastSale) {
+        const lastNum = parseInt(lastSale.invoiceNumber.replace(prefix, ""), 10);
+        if (!isNaN(lastNum)) nextSeq = lastNum + 1;
+      }
+      const invoiceNumber = `${prefix}${String(nextSeq).padStart(3, "0")}`;
+
+      const subtotal = validItems.reduce((s, i) => s + (i.quantity * i.unitPrice), 0);
+      const discountType = data.discountType || "none";
+      const discountValue = Math.max(0, data.discountValue || 0);
+      let discountAmount = 0;
+      if (discountType === "percentage") {
+        discountAmount = Math.round(subtotal * (Math.min(discountValue, 100) / 100) * 100) / 100;
+      } else if (discountType === "fixed") {
+        discountAmount = Math.min(discountValue, subtotal);
+      }
+      const totalAmount = Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100);
+      if ((data.amountPaid || 0) < 0) throw new Error("Amount paid cannot be negative");
+      const paidAmount = Math.min(Math.max(0, data.amountPaid || 0), totalAmount);
+      const balanceDue = Math.max(0, Math.round((totalAmount - paidAmount) * 100) / 100);
+      const paymentStatus = paidAmount >= totalAmount ? "paid" : paidAmount > 0 ? "partial" : "unpaid";
+
+      const dueDate = data.dueDate || (customer.paymentTermsDays
+        ? (() => { const d = new Date(data.saleDate); d.setDate(d.getDate() + (customer.paymentTermsDays || 0)); return d.toISOString().split("T")[0]; })()
+        : data.saleDate);
+
+      const result = db.insert(schema.sales).values({
+        farmId: data.farmId,
+        customerId: data.customerId,
+        invoiceNumber,
+        saleDate: data.saleDate,
+        dueDate,
+        subtotal,
+        discountType,
+        discountValue,
+        discountAmount,
+        totalAmount,
+        paidAmount,
+        balanceDue,
+        paymentStatus,
+        notes: data.notes?.trim() || null,
+      }).run();
+
+      const saleId = Number(result.lastInsertRowid);
+
+      for (const item of validItems) {
+        db.insert(schema.saleItems).values({
+          saleId,
+          itemType: item.itemType,
+          grade: item.grade,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          lineTotal: Math.round(item.quantity * item.unitPrice * 100) / 100,
+        }).run();
+      }
+
+      if (paidAmount > 0) {
+        db.insert(schema.salePayments).values({
+          saleId,
+          amount: paidAmount,
+          paymentDate: data.saleDate,
+          paymentMethod: data.paymentMethod || "cash",
+          notes: "Initial payment",
+        }).run();
+      }
+
+      return db.select().from(schema.sales).where(eq(schema.sales.id, saleId)).get();
+    })
+  );
+
+  ipcMain.handle(
+    "sales:getByFarm",
+    wrapHandler(async (_e: unknown, farmId: number, filters?: {
+      startDate?: string; endDate?: string; customerId?: number;
+      paymentStatus?: string; search?: string;
+    }) => {
+      requireFarmAccess(farmId);
+      const conditions: ReturnType<typeof eq>[] = [
+        eq(schema.sales.farmId, farmId),
+        eq(schema.sales.isDeleted, 0),
+      ];
+
+      if (filters?.startDate) conditions.push(gte(schema.sales.saleDate, filters.startDate));
+      if (filters?.endDate) conditions.push(lte(schema.sales.saleDate, filters.endDate));
+      if (filters?.customerId) conditions.push(eq(schema.sales.customerId, filters.customerId));
+      if (filters?.paymentStatus && filters.paymentStatus !== "all") {
+        conditions.push(eq(schema.sales.paymentStatus, filters.paymentStatus));
+      }
+
+      const salesRows = db.select({
+        id: schema.sales.id,
+        farmId: schema.sales.farmId,
+        customerId: schema.sales.customerId,
+        invoiceNumber: schema.sales.invoiceNumber,
+        saleDate: schema.sales.saleDate,
+        dueDate: schema.sales.dueDate,
+        subtotal: schema.sales.subtotal,
+        discountType: schema.sales.discountType,
+        discountValue: schema.sales.discountValue,
+        discountAmount: schema.sales.discountAmount,
+        totalAmount: schema.sales.totalAmount,
+        paidAmount: schema.sales.paidAmount,
+        balanceDue: schema.sales.balanceDue,
+        paymentStatus: schema.sales.paymentStatus,
+        notes: schema.sales.notes,
+        isDeleted: schema.sales.isDeleted,
+        createdAt: schema.sales.createdAt,
+        updatedAt: schema.sales.updatedAt,
+        customerName: schema.customers.name,
+        customerPhone: schema.customers.phone,
+        customerBusinessName: schema.customers.businessName,
+      })
+        .from(schema.sales)
+        .innerJoin(schema.customers, eq(schema.sales.customerId, schema.customers.id))
+        .where(and(...conditions))
+        .orderBy(desc(schema.sales.saleDate), desc(schema.sales.id))
+        .all();
+
+      let results = salesRows;
+      if (filters?.search) {
+        const q = filters.search.toLowerCase().trim();
+        results = results.filter(s =>
+          s.invoiceNumber.toLowerCase().includes(q) ||
+          s.customerName.toLowerCase().includes(q)
+        );
+      }
+
+      return results;
+    })
+  );
+
+  ipcMain.handle(
+    "sales:getById",
+    wrapHandler(async (_e: unknown, saleId: number) => {
+      requireAuth();
+      const sale = db.select().from(schema.sales).where(eq(schema.sales.id, saleId)).get();
+      if (!sale) throw new Error("Sale not found");
+      requireFarmAccess(sale.farmId);
+
+      const customer = db.select().from(schema.customers)
+        .where(eq(schema.customers.id, sale.customerId)).get();
+      const items = db.select().from(schema.saleItems)
+        .where(eq(schema.saleItems.saleId, saleId)).all();
+      const payments = db.select().from(schema.salePayments)
+        .where(eq(schema.salePayments.saleId, saleId))
+        .orderBy(desc(schema.salePayments.paymentDate))
+        .all();
+
+      return { ...sale, customer, items, payments };
+    })
+  );
+
+  ipcMain.handle(
+    "sales:update",
+    wrapHandler(async (_e: unknown, saleId: number, data: {
+      farmId: number; customerId: number; saleDate: string; dueDate?: string;
+      items: { itemType: string; grade: string; quantity: number; unitPrice: number; lineTotal: number }[];
+      discountType?: string; discountValue?: number; notes?: string;
+    }) => {
+      requireAuth();
+      const existing = db.select().from(schema.sales).where(eq(schema.sales.id, saleId)).get();
+      if (!existing) throw new Error("Sale not found");
+      requireFarmAccess(existing.farmId);
+
+      const payments = db.select().from(schema.salePayments)
+        .where(eq(schema.salePayments.saleId, saleId)).all();
+      if (payments.length > 0) throw new Error("Cannot edit a sale that has payments recorded");
+
+      const validItems = data.items.filter(i => i.quantity > 0 && i.unitPrice > 0);
+      if (validItems.length === 0) throw new Error("At least one item with quantity > 0 is required");
+
+      const updCustomer = db.select().from(schema.customers)
+        .where(eq(schema.customers.id, data.customerId)).get();
+      if (!updCustomer) throw new Error("Customer not found");
+      requireFarmAccess(updCustomer.farmId);
+      if (updCustomer.farmId !== existing.farmId) throw new Error("Customer does not belong to this farm");
+
+      const subtotal = validItems.reduce((s, i) => s + (i.quantity * i.unitPrice), 0);
+      const discountType = data.discountType || "none";
+      const discountValue = Math.max(0, data.discountValue || 0);
+      let discountAmount = 0;
+      if (discountType === "percentage") {
+        discountAmount = Math.round(subtotal * (Math.min(discountValue, 100) / 100) * 100) / 100;
+      } else if (discountType === "fixed") {
+        discountAmount = Math.min(discountValue, subtotal);
+      }
+      const totalAmount = Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100);
+
+      db.update(schema.sales).set({
+        customerId: data.customerId,
+        saleDate: data.saleDate,
+        dueDate: data.dueDate || existing.dueDate,
+        subtotal,
+        discountType,
+        discountValue,
+        discountAmount,
+        totalAmount,
+        paidAmount: 0,
+        balanceDue: totalAmount,
+        paymentStatus: "unpaid",
+        notes: data.notes?.trim() || null,
+        updatedAt: new Date().toISOString(),
+      }).where(eq(schema.sales.id, saleId)).run();
+
+      db.delete(schema.saleItems).where(eq(schema.saleItems.saleId, saleId)).run();
+      for (const item of validItems) {
+        db.insert(schema.saleItems).values({
+          saleId,
+          itemType: item.itemType,
+          grade: item.grade,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          lineTotal: Math.round(item.quantity * item.unitPrice * 100) / 100,
+        }).run();
+      }
+
+      return db.select().from(schema.sales).where(eq(schema.sales.id, saleId)).get();
+    })
+  );
+
+  ipcMain.handle(
+    "sales:delete",
+    wrapHandler(async (_e: unknown, saleId: number) => {
+      requireAuth();
+      const existing = db.select().from(schema.sales).where(eq(schema.sales.id, saleId)).get();
+      if (!existing) throw new Error("Sale not found");
+      requireFarmAccess(existing.farmId);
+
+      const payments = db.select().from(schema.salePayments)
+        .where(eq(schema.salePayments.saleId, saleId)).all();
+      if (payments.length > 0) throw new Error("Cannot delete a sale that has payments recorded");
+
+      db.update(schema.sales).set({
+        isDeleted: 1,
+        updatedAt: new Date().toISOString(),
+      }).where(eq(schema.sales.id, saleId)).run();
+
+      return { success: true };
+    })
+  );
+
+  ipcMain.handle(
+    "sales:getSummary",
+    wrapHandler(async (_e: unknown, farmId: number, startDate: string, endDate: string) => {
+      requireFarmAccess(farmId);
+      const salesInRange = db.select().from(schema.sales)
+        .where(and(
+          eq(schema.sales.farmId, farmId),
+          eq(schema.sales.isDeleted, 0),
+          gte(schema.sales.saleDate, startDate),
+          lte(schema.sales.saleDate, endDate)
+        ))
+        .all();
+
+      let totalSales = 0;
+      let totalReceived = 0;
+      let totalOutstanding = 0;
+      for (const s of salesInRange) {
+        totalSales += s.totalAmount ?? 0;
+        totalReceived += s.paidAmount ?? 0;
+        totalOutstanding += s.balanceDue ?? 0;
+      }
+
+      return {
+        totalSales: Math.round(totalSales * 100) / 100,
+        totalReceived: Math.round(totalReceived * 100) / 100,
+        totalOutstanding: Math.round(totalOutstanding * 100) / 100,
+        salesCount: salesInRange.length,
+      };
+    })
+  );
+
+  ipcMain.handle(
+    "sales:recordPayment",
+    wrapHandler(async (_e: unknown, data: {
+      saleId: number; amount: number; paymentDate: string;
+      paymentMethod: string; notes?: string;
+    }) => {
+      requireAuth();
+      const sale = db.select().from(schema.sales).where(eq(schema.sales.id, data.saleId)).get();
+      if (!sale) throw new Error("Sale not found");
+      if (sale.isDeleted === 1) throw new Error("Cannot record payment on a deleted sale");
+      requireFarmAccess(sale.farmId);
+
+      if (data.amount <= 0) throw new Error("Payment amount must be positive");
+      const currentBalance = sale.balanceDue ?? 0;
+      if (data.amount > currentBalance + 0.01) throw new Error("Payment amount exceeds balance due");
+
+      const result = db.insert(schema.salePayments).values({
+        saleId: data.saleId,
+        amount: data.amount,
+        paymentDate: data.paymentDate,
+        paymentMethod: data.paymentMethod || "cash",
+        notes: data.notes?.trim() || null,
+      }).run();
+
+      const newPaid = (sale.paidAmount ?? 0) + data.amount;
+      const newBalance = Math.max(0, Math.round(((sale.totalAmount ?? 0) - newPaid) * 100) / 100);
+      const newStatus = newPaid >= (sale.totalAmount ?? 0) ? "paid" : newPaid > 0 ? "partial" : "unpaid";
+
+      db.update(schema.sales).set({
+        paidAmount: Math.round(newPaid * 100) / 100,
+        balanceDue: newBalance,
+        paymentStatus: newStatus,
+        updatedAt: new Date().toISOString(),
+      }).where(eq(schema.sales.id, data.saleId)).run();
+
+      return db.select().from(schema.salePayments)
+        .where(eq(schema.salePayments.id, Number(result.lastInsertRowid))).get();
     })
   );
 }

@@ -58,6 +58,14 @@ import type {
   Customer,
   CustomerFilters,
   CustomerWithStats,
+  SaleData,
+  Sale,
+  SaleWithCustomer,
+  SaleDetail,
+  SaleFilters,
+  SalesSummary,
+  SalePayment,
+  RecordPaymentData,
 } from "@/types/electron";
 
 function getApi() {
@@ -474,6 +482,31 @@ export const customers = {
 
   search: (farmId: number, query: string) =>
     invoke<Customer[]>(() => getApi()!.customers.search(farmId, query)),
+};
+
+export const sales = {
+  create: (data: SaleData) =>
+    invoke<Sale>(() => getApi()!.sales.create(data)),
+
+  getByFarm: (farmId: number, filters?: SaleFilters) =>
+    invoke<SaleWithCustomer[]>(() => getApi()!.sales.getByFarm(farmId, filters)),
+
+  getById: (id: number) =>
+    invoke<SaleDetail>(() => getApi()!.sales.getById(id)),
+
+  update: (id: number, data: SaleData) =>
+    invoke<Sale>(() => getApi()!.sales.update(id, data)),
+
+  delete: (id: number) => invoke(() => getApi()!.sales.delete(id)),
+
+  getNextInvoiceNumber: (farmId: number) =>
+    invoke<string>(() => getApi()!.sales.getNextInvoiceNumber(farmId)),
+
+  getSummary: (farmId: number, startDate: string, endDate: string) =>
+    invoke<SalesSummary>(() => getApi()!.sales.getSummary(farmId, startDate, endDate)),
+
+  recordPayment: (data: RecordPaymentData) =>
+    invoke<SalePayment>(() => getApi()!.sales.recordPayment(data)),
 };
 
 export const isElectron = (): boolean => {

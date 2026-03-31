@@ -208,6 +208,49 @@ function createTablesManually(): void {
   `);
 
   sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS sales (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      farm_id INTEGER NOT NULL REFERENCES farms(id),
+      customer_id INTEGER NOT NULL REFERENCES customers(id),
+      invoice_number TEXT NOT NULL,
+      sale_date TEXT NOT NULL,
+      due_date TEXT,
+      subtotal REAL NOT NULL DEFAULT 0,
+      discount_type TEXT DEFAULT 'none',
+      discount_value REAL DEFAULT 0,
+      discount_amount REAL DEFAULT 0,
+      total_amount REAL NOT NULL DEFAULT 0,
+      paid_amount REAL DEFAULT 0,
+      balance_due REAL DEFAULT 0,
+      payment_status TEXT DEFAULT 'unpaid',
+      notes TEXT,
+      is_deleted INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS sale_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sale_id INTEGER NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
+      item_type TEXT NOT NULL,
+      grade TEXT NOT NULL,
+      quantity REAL NOT NULL DEFAULT 0,
+      unit_price REAL NOT NULL DEFAULT 0,
+      line_total REAL NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS sale_payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sale_id INTEGER NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
+      amount REAL NOT NULL,
+      payment_date TEXT NOT NULL,
+      payment_method TEXT DEFAULT 'cash',
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  sqlite.exec(`
     CREATE TABLE IF NOT EXISTS dismissed_alerts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       farm_id INTEGER REFERENCES farms(id),

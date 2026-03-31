@@ -766,6 +766,103 @@ export interface CustomerWithStats extends Customer {
   stats: CustomerStats;
 }
 
+export interface SaleItemData {
+  itemType: string;
+  grade: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+}
+
+export interface SaleData {
+  farmId: number;
+  customerId: number;
+  saleDate: string;
+  dueDate?: string;
+  items: SaleItemData[];
+  discountType?: string;
+  discountValue?: number;
+  amountPaid?: number;
+  paymentMethod?: string;
+  notes?: string;
+}
+
+export interface Sale {
+  id: number;
+  farmId: number;
+  customerId: number;
+  invoiceNumber: string;
+  saleDate: string;
+  dueDate: string | null;
+  subtotal: number | null;
+  discountType: string | null;
+  discountValue: number | null;
+  discountAmount: number | null;
+  totalAmount: number | null;
+  paidAmount: number | null;
+  balanceDue: number | null;
+  paymentStatus: string | null;
+  notes: string | null;
+  isDeleted: number | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface SaleWithCustomer extends Sale {
+  customerName: string;
+  customerPhone: string | null;
+  customerBusinessName: string | null;
+}
+
+export interface SaleItem {
+  id: number;
+  saleId: number;
+  itemType: string;
+  grade: string;
+  quantity: number | null;
+  unitPrice: number | null;
+  lineTotal: number | null;
+}
+
+export interface SalePayment {
+  id: number;
+  saleId: number;
+  amount: number;
+  paymentDate: string;
+  paymentMethod: string | null;
+  notes: string | null;
+  createdAt: string | null;
+}
+
+export interface SaleDetail extends Sale {
+  customer: Customer;
+  items: SaleItem[];
+  payments: SalePayment[];
+}
+
+export interface SaleFilters {
+  startDate?: string;
+  endDate?: string;
+  customerId?: number;
+  paymentStatus?: string;
+  search?: string;
+}
+
+export interface SalesSummary {
+  totalSales: number;
+  totalReceived: number;
+  totalOutstanding: number;
+  salesCount: number;
+}
+
+export interface RecordPaymentData {
+  saleId: number;
+  amount: number;
+  paymentDate: string;
+  paymentMethod: string;
+  notes?: string;
+}
+
 export interface VaccinationScheduleData {
   vaccineName: string;
   ageDays: number;
@@ -964,6 +1061,16 @@ export interface ElectronAPI {
     update: (id: number, data: Partial<CustomerData>) => Promise<IpcResponse<Customer>>;
     delete: (id: number) => Promise<IpcResponse>;
     search: (farmId: number, query: string) => Promise<IpcResponse<Customer[]>>;
+  };
+  sales: {
+    create: (data: SaleData) => Promise<IpcResponse<Sale>>;
+    getByFarm: (farmId: number, filters?: SaleFilters) => Promise<IpcResponse<SaleWithCustomer[]>>;
+    getById: (id: number) => Promise<IpcResponse<SaleDetail>>;
+    update: (id: number, data: SaleData) => Promise<IpcResponse<Sale>>;
+    delete: (id: number) => Promise<IpcResponse>;
+    getNextInvoiceNumber: (farmId: number) => Promise<IpcResponse<string>>;
+    getSummary: (farmId: number, startDate: string, endDate: string) => Promise<IpcResponse<SalesSummary>>;
+    recordPayment: (data: RecordPaymentData) => Promise<IpcResponse<SalePayment>>;
   };
 }
 

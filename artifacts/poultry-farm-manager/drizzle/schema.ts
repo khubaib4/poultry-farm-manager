@@ -160,6 +160,47 @@ export const customers = sqliteTable("customers", {
   updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const sales = sqliteTable("sales", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  farmId: integer("farm_id").notNull().references(() => farms.id),
+  customerId: integer("customer_id").notNull().references(() => customers.id),
+  invoiceNumber: text("invoice_number").notNull(),
+  saleDate: text("sale_date").notNull(),
+  dueDate: text("due_date"),
+  subtotal: real("subtotal").notNull().default(0),
+  discountType: text("discount_type").default("none"),
+  discountValue: real("discount_value").default(0),
+  discountAmount: real("discount_amount").default(0),
+  totalAmount: real("total_amount").notNull().default(0),
+  paidAmount: real("paid_amount").default(0),
+  balanceDue: real("balance_due").default(0),
+  paymentStatus: text("payment_status").default("unpaid"),
+  notes: text("notes"),
+  isDeleted: integer("is_deleted").default(0),
+  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const saleItems = sqliteTable("sale_items", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  saleId: integer("sale_id").notNull().references(() => sales.id, { onDelete: "cascade" }),
+  itemType: text("item_type").notNull(),
+  grade: text("grade").notNull(),
+  quantity: real("quantity").notNull().default(0),
+  unitPrice: real("unit_price").notNull().default(0),
+  lineTotal: real("line_total").notNull().default(0),
+});
+
+export const salePayments = sqliteTable("sale_payments", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  saleId: integer("sale_id").notNull().references(() => sales.id, { onDelete: "cascade" }),
+  amount: real("amount").notNull(),
+  paymentDate: text("payment_date").notNull(),
+  paymentMethod: text("payment_method").default("cash"),
+  notes: text("notes"),
+  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const vaccinationSchedule = sqliteTable("vaccination_schedule", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   vaccineName: text("vaccine_name").notNull(),
