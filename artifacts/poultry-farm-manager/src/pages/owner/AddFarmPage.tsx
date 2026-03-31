@@ -10,7 +10,6 @@ import { z } from "zod";
 const farmSchema = z.object({
   name: z.string().min(3, "Farm name must be at least 3 characters").max(50, "Farm name must be at most 50 characters"),
   location: z.string().min(5, "Location must be at least 5 characters").max(200, "Location must be at most 200 characters"),
-  capacity: z.number().int("Capacity must be a whole number").min(1, "Capacity must be at least 1").max(1000000, "Capacity cannot exceed 1,000,000"),
   loginUsername: z.string().min(4, "Username must be at least 4 characters").max(20, "Username must be at most 20 characters").regex(/^[a-zA-Z0-9_]+$/, "Username must be alphanumeric with underscores only"),
   loginPassword: z.string().min(8, "Password must be at least 8 characters"),
 });
@@ -22,7 +21,6 @@ export default function AddFarmPage(): React.ReactElement {
   const [formData, setFormData] = useState({
     name: "",
     location: "",
-    capacity: "",
     loginUsername: "",
     loginPassword: generatePassword(),
   });
@@ -103,10 +101,7 @@ export default function AddFarmPage(): React.ReactElement {
     setError(null);
     setFieldErrors({});
 
-    const parsed = farmSchema.safeParse({
-      ...formData,
-      capacity: formData.capacity ? parseInt(formData.capacity, 10) : undefined,
-    });
+    const parsed = farmSchema.safeParse(formData);
 
     if (!parsed.success) {
       const errors: Record<string, string> = {};
@@ -138,7 +133,6 @@ export default function AddFarmPage(): React.ReactElement {
         ownerId: user!.id,
         name: parsed.data.name,
         location: parsed.data.location,
-        capacity: parsed.data.capacity,
         loginUsername: parsed.data.loginUsername,
         loginPassword: parsed.data.loginPassword,
       });
@@ -168,7 +162,6 @@ export default function AddFarmPage(): React.ReactElement {
     setFormData({
       name: "",
       location: "",
-      capacity: "",
       loginUsername: "",
       loginPassword: generatePassword(),
     });
@@ -237,27 +230,6 @@ export default function AddFarmPage(): React.ReactElement {
               />
               {fieldErrors.location && (
                 <p className="text-xs text-destructive">{fieldErrors.location}</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <label htmlFor="capacity" className="text-sm font-medium text-slate-700">
-                Capacity (birds) <span className="text-red-500">*</span>
-              </label>
-              <input
-                id="capacity"
-                name="capacity"
-                type="number"
-                value={formData.capacity}
-                onChange={handleChange}
-                placeholder="e.g., 5000"
-                min="1"
-                max="1000000"
-                className={inputClass("capacity")}
-                disabled={isLoading}
-              />
-              {fieldErrors.capacity && (
-                <p className="text-xs text-destructive">{fieldErrors.capacity}</p>
               )}
             </div>
 
