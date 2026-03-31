@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Eye } from "lucide-react";
 import { formatCurrency, formatDateForDisplay } from "@/lib/utils";
 import PaymentStatusBadge from "./PaymentStatusBadge";
+import DownloadInvoiceButton from "@/components/invoices/DownloadInvoiceButton";
 import type { SaleWithCustomer } from "@/types/electron";
 
 interface SalesTableProps {
@@ -69,13 +70,22 @@ export default function SalesTable({ sales }: SalesTableProps): React.ReactEleme
                   />
                 </td>
                 <td className="px-4 py-3 text-center">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); navigate(`/farm/sales/${sale.id}`); }}
-                    className="p-1.5 text-gray-400 hover:text-emerald-600 transition-colors"
-                    title="View sale"
-                  >
-                    <Eye className="h-4 w-4" />
-                  </button>
+                  <div className="flex items-center justify-center gap-1">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); navigate(`/farm/sales/${sale.id}`); }}
+                      className="p-1.5 text-gray-400 hover:text-emerald-600 transition-colors"
+                      title="View sale"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </button>
+                    <DownloadInvoiceButton
+                      saleId={sale.id}
+                      invoiceNumber={sale.invoiceNumber}
+                      customerName={sale.customerName}
+                      size="sm"
+                      variant="outline"
+                    />
+                  </div>
                 </td>
               </tr>
             ))}

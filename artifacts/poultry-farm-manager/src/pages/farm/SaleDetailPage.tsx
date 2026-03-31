@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { isElectron, sales as salesApi } from "@/lib/api";
+import { isElectron, sales as salesApi, profile as profileApi } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/Toast";
 import { formatCurrency, formatDateForDisplay } from "@/lib/utils";
 import { ArrowLeft, Edit2, Trash2, DollarSign, FileText } from "lucide-react";
@@ -10,7 +11,10 @@ import ErrorState from "@/components/ui/ErrorState";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import PaymentStatusBadge from "@/components/sales/PaymentStatusBadge";
 import SaleSummaryCard from "@/components/sales/SaleSummaryCard";
+import InvoiceActions from "@/components/invoices/InvoiceActions";
+import InvoicePreview from "@/components/invoices/InvoicePreview";
 import type { SaleDetail } from "@/types/electron";
+import type { InvoiceFarmInfo } from "@/lib/invoicePdf";
 
 const ITEM_TYPE_LABELS: Record<string, string> = { egg: "Eggs", tray: "Trays" };
 const GRADE_LABELS: Record<string, string> = { A: "Grade A", B: "Grade B", cracked: "Cracked" };
@@ -21,6 +25,7 @@ const METHOD_LABELS: Record<string, string> = {
 export default function SaleDetailPage(): React.ReactElement {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { showToast } = useToast();
   const [sale, setSale] = useState<SaleDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -33,6 +38,8 @@ export default function SaleDetailPage(): React.ReactElement {
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentNotes, setPaymentNotes] = useState("");
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
+  const [farmInfo, setFarmInfo] = useState<InvoiceFarmInfo>({ name: "Farm", location: null, phone: null, email: null });
+  const [viewMode, setViewMode] = useState<"details" | "invoice">("details");
 
   async function loadSale() {
     if (!id || !isElectron()) { setIsLoading(false); return; }
@@ -49,6 +56,13 @@ export default function SaleDetailPage(): React.ReactElement {
   }
 
   useEffect(() => { loadSale(); }, [id]);
+
+  useEffect(() => {
+    if (!isElectron()) return;
+    Promise.all([profileApi.getFarmProfile(), profileApi.getOwnerProfile()])
+      .then(([fp, op]) => setFarmInfo({ name: fp.name, location: fp.location, phone: op.phone, email: op.email }))
+      .catch(() => { if (user?.farmName) setFarmInfo(f => ({ ...f, name: user.farmName! })); });
+  }, [user?.farmName]);
 
   async function handleDelete() {
     if (!sale) return;
@@ -116,6 +130,7 @@ export default function SaleDetailPage(): React.ReactElement {
             <button onClick={() => navigate("/farm/sales")} className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900">
               <ArrowLeft className="h-4 w-4" /> Back
             </button>
+            <InvoiceActions saleId={sale.id} invoiceNumber={sale.invoiceNumber} customerName={sale.customer?.name} size="sm" />
             {canEdit && (
               <button
                 onClick={() => navigate(`/farm/sales/${sale.id}/edit`)}
@@ -135,6 +150,33 @@ export default function SaleDetailPage(): React.ReactElement {
           </div>
         }
       />
+
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={() => setViewMode("details")}
+          className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+            viewMode === "details"
+              ? "bg-emerald-600 text-white"
+              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+          }`}
+        >
+          Sale Details
+        </button>
+        <button
+          onClick={() => setViewMode("invoice")}
+          className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+            viewMode === "invoice"
+              ? "bg-emerald-600 text-white"
+              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+          }`}
+        >
+          Invoice Preview
+        </button>
+      </div>
+
+      {viewMode === "invoice" ? (
+        <InvoicePreview sale={sale} farm={farmInfo} />
+      ) : (
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
@@ -252,6 +294,8 @@ export default function SaleDetailPage(): React.ReactElement {
           />
         </div>
       </div>
+
+      )}
 
       {showPayment && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
