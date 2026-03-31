@@ -92,6 +92,9 @@ function createTablesManually(): void {
       arrival_date TEXT NOT NULL,
       age_at_arrival_days INTEGER DEFAULT 0,
       status TEXT DEFAULT 'active',
+      status_changed_date TEXT,
+      status_notes TEXT,
+      notes TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -134,6 +137,18 @@ function createTablesManually(): void {
       notes TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
+  `);
+
+  const safeAlter = (statement: string) => {
+    try { sqlite.exec(statement); } catch { /* column already exists */ }
+  };
+
+  safeAlter("ALTER TABLE flocks ADD COLUMN status_changed_date TEXT");
+  safeAlter("ALTER TABLE flocks ADD COLUMN status_notes TEXT");
+  safeAlter("ALTER TABLE flocks ADD COLUMN notes TEXT");
+  safeAlter("ALTER TABLE expenses ADD COLUMN notes TEXT");
+
+  sqlite.exec(`
 
     CREATE TABLE IF NOT EXISTS inventory (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -170,8 +185,6 @@ function createTablesManually(): void {
     );
   `);
   console.log("Database initialized successfully (tables created manually)");
-
-  try { sqlite.exec("ALTER TABLE expenses ADD COLUMN notes TEXT"); } catch { /* column already exists */ }
 
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS inventory_transactions (
