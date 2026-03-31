@@ -1,17 +1,18 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Eye, Edit, ChevronUp, ChevronDown } from "lucide-react";
+import { Eye, Edit, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import type { Customer } from "@/types/electron";
 import CategoryBadge from "./CategoryBadge";
 
 interface CustomerTableProps {
   customers: Customer[];
+  onDelete?: (customer: Customer) => void;
 }
 
 type SortKey = "name" | "category" | "phone" | "businessName" | "createdAt";
 type SortDir = "asc" | "desc";
 
-export default function CustomerTable({ customers }: CustomerTableProps): React.ReactElement {
+export default function CustomerTable({ customers, onDelete }: CustomerTableProps): React.ReactElement {
   const navigate = useNavigate();
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -122,6 +123,13 @@ export default function CustomerTable({ customers }: CustomerTableProps): React.
                       title="Edit"
                     >
                       <Edit className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => onDelete?.(c)}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Delete permanently"
+                    >
+                      <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
                 </td>

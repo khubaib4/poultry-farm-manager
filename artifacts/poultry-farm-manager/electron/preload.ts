@@ -247,6 +247,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     update: (id: number, data: unknown) =>
       ipcRenderer.invoke("customers:update", id, data),
     delete: (id: number) => ipcRenderer.invoke("customers:delete", id),
+    deletePermanently: (id: number) =>
+      ipcRenderer.invoke("customers:deletePermanently", id),
     search: (farmId: number, query: string) =>
       ipcRenderer.invoke("customers:search", farmId, query),
   },

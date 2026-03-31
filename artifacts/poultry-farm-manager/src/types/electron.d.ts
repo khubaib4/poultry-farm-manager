@@ -1060,6 +1060,7 @@ export interface ElectronAPI {
     getById: (id: number) => Promise<IpcResponse<CustomerWithStats>>;
     update: (id: number, data: Partial<CustomerData>) => Promise<IpcResponse<Customer>>;
     delete: (id: number) => Promise<IpcResponse>;
+    deletePermanently: (id: number) => Promise<IpcResponse>;
     search: (farmId: number, query: string) => Promise<IpcResponse<Customer[]>>;
   };
   sales: {

@@ -3555,6 +3555,37 @@ export function registerIpcHandlers(): void {
   );
 
   ipcMain.handle(
+    "customers:deletePermanently",
+    wrapHandler(async (_e: unknown, customerId: number) => {
+      requireAuth();
+      const existing = db.select().from(schema.customers)
+        .where(eq(schema.customers.id, customerId)).get();
+      if (!existing) throw new Error("Customer not found");
+      requireFarmAccess(existing.farmId);
+
+      const customerSales = db.select({ id: schema.sales.id }).from(schema.sales)
+        .where(and(
+          eq(schema.sales.customerId, customerId),
+          eq(schema.sales.isDeleted, 0)
+        )).all();
+      if (customerSales.length > 0) {
+        throw new Error(`Cannot delete customer with ${customerSales.length} active sale${customerSales.length !== 1 ? "s" : ""}. Delete or void all sales first.`);
+      }
+
+      const allSales = db.select({ id: schema.sales.id }).from(schema.sales)
+        .where(eq(schema.sales.customerId, customerId)).all();
+      for (const s of allSales) {
+        db.delete(schema.salePayments).where(eq(schema.salePayments.saleId, s.id)).run();
+        db.delete(schema.saleItems).where(eq(schema.saleItems.saleId, s.id)).run();
+      }
+      db.delete(schema.sales).where(eq(schema.sales.customerId, customerId)).run();
+      db.delete(schema.customers).where(eq(schema.customers.id, customerId)).run();
+
+      return { success: true };
+    })
+  );
+
+  ipcMain.handle(
     "customers:search",
     wrapHandler(async (_e: unknown, farmId: number, query: string) => {
       requireFarmAccess(farmId);

@@ -1,14 +1,15 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Phone, MapPin, Building2, Edit, Eye } from "lucide-react";
+import { Phone, MapPin, Building2, Edit, Eye, Trash2 } from "lucide-react";
 import type { Customer } from "@/types/electron";
 import CategoryBadge from "./CategoryBadge";
 
 interface CustomerCardProps {
   customer: Customer;
+  onDelete?: (customer: Customer) => void;
 }
 
-export default function CustomerCard({ customer }: CustomerCardProps): React.ReactElement {
+export default function CustomerCard({ customer, onDelete }: CustomerCardProps): React.ReactElement {
   const navigate = useNavigate();
 
   return (
@@ -63,6 +64,13 @@ export default function CustomerCard({ customer }: CustomerCardProps): React.Rea
         >
           <Edit className="h-3.5 w-3.5" />
           Edit
+        </button>
+        <button
+          onClick={() => onDelete?.(customer)}
+          className="flex items-center justify-center p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+          title="Delete permanently"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
     </div>

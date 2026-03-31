@@ -480,6 +480,9 @@ export const customers = {
 
   delete: (id: number) => invoke(() => getApi()!.customers.delete(id)),
 
+  deletePermanently: (id: number) =>
+    invoke(() => getApi()!.customers.deletePermanently(id)),
+
   search: (farmId: number, query: string) =>
     invoke<Customer[]>(() => getApi()!.customers.search(farmId, query)),
 };

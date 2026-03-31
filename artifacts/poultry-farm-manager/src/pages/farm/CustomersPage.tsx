@@ -1,23 +1,29 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { isElectron } from "@/lib/api";
+import { isElectron, customers as customersApi } from "@/lib/api";
 import { useCustomers } from "@/hooks/useCustomers";
+import { useToast } from "@/components/ui/Toast";
 import { Plus, Search, X, LayoutGrid, List, Users } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import EmptyState from "@/components/ui/EmptyState";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import CustomerCard from "@/components/customers/CustomerCard";
 import CustomerTable from "@/components/customers/CustomerTable";
 import { CUSTOMER_CATEGORIES } from "@/components/customers/CategoryBadge";
+import type { Customer } from "@/types/electron";
 
 export default function CustomersPage(): React.ReactElement {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const farmId = user?.farmId ?? null;
-  const { customers, isLoading, filters, setFilters } = useCustomers(farmId);
+  const { customers, isLoading, filters, setFilters, refresh } = useCustomers(farmId);
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   const [searchInput, setSearchInput] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   if (!isElectron()) {
     return <div className="p-6 text-center text-gray-500">This feature is only available in the desktop app.</div>;
@@ -31,6 +37,21 @@ export default function CustomersPage(): React.ReactElement {
   function clearSearch() {
     setSearchInput("");
     setFilters({ ...filters, search: undefined });
+  }
+
+  async function handleDeletePermanently() {
+    if (!deleteTarget) return;
+    try {
+      setIsDeleting(true);
+      await customersApi.deletePermanently(deleteTarget.id);
+      showToast(`${deleteTarget.name} deleted permanently`, "success");
+      setDeleteTarget(null);
+      await refresh();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to delete customer", "error");
+    } finally {
+      setIsDeleting(false);
+    }
   }
 
   const activeCount = customers.filter(c => c.isActive === 1).length;
@@ -140,12 +161,23 @@ export default function CustomersPage(): React.ReactElement {
       ) : viewMode === "grid" ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {customers.map((c) => (
-            <CustomerCard key={c.id} customer={c} />
+            <CustomerCard key={c.id} customer={c} onDelete={setDeleteTarget} />
           ))}
         </div>
       ) : (
-        <CustomerTable customers={customers} />
+        <CustomerTable customers={customers} onDelete={setDeleteTarget} />
       )}
+
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        title="Delete Customer Permanently"
+        message={`Are you sure you want to permanently delete "${deleteTarget?.name}"? This will also remove all their deleted sales records. This action cannot be undone.`}
+        confirmText="Delete Permanently"
+        variant="danger"
+        isLoading={isDeleting}
+        onConfirm={handleDeletePermanently}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }
