@@ -130,12 +130,13 @@ export default function NewSalePage(): React.ReactElement {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (isSubmitting) return;
     if (!validate() || !farmId) return;
 
     try {
       setIsSubmitting(true);
       const validItems = parsedItems.filter(i => i.quantity > 0 && i.unitPrice > 0);
-      await salesApi.create({
+      const result = await salesApi.create({
         farmId,
         customerId: customerId as number,
         saleDate,
@@ -151,10 +152,9 @@ export default function NewSalePage(): React.ReactElement {
         notes: notes.trim() || undefined,
       });
       showToast("Sale created successfully", "success");
-      navigate("/farm/sales");
+      navigate(`/farm/sales/${result.id}`);
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Failed to create sale", "error");
-    } finally {
       setIsSubmitting(false);
     }
   }

@@ -99,6 +99,7 @@ export default function EditSalePage(): React.ReactElement {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (isSubmitting) return;
     if (!validate() || !farmId || !sale) return;
 
     try {
@@ -121,7 +122,6 @@ export default function EditSalePage(): React.ReactElement {
       navigate(`/farm/sales/${sale.id}`);
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Failed to update sale", "error");
-    } finally {
       setIsSubmitting(false);
     }
   }
