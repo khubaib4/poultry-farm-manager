@@ -1,0 +1,220 @@
+OBJECTIVE: Build payment recording system with credit balance tracking
+
+REQUIREMENTS:
+- Record payments against sales
+- Multiple payment methods
+- Track customer balances
+- Payment history per customer
+- Receivables dashboard
+
+FILES TO CREATE/MODIFY:
+
+1. src/pages/farm/PaymentsPage.tsx
+   - Route: /farm/payments
+   - Header: "Payments" with "Record Payment" button
+   
+   - Summary cards:
+     * Total Received (period)
+     * Pending Receivables
+     * Overdue Amount
+     * Payments Today
+   
+   - Filter bar:
+     * Date range picker
+     * Customer filter
+     * Payment method filter
+     * Search by reference number
+   
+   - Payments table:
+     * Date, Customer, Invoice #, Amount, Method, Reference
+     * Actions: View Sale, Delete (with confirmation)
+
+2. src/pages/farm/ReceivablesPage.tsx
+   - Route: /farm/receivables
+   - Header: "Receivables" (Money owed to you)
+   
+   - Summary cards:
+     * Total Receivables
+     * Overdue (past due date)
+     * Due This Week
+     * Due This Month
+   
+   - Tabs: "All Outstanding" | "Overdue" | "Due Soon"
+   
+   - Receivables table:
+     * Customer, Invoice #, Sale Date, Due Date, Total, Paid, Balance
+     * Days overdue (if applicable)
+     * Status: Overdue (red), Due Soon (yellow), Normal
+     * Actions: Record Payment, View Sale, Send Reminder (placeholder)
+   
+   - Group by customer option
+
+3. src/components/payments/RecordPaymentModal.tsx
+   - Modal for recording payment
+   - Props: saleId, balanceDue, customerName
+   
+   - Fields:
+     * Amount (default: full balance, max: balance due)
+     * Payment Date (default: today)
+     * Payment Method (dropdown):
+       - Cash
+       - Bank Transfer
+       - Cheque
+       - Mobile Payment (JazzCash, Easypaisa)
+       - Other
+     * Reference Number (optional, for bank/cheque)
+     * Notes (optional)
+   
+   - Shows: Invoice total, already paid, remaining after this payment
+   - "Record Payment" button
+
+4. src/components/payments/PaymentHistoryTable.tsx
+   - Table showing payment history
+   - Used in: Sale detail page, Customer detail page
+   - Columns: Date, Amount, Method, Reference, Notes
+   - Running balance column (optional)
+
+5. src/components/payments/ReceivablesTable.tsx
+   - Table for receivables list
+   - Sortable by due date, amount, customer
+   - Color coding for overdue
+   - Quick payment action
+
+6. src/components/payments/CustomerBalanceCard.tsx
+   - Card showing customer's balance
+   - Total purchases, total paid, balance due
+   - Quick actions: View history, Record payment
+
+7. src/components/payments/PaymentMethodBadge.tsx
+   - Badge showing payment method with icon
+   - Cash: green, money icon
+   - Bank Transfer: blue, building icon
+   - Cheque: purple, file icon
+   - Mobile: orange, phone icon
+   - Other: gray
+
+8. src/components/payments/OverdueAlert.tsx
+   - Alert component for overdue payments
+   - Shows count and total amount
+   - Link to receivables page
+
+9. Update CustomerDetailPage.tsx
+   - Add "Balance Due" prominently
+   - Add payment history tab
+   - Add "Record Payment" button if balance > 0
+   - Show receivables breakdown
+
+10. Update FarmDashboard.tsx
+    - Add "Receivables" card showing total outstanding
+    - Add alert if overdue payments exist
+    - Quick link to receivables page
+
+11. electron/ipc-handlers.ts (add handlers)
+    - payments.record(saleId, data):
+      * Create payment record
+      * Update sale paid_amount and balance_due
+      * Update payment_status (paid/partial)
+      * Return updated sale
+    
+    - payments.getBySale(saleId):
+      * Get all payments for a sale
+    
+    - payments.getByFarm(farmId, filters):
+      * Get all payments with filters
+      * Include sale and customer info
+    
+    - payments.getByCustomer(customerId):
+      * Get all payments by customer
+      * Include sale info
+    
+    - payments.delete(paymentId):
+      * Delete payment
+      * Recalculate sale balance
+      * Update payment status
+    
+    - receivables.getByFarm(farmId):
+      * Get all unpaid/partial sales
+      * Include customer info
+      * Calculate days overdue
+    
+    - receivables.getSummary(farmId):
+      * Total receivables
+      * Overdue amount
+      * Due this week
+      * Due this month
+    
+    - receivables.getByCustomer(customerId):
+      * Get customer's outstanding invoices
+
+12. src/lib/api.ts (add payment functions)
+    - recordPayment(saleId, data)
+    - getPaymentsBySale(saleId)
+    - getPaymentsByFarm(farmId, filters)
+    - getPaymentsByCustomer(customerId)
+    - deletePayment(paymentId)
+    - getReceivables(farmId)
+    - getReceivablesSummary(farmId)
+    - getCustomerReceivables(customerId)
+
+13. src/hooks/usePayments.ts
+    - Hook for payments list
+    - Return: { payments, isLoading, filters, setFilters }
+
+14. src/hooks/useReceivables.ts
+    - Hook for receivables data
+    - Return: { receivables, summary, isLoading }
+
+15. src/App.tsx (add routes)
+    - /farm/payments - PaymentsPage
+    - /farm/receivables - ReceivablesPage
+
+16. Update sidebar navigation
+    - Add "Payments" under Sales or as separate item
+    - Add "Receivables" with badge for overdue count
+
+PAYMENT METHODS:
+- cash: "Cash"
+- bank_transfer: "Bank Transfer"
+- cheque: "Cheque"
+- mobile_payment: "Mobile Payment"
+- other: "Other"
+
+OVERDUE CALCULATION:
+```typescript
+const isOverdue = balanceDue > 0 && new Date(dueDate) < new Date();
+const daysOverdue = isOverdue 
+  ? Math.floor((new Date() - new Date(dueDate)) / (1000 * 60 * 60 * 24))
+  : 0;
+```
+
+DUE SOON = Due within 7 days
+
+PAYMENT RECORDING LOGIC:
+```typescript
+// Record payment
+const newPaidAmount = sale.paidAmount + paymentAmount;
+const newBalance = sale.totalAmount - newPaidAmount;
+const newStatus = newBalance <= 0 ? 'paid' : 'partial';
+
+// Update sale
+await updateSale(saleId, {
+  paidAmount: newPaidAmount,
+  balanceDue: newBalance,
+  paymentStatus: newStatus
+});
+```
+
+VALIDATION RULES:
+- Payment amount > 0
+- Payment amount <= balance due
+- Payment date required
+- Payment method required
+
+UI/UX REQUIREMENTS:
+- Quick payment from multiple places
+- Clear balance visibility
+- Overdue highlighted prominently
+- Payment confirmation
+- Success toast with updated balance
+
+OUTPUT: Payments can be recorded against sales. Customer balances tracked. Receivables dashboard shows outstanding money. Overdue payments highlighted.

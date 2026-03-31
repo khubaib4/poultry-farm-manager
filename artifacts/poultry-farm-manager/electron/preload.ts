@@ -267,4 +267,20 @@ contextBridge.exposeInMainWorld("electronAPI", {
     recordPayment: (data: unknown) =>
       ipcRenderer.invoke("sales:recordPayment", data),
   },
+  payments: {
+    getByFarm: (farmId: number, filters?: unknown) =>
+      ipcRenderer.invoke("payments:getByFarm", farmId, filters),
+    getByCustomer: (customerId: number) =>
+      ipcRenderer.invoke("payments:getByCustomer", customerId),
+    delete: (paymentId: number) =>
+      ipcRenderer.invoke("payments:delete", paymentId),
+    getSummary: (farmId: number) =>
+      ipcRenderer.invoke("payments:getSummary", farmId),
+  },
+  receivables: {
+    getByFarm: (farmId: number, filter?: string) =>
+      ipcRenderer.invoke("receivables:getByFarm", farmId, filter),
+    getByCustomer: (customerId: number) =>
+      ipcRenderer.invoke("receivables:getByCustomer", customerId),
+  },
 });

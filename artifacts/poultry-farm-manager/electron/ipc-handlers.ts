@@ -3975,4 +3975,263 @@ export function registerIpcHandlers(): void {
         .where(eq(schema.salePayments.id, Number(result.lastInsertRowid))).get();
     })
   );
+
+  ipcMain.handle(
+    "payments:getByFarm",
+    wrapHandler(async (_e: unknown, farmId: number, filters?: {
+      startDate?: string; endDate?: string; customerId?: number;
+      paymentMethod?: string; search?: string;
+    }) => {
+      requireFarmAccess(farmId);
+      const rows = db.select({
+        id: schema.salePayments.id,
+        saleId: schema.salePayments.saleId,
+        amount: schema.salePayments.amount,
+        paymentDate: schema.salePayments.paymentDate,
+        paymentMethod: schema.salePayments.paymentMethod,
+        notes: schema.salePayments.notes,
+        createdAt: schema.salePayments.createdAt,
+        invoiceNumber: schema.sales.invoiceNumber,
+        customerId: schema.sales.customerId,
+        customerName: schema.customers.name,
+        customerBusinessName: schema.customers.businessName,
+      })
+        .from(schema.salePayments)
+        .innerJoin(schema.sales, eq(schema.salePayments.saleId, schema.sales.id))
+        .innerJoin(schema.customers, eq(schema.sales.customerId, schema.customers.id))
+        .where(and(
+          eq(schema.sales.farmId, farmId),
+          eq(schema.sales.isDeleted, 0),
+          ...(filters?.startDate ? [gte(schema.salePayments.paymentDate, filters.startDate)] : []),
+          ...(filters?.endDate ? [lte(schema.salePayments.paymentDate, filters.endDate)] : []),
+          ...(filters?.customerId ? [eq(schema.sales.customerId, filters.customerId)] : []),
+          ...(filters?.paymentMethod ? [eq(schema.salePayments.paymentMethod, filters.paymentMethod)] : []),
+        ))
+        .orderBy(desc(schema.salePayments.paymentDate), desc(schema.salePayments.id))
+        .all();
+
+      if (filters?.search) {
+        const q = filters.search.toLowerCase().trim();
+        return rows.filter(r =>
+          r.invoiceNumber.toLowerCase().includes(q) ||
+          r.customerName.toLowerCase().includes(q)
+        );
+      }
+      return rows;
+    })
+  );
+
+  ipcMain.handle(
+    "payments:getByCustomer",
+    wrapHandler(async (_e: unknown, customerId: number) => {
+      requireAuth();
+      const customer = db.select().from(schema.customers)
+        .where(eq(schema.customers.id, customerId)).get();
+      if (!customer) throw new Error("Customer not found");
+      requireFarmAccess(customer.farmId);
+
+      return db.select({
+        id: schema.salePayments.id,
+        saleId: schema.salePayments.saleId,
+        amount: schema.salePayments.amount,
+        paymentDate: schema.salePayments.paymentDate,
+        paymentMethod: schema.salePayments.paymentMethod,
+        notes: schema.salePayments.notes,
+        createdAt: schema.salePayments.createdAt,
+        invoiceNumber: schema.sales.invoiceNumber,
+      })
+        .from(schema.salePayments)
+        .innerJoin(schema.sales, eq(schema.salePayments.saleId, schema.sales.id))
+        .where(and(
+          eq(schema.sales.customerId, customerId),
+          eq(schema.sales.isDeleted, 0)
+        ))
+        .orderBy(desc(schema.salePayments.paymentDate))
+        .all();
+    })
+  );
+
+  ipcMain.handle(
+    "payments:delete",
+    wrapHandler(async (_e: unknown, paymentId: number) => {
+      requireAuth();
+      const payment = db.select().from(schema.salePayments)
+        .where(eq(schema.salePayments.id, paymentId)).get();
+      if (!payment) throw new Error("Payment not found");
+
+      const sale = db.select().from(schema.sales)
+        .where(eq(schema.sales.id, payment.saleId)).get();
+      if (!sale) throw new Error("Sale not found");
+      requireFarmAccess(sale.farmId);
+
+      db.delete(schema.salePayments).where(eq(schema.salePayments.id, paymentId)).run();
+
+      const remaining = db.select().from(schema.salePayments)
+        .where(eq(schema.salePayments.saleId, sale.id)).all();
+      const newPaid = remaining.reduce((s, p) => s + (p.amount ?? 0), 0);
+      const newBalance = Math.max(0, Math.round(((sale.totalAmount ?? 0) - newPaid) * 100) / 100);
+      const newStatus = newPaid >= (sale.totalAmount ?? 0) ? "paid" : newPaid > 0 ? "partial" : "unpaid";
+
+      db.update(schema.sales).set({
+        paidAmount: Math.round(newPaid * 100) / 100,
+        balanceDue: newBalance,
+        paymentStatus: newStatus,
+        updatedAt: new Date().toISOString(),
+      }).where(eq(schema.sales.id, sale.id)).run();
+
+      return { success: true };
+    })
+  );
+
+  ipcMain.handle(
+    "payments:getSummary",
+    wrapHandler(async (_e: unknown, farmId: number) => {
+      requireFarmAccess(farmId);
+      const today = new Date().toISOString().split("T")[0];
+      const weekFromNow = new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0];
+      const monthFromNow = new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0];
+
+      const todayPayments = db.select()
+        .from(schema.salePayments)
+        .innerJoin(schema.sales, eq(schema.salePayments.saleId, schema.sales.id))
+        .where(and(
+          eq(schema.sales.farmId, farmId),
+          eq(schema.sales.isDeleted, 0),
+          eq(schema.salePayments.paymentDate, today)
+        ))
+        .all();
+      const paymentsToday = todayPayments.reduce((s, r) => s + (r.sale_payments.amount ?? 0), 0);
+
+      const outstanding = db.select().from(schema.sales)
+        .where(and(
+          eq(schema.sales.farmId, farmId),
+          eq(schema.sales.isDeleted, 0),
+          sql`${schema.sales.paymentStatus} != 'paid'`
+        ))
+        .all();
+
+      let totalReceivables = 0;
+      let overdueAmount = 0;
+      let dueThisWeek = 0;
+      let dueThisMonth = 0;
+      let overdueCount = 0;
+
+      for (const s of outstanding) {
+        const bal = s.balanceDue ?? 0;
+        totalReceivables += bal;
+        const due = s.dueDate || "";
+        if (due && due < today) {
+          overdueAmount += bal;
+          overdueCount++;
+        } else if (due && due <= weekFromNow) {
+          dueThisWeek += bal;
+        } else if (due && due <= monthFromNow) {
+          dueThisMonth += bal;
+        }
+      }
+
+      return {
+        totalReceivables: Math.round(totalReceivables * 100) / 100,
+        overdueAmount: Math.round(overdueAmount * 100) / 100,
+        overdueCount,
+        dueThisWeek: Math.round(dueThisWeek * 100) / 100,
+        dueThisMonth: Math.round(dueThisMonth * 100) / 100,
+        paymentsToday: Math.round(paymentsToday * 100) / 100,
+      };
+    })
+  );
+
+  ipcMain.handle(
+    "receivables:getByFarm",
+    wrapHandler(async (_e: unknown, farmId: number, filter?: string) => {
+      requireFarmAccess(farmId);
+      const today = new Date().toISOString().split("T")[0];
+      const weekFromNow = new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0];
+
+      const rows = db.select({
+        id: schema.sales.id,
+        invoiceNumber: schema.sales.invoiceNumber,
+        saleDate: schema.sales.saleDate,
+        dueDate: schema.sales.dueDate,
+        totalAmount: schema.sales.totalAmount,
+        paidAmount: schema.sales.paidAmount,
+        balanceDue: schema.sales.balanceDue,
+        paymentStatus: schema.sales.paymentStatus,
+        customerId: schema.sales.customerId,
+        customerName: schema.customers.name,
+        customerPhone: schema.customers.phone,
+        customerBusinessName: schema.customers.businessName,
+      })
+        .from(schema.sales)
+        .innerJoin(schema.customers, eq(schema.sales.customerId, schema.customers.id))
+        .where(and(
+          eq(schema.sales.farmId, farmId),
+          eq(schema.sales.isDeleted, 0),
+          sql`${schema.sales.paymentStatus} != 'paid'`
+        ))
+        .orderBy(schema.sales.dueDate, desc(schema.sales.id))
+        .all();
+
+      const enriched = rows.map(r => {
+        const due = r.dueDate || "";
+        const isOverdue = due !== "" && due < today && (r.balanceDue ?? 0) > 0;
+        const daysOverdue = isOverdue
+          ? Math.floor((new Date(today).getTime() - new Date(due).getTime()) / 86400000)
+          : 0;
+        const isDueSoon = !isOverdue && due !== "" && due <= weekFromNow;
+        return { ...r, isOverdue, daysOverdue, isDueSoon };
+      });
+
+      if (filter === "overdue") return enriched.filter(r => r.isOverdue);
+      if (filter === "due_soon") return enriched.filter(r => r.isDueSoon);
+      return enriched;
+    })
+  );
+
+  ipcMain.handle(
+    "receivables:getByCustomer",
+    wrapHandler(async (_e: unknown, customerId: number) => {
+      requireAuth();
+      const customer = db.select().from(schema.customers)
+        .where(eq(schema.customers.id, customerId)).get();
+      if (!customer) throw new Error("Customer not found");
+      requireFarmAccess(customer.farmId);
+
+      const today = new Date().toISOString().split("T")[0];
+      const weekFromNow = new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0];
+
+      return db.select({
+        id: schema.sales.id,
+        invoiceNumber: schema.sales.invoiceNumber,
+        saleDate: schema.sales.saleDate,
+        dueDate: schema.sales.dueDate,
+        totalAmount: schema.sales.totalAmount,
+        paidAmount: schema.sales.paidAmount,
+        balanceDue: schema.sales.balanceDue,
+        paymentStatus: schema.sales.paymentStatus,
+        customerId: schema.sales.customerId,
+        customerName: schema.customers.name,
+        customerPhone: schema.customers.phone,
+        customerBusinessName: schema.customers.businessName,
+      })
+        .from(schema.sales)
+        .innerJoin(schema.customers, eq(schema.sales.customerId, schema.customers.id))
+        .where(and(
+          eq(schema.sales.customerId, customerId),
+          eq(schema.sales.isDeleted, 0),
+          sql`${schema.sales.paymentStatus} != 'paid'`
+        ))
+        .orderBy(schema.sales.dueDate)
+        .all()
+        .map(r => {
+          const due = r.dueDate || "";
+          const isOverdue = due !== "" && due < today && (r.balanceDue ?? 0) > 0;
+          const daysOverdue = isOverdue
+            ? Math.floor((new Date(today).getTime() - new Date(due).getTime()) / 86400000)
+            : 0;
+          const isDueSoon = !isOverdue && due !== "" && due <= weekFromNow;
+          return { ...r, isOverdue, daysOverdue, isDueSoon };
+        });
+    })
+  );
 }

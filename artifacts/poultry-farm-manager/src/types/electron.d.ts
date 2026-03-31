@@ -863,6 +863,66 @@ export interface RecordPaymentData {
   notes?: string;
 }
 
+export interface PaymentWithDetails {
+  id: number;
+  saleId: number;
+  amount: number;
+  paymentDate: string;
+  paymentMethod: string | null;
+  notes: string | null;
+  createdAt: string | null;
+  invoiceNumber: string;
+  customerId: number;
+  customerName: string;
+  customerBusinessName: string | null;
+}
+
+export interface CustomerPayment {
+  id: number;
+  saleId: number;
+  amount: number;
+  paymentDate: string;
+  paymentMethod: string | null;
+  notes: string | null;
+  createdAt: string | null;
+  invoiceNumber: string;
+}
+
+export interface PaymentFilters {
+  startDate?: string;
+  endDate?: string;
+  customerId?: number;
+  paymentMethod?: string;
+  search?: string;
+}
+
+export interface PaymentsSummary {
+  totalReceivables: number;
+  overdueAmount: number;
+  overdueCount: number;
+  dueThisWeek: number;
+  dueThisMonth: number;
+  paymentsToday: number;
+}
+
+export interface ReceivableItem {
+  id: number;
+  invoiceNumber: string;
+  saleDate: string;
+  dueDate: string | null;
+  totalAmount: number;
+  paidAmount: number;
+  balanceDue: number;
+  paymentStatus: string;
+  customerId: number;
+  customerName: string;
+  customerPhone: string | null;
+  customerBusinessName: string | null;
+  isOverdue: boolean;
+  daysOverdue: number;
+  isDueSoon: boolean;
+}
+
 export interface VaccinationScheduleData {
   vaccineName: string;
   ageDays: number;
@@ -1072,6 +1132,16 @@ export interface ElectronAPI {
     getNextInvoiceNumber: (farmId: number) => Promise<IpcResponse<string>>;
     getSummary: (farmId: number, startDate: string, endDate: string) => Promise<IpcResponse<SalesSummary>>;
     recordPayment: (data: RecordPaymentData) => Promise<IpcResponse<SalePayment>>;
+  };
+  payments: {
+    getByFarm: (farmId: number, filters?: PaymentFilters) => Promise<IpcResponse<PaymentWithDetails[]>>;
+    getByCustomer: (customerId: number) => Promise<IpcResponse<CustomerPayment[]>>;
+    delete: (paymentId: number) => Promise<IpcResponse>;
+    getSummary: (farmId: number) => Promise<IpcResponse<PaymentsSummary>>;
+  };
+  receivables: {
+    getByFarm: (farmId: number, filter?: string) => Promise<IpcResponse<ReceivableItem[]>>;
+    getByCustomer: (customerId: number) => Promise<IpcResponse<ReceivableItem[]>>;
   };
 }
 

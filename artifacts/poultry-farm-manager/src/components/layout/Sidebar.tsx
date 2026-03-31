@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAlerts } from "@/hooks/useAlerts";
 import { useVaccinations } from "@/hooks/useVaccinations";
+import { payments as paymentsApi, isElectron } from "@/lib/api";
 import {
   LayoutDashboard,
   Building2,
@@ -49,6 +50,8 @@ const farmNavItems: NavItem[] = [
   { label: "Vaccinations", path: "/farm/vaccinations", icon: <Syringe className="h-5 w-5" />, badgeKey: "vaccinations" },
   { label: "Customers", path: "/farm/customers", icon: <Users className="h-5 w-5" /> },
   { label: "Sales", path: "/farm/sales", icon: <ShoppingCart className="h-5 w-5" /> },
+  { label: "Payments", path: "/farm/payments", icon: <DollarSign className="h-5 w-5" /> },
+  { label: "Receivables", path: "/farm/receivables", icon: <TrendingUp className="h-5 w-5" />, badgeKey: "receivables" },
   { label: "Expenses", path: "/farm/expenses", icon: <Receipt className="h-5 w-5" /> },
   { label: "Revenue", path: "/farm/revenue", icon: <TrendingUp className="h-5 w-5" /> },
   { label: "Finances", path: "/farm/finances", icon: <DollarSign className="h-5 w-5" /> },
@@ -71,6 +74,13 @@ export default function Sidebar({ collapsed, onToggle, onNavigate }: SidebarProp
   const navigate = useNavigate();
   const { lowStock, activeCount, criticalCount } = useAlerts();
   const { overdue } = useVaccinations();
+  const [overdueReceivablesCount, setOverdueReceivablesCount] = useState(0);
+
+  const farmId = user?.farmId ?? null;
+  useEffect(() => {
+    if (!isElectron() || !farmId || user?.type === "owner") return;
+    paymentsApi.getSummary(farmId).then(s => setOverdueReceivablesCount(s.overdueCount)).catch(() => {});
+  }, [farmId, user?.type, location.pathname]);
 
   const navItems = user?.type === "owner" ? ownerNavItems : farmNavItems;
 
@@ -87,6 +97,9 @@ export default function Sidebar({ collapsed, onToggle, onNavigate }: SidebarProp
     }
     if (item.badgeKey === "vaccinations" && overdueVaccCount > 0) {
       return <AlertBadge count={overdueVaccCount} hasCritical />;
+    }
+    if (item.badgeKey === "receivables" && overdueReceivablesCount > 0) {
+      return <AlertBadge count={overdueReceivablesCount} hasCritical />;
     }
     return null;
   }

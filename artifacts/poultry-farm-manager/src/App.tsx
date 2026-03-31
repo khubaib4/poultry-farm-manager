@@ -53,6 +53,8 @@ const SalesPage = lazy(() => import("@/pages/farm/SalesPage"));
 const NewSalePage = lazy(() => import("@/pages/farm/NewSalePage"));
 const SaleDetailPage = lazy(() => import("@/pages/farm/SaleDetailPage"));
 const EditSalePage = lazy(() => import("@/pages/farm/EditSalePage"));
+const PaymentsPage = lazy(() => import("@/pages/farm/PaymentsPage"));
+const ReceivablesPage = lazy(() => import("@/pages/farm/ReceivablesPage"));
 const PlaceholderPage = lazy(() => import("@/pages/PlaceholderPage"));
 
 function PageLoader(): React.ReactElement {
@@ -125,6 +127,8 @@ export default function App(): React.ReactElement {
                 <Route path="/farm/sales/new" element={<FarmLayout><NewSalePage /></FarmLayout>} />
                 <Route path="/farm/sales/:id" element={<FarmLayout><SaleDetailPage /></FarmLayout>} />
                 <Route path="/farm/sales/:id/edit" element={<FarmLayout><EditSalePage /></FarmLayout>} />
+                <Route path="/farm/payments" element={<FarmLayout><PaymentsPage /></FarmLayout>} />
+                <Route path="/farm/receivables" element={<FarmLayout><ReceivablesPage /></FarmLayout>} />
                 <Route path="/farm/expenses" element={<FarmLayout><ExpensesPage /></FarmLayout>} />
                 <Route path="/farm/expenses/new" element={<FarmLayout><AddExpensePage /></FarmLayout>} />
                 <Route path="/farm/expenses/:expenseId/edit" element={<FarmLayout><EditExpensePage /></FarmLayout>} />

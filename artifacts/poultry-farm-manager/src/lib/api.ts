@@ -66,6 +66,11 @@ import type {
   SalesSummary,
   SalePayment,
   RecordPaymentData,
+  PaymentWithDetails,
+  CustomerPayment,
+  PaymentFilters,
+  PaymentsSummary,
+  ReceivableItem,
 } from "@/types/electron";
 
 function getApi() {
@@ -510,6 +515,28 @@ export const sales = {
 
   recordPayment: (data: RecordPaymentData) =>
     invoke<SalePayment>(() => getApi()!.sales.recordPayment(data)),
+};
+
+export const payments = {
+  getByFarm: (farmId: number, filters?: PaymentFilters) =>
+    invoke<PaymentWithDetails[]>(() => getApi()!.payments.getByFarm(farmId, filters)),
+
+  getByCustomer: (customerId: number) =>
+    invoke<CustomerPayment[]>(() => getApi()!.payments.getByCustomer(customerId)),
+
+  delete: (paymentId: number) =>
+    invoke(() => getApi()!.payments.delete(paymentId)),
+
+  getSummary: (farmId: number) =>
+    invoke<PaymentsSummary>(() => getApi()!.payments.getSummary(farmId)),
+};
+
+export const receivables = {
+  getByFarm: (farmId: number, filter?: string) =>
+    invoke<ReceivableItem[]>(() => getApi()!.receivables.getByFarm(farmId, filter)),
+
+  getByCustomer: (customerId: number) =>
+    invoke<ReceivableItem[]>(() => getApi()!.receivables.getByCustomer(customerId)),
 };
 
 export const isElectron = (): boolean => {

@@ -1,9 +1,11 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { isElectron } from "@/lib/api";
+import { isElectron, payments as paymentsApi } from "@/lib/api";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { getPerformanceStatus, calculateTrend, THRESHOLDS } from "@/lib/calculations";
-import { Bird, Egg, Skull, Wheat, RefreshCw } from "lucide-react";
+import { formatCurrency } from "@/lib/utils";
+import { Bird, Egg, Skull, Wheat, RefreshCw, TrendingUp } from "lucide-react";
 import { SkeletonDashboard } from "@/components/ui/Skeleton";
 import EmptyState from "@/components/ui/EmptyState";
 import StatCard from "@/components/dashboard/StatCard";
@@ -11,10 +13,20 @@ import PerformanceCard from "@/components/dashboard/PerformanceCard";
 import EntryStatusWidget from "@/components/dashboard/EntryStatusWidget";
 import FlockMiniCard from "@/components/dashboard/FlockMiniCard";
 import AlertsPanel from "@/components/dashboard/AlertsPanel";
+import OverdueAlert from "@/components/payments/OverdueAlert";
+import type { PaymentsSummary } from "@/types/electron";
 
 export default function FarmDashboard(): React.ReactElement {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { stats, trends, alerts, isLoading, lastUpdated, refetch } = useDashboardData();
+  const [paymentsSummary, setPaymentsSummary] = useState<PaymentsSummary | null>(null);
+  const farmId = user?.farmId ?? null;
+
+  useEffect(() => {
+    if (!isElectron() || !farmId) return;
+    paymentsApi.getSummary(farmId).then(setPaymentsSummary).catch(() => {});
+  }, [farmId]);
 
   if (!isElectron()) {
     return (
@@ -95,6 +107,30 @@ export default function FarmDashboard(): React.ReactElement {
               iconColor="text-amber-600 bg-amber-50"
             />
           </div>
+
+          {paymentsSummary && paymentsSummary.overdueCount > 0 && (
+            <OverdueAlert count={paymentsSummary.overdueCount} totalAmount={paymentsSummary.overdueAmount} />
+          )}
+
+          {paymentsSummary && paymentsSummary.totalReceivables > 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
+                  <TrendingUp className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Total Receivables</p>
+                  <p className="text-lg font-bold text-blue-600">{formatCurrency(paymentsSummary.totalReceivables)}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => navigate("/farm/receivables")}
+                className="px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+              >
+                View All
+              </button>
+            </div>
+          )}
 
           {trends && (trends.productionRate > 0 || trends.dailyMortalityRate > 0 || trends.fcr > 0) && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
