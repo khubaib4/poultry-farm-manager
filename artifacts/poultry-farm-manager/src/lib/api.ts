@@ -54,6 +54,10 @@ import type {
   FarmProfile,
   SystemInfo,
   DataExportOptions,
+  CustomerData,
+  Customer,
+  CustomerFilters,
+  CustomerWithStats,
 } from "@/types/electron";
 
 function getApi() {
@@ -451,6 +455,25 @@ export const data = {
 
   deleteOwnerAccount: (ownerId: number, password: string) =>
     invoke(() => getApi()!.data.deleteOwnerAccount(ownerId, password)),
+};
+
+export const customers = {
+  create: (data: CustomerData) =>
+    invoke<Customer>(() => getApi()!.customers.create(data)),
+
+  getByFarm: (farmId: number, filters?: CustomerFilters) =>
+    invoke<Customer[]>(() => getApi()!.customers.getByFarm(farmId, filters)),
+
+  getById: (id: number) =>
+    invoke<CustomerWithStats>(() => getApi()!.customers.getById(id)),
+
+  update: (id: number, data: Partial<CustomerData>) =>
+    invoke<Customer>(() => getApi()!.customers.update(id, data)),
+
+  delete: (id: number) => invoke(() => getApi()!.customers.delete(id)),
+
+  search: (farmId: number, query: string) =>
+    invoke<Customer[]>(() => getApi()!.customers.search(farmId, query)),
 };
 
 export const isElectron = (): boolean => {

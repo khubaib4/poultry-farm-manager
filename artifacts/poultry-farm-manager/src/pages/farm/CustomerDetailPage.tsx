@@ -1,0 +1,234 @@
+import React, { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { isElectron, customers as customersApi } from "@/lib/api";
+import { formatCurrency } from "@/lib/utils";
+import { useToast } from "@/components/ui/Toast";
+import {
+  Users, Edit, Phone, MapPin, Building2, CreditCard, Clock,
+  DollarSign, ShoppingCart, CalendarDays,
+} from "lucide-react";
+import PageHeader from "@/components/ui/PageHeader";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import CategoryBadge from "@/components/customers/CategoryBadge";
+import type { CustomerWithStats } from "@/types/electron";
+
+function getPaymentTermsLabel(days: number | null): string {
+  if (days === null || days === 0) return "Cash on Delivery";
+  return `${days} Days Credit`;
+}
+
+export default function CustomerDetailPage(): React.ReactElement {
+  const { customerId } = useParams<{ customerId: string }>();
+  const navigate = useNavigate();
+  const { showToast } = useToast();
+  const id = Number(customerId);
+
+  const [customer, setCustomer] = useState<CustomerWithStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isElectron() || !id) return;
+    (async () => {
+      try {
+        const data = await customersApi.getById(id);
+        setCustomer(data);
+      } catch (err) {
+        showToast("Failed to load customer details", "error");
+        navigate("/farm/customers");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [id]);
+
+  if (!isElectron()) {
+    return <div className="p-6 text-center text-gray-500">This feature is only available in the desktop app.</div>;
+  }
+
+  if (loading) return <LoadingSpinner size="lg" text="Loading customer..." />;
+
+  if (!customer) return <div className="p-6 text-center text-gray-500">Customer not found.</div>;
+
+  return (
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto">
+      <PageHeader
+        title={customer.name}
+        backTo="/farm/customers"
+        icon={<Users className="h-6 w-6" />}
+        actions={
+          <button
+            onClick={() => navigate(`/farm/customers/${id}/edit`)}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors"
+          >
+            <Edit className="h-4 w-4" />
+            Edit
+          </button>
+        }
+      />
+
+      <div className="flex items-center gap-3 mb-6">
+        <CategoryBadge category={customer.category} size="md" />
+        {customer.isActive === 0 && (
+          <span className="inline-flex items-center px-2.5 py-1 text-sm font-medium rounded-full bg-red-100 text-red-700">
+            Inactive
+          </span>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <h3 className="text-sm font-semibold text-gray-900 mb-4">Contact Information</h3>
+          <div className="space-y-3">
+            {customer.phone && (
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+                  <Phone className="h-4 w-4 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Phone</p>
+                  <p className="text-sm font-medium text-gray-900">{customer.phone}</p>
+                </div>
+              </div>
+            )}
+            {customer.businessName && (
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center">
+                  <Building2 className="h-4 w-4 text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Business</p>
+                  <p className="text-sm font-medium text-gray-900">{customer.businessName}</p>
+                </div>
+              </div>
+            )}
+            {customer.address && (
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center">
+                  <MapPin className="h-4 w-4 text-orange-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Address</p>
+                  <p className="text-sm font-medium text-gray-900">{customer.address}</p>
+                </div>
+              </div>
+            )}
+            {!customer.phone && !customer.businessName && !customer.address && (
+              <p className="text-sm text-gray-400">No contact details provided.</p>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <h3 className="text-sm font-semibold text-gray-900 mb-4">Payment & Pricing</h3>
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
+                <CreditCard className="h-4 w-4 text-emerald-600" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Payment Terms</p>
+                <p className="text-sm font-medium text-gray-900">
+                  {getPaymentTermsLabel(customer.paymentTermsDays)}
+                </p>
+              </div>
+            </div>
+            {customer.defaultPricePerEgg != null && (
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-yellow-50 flex items-center justify-center">
+                  <DollarSign className="h-4 w-4 text-yellow-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Price per Egg</p>
+                  <p className="text-sm font-medium text-gray-900">
+                    {formatCurrency(customer.defaultPricePerEgg)}
+                  </p>
+                </div>
+              </div>
+            )}
+            {customer.defaultPricePerTray != null && (
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-yellow-50 flex items-center justify-center">
+                  <DollarSign className="h-4 w-4 text-yellow-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Price per Tray</p>
+                  <p className="text-sm font-medium text-gray-900">
+                    {formatCurrency(customer.defaultPricePerTray)}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <ShoppingCart className="h-4 w-4 text-blue-500" />
+            <p className="text-xs font-medium text-gray-500">Total Purchases</p>
+          </div>
+          <p className="text-xl font-bold text-gray-900">{formatCurrency(customer.stats.totalPurchases)}</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <DollarSign className="h-4 w-4 text-emerald-500" />
+            <p className="text-xs font-medium text-gray-500">Total Paid</p>
+          </div>
+          <p className="text-xl font-bold text-emerald-600">{formatCurrency(customer.stats.totalPaid)}</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Clock className="h-4 w-4 text-red-500" />
+            <p className="text-xs font-medium text-gray-500">Balance Due</p>
+          </div>
+          <p className={`text-xl font-bold ${customer.stats.balanceDue > 0 ? "text-red-600" : "text-gray-900"}`}>
+            {formatCurrency(customer.stats.balanceDue)}
+          </p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <CalendarDays className="h-4 w-4 text-gray-500" />
+            <p className="text-xs font-medium text-gray-500">Last Purchase</p>
+          </div>
+          <p className="text-sm font-bold text-gray-900">
+            {customer.stats.lastPurchaseDate || "No purchases yet"}
+          </p>
+        </div>
+      </div>
+
+      {customer.notes && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
+          <h3 className="text-sm font-semibold text-gray-900 mb-2">Notes</h3>
+          <p className="text-sm text-gray-600 whitespace-pre-wrap">{customer.notes}</p>
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <h3 className="text-sm font-semibold text-gray-900 mb-2">Customer Details</h3>
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <p className="text-gray-500">Customer ID</p>
+            <p className="font-medium text-gray-900">#{customer.id}</p>
+          </div>
+          <div>
+            <p className="text-gray-500">Added On</p>
+            <p className="font-medium text-gray-900">
+              {customer.createdAt ? new Date(customer.createdAt).toLocaleDateString() : "—"}
+            </p>
+          </div>
+          <div>
+            <p className="text-gray-500">Last Updated</p>
+            <p className="font-medium text-gray-900">
+              {customer.updatedAt ? new Date(customer.updatedAt).toLocaleDateString() : "—"}
+            </p>
+          </div>
+          <div>
+            <p className="text-gray-500">Total Orders</p>
+            <p className="font-medium text-gray-900">{customer.stats.totalOrders}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

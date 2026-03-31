@@ -717,6 +717,55 @@ export interface DataExportOptions {
   includeVaccinations?: boolean;
 }
 
+export interface CustomerData {
+  farmId: number;
+  name: string;
+  phone?: string;
+  address?: string;
+  businessName?: string;
+  category: string;
+  paymentTermsDays?: number;
+  defaultPricePerEgg?: number | null;
+  defaultPricePerTray?: number | null;
+  notes?: string;
+  isActive?: number;
+}
+
+export interface Customer {
+  id: number;
+  farmId: number;
+  name: string;
+  phone: string | null;
+  address: string | null;
+  businessName: string | null;
+  category: string;
+  paymentTermsDays: number | null;
+  defaultPricePerEgg: number | null;
+  defaultPricePerTray: number | null;
+  notes: string | null;
+  isActive: number | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface CustomerFilters {
+  search?: string;
+  category?: string;
+  status?: "active" | "inactive" | "all";
+}
+
+export interface CustomerStats {
+  totalPurchases: number;
+  totalPaid: number;
+  balanceDue: number;
+  lastPurchaseDate: string | null;
+  totalOrders: number;
+}
+
+export interface CustomerWithStats extends Customer {
+  stats: CustomerStats;
+}
+
 export interface VaccinationScheduleData {
   vaccineName: string;
   ageDays: number;
@@ -907,6 +956,14 @@ export interface ElectronAPI {
     delete: (id: number) => Promise<IpcResponse>;
     resetToDefaults: () => Promise<IpcResponse>;
     generateForFlock: (flockId: number) => Promise<IpcResponse>;
+  };
+  customers: {
+    create: (data: CustomerData) => Promise<IpcResponse<Customer>>;
+    getByFarm: (farmId: number, filters?: CustomerFilters) => Promise<IpcResponse<Customer[]>>;
+    getById: (id: number) => Promise<IpcResponse<CustomerWithStats>>;
+    update: (id: number, data: Partial<CustomerData>) => Promise<IpcResponse<Customer>>;
+    delete: (id: number) => Promise<IpcResponse>;
+    search: (farmId: number, query: string) => Promise<IpcResponse<Customer[]>>;
   };
 }
 

@@ -1,0 +1,230 @@
+OBJECTIVE: Build customer management system for tracking buyers
+
+REQUIREMENTS:
+- Add, edit, delete customers
+- Customer categories (Retailer, Wholesaler, Restaurant, Individual, Other)
+- Store contact details, payment terms
+- View customer list with search and filter
+- Customer detail page with stats
+
+FILES TO CREATE/MODIFY:
+
+1. drizzle/schema.ts (add new tables)
+   
+   ADD customers table:
+```typescript
+   export const customers = sqliteTable('customers', {
+     id: integer('id').primaryKey({ autoIncrement: true }),
+     farmId: integer('farm_id').notNull().references(() => farms.id),
+     name: text('name').notNull(),
+     phone: text('phone'),
+     address: text('address'),
+     businessName: text('business_name'),
+     category: text('category').notNull().default('individual'), // retailer, wholesaler, restaurant, individual, other
+     paymentTermsDays: integer('payment_terms_days').default(0), // 0 = cash, 7 = 7 days credit, etc.
+     defaultPricePerEgg: real('default_price_per_egg'),
+     defaultPricePerTray: real('default_price_per_tray'),
+     notes: text('notes'),
+     isActive: integer('is_active').default(1),
+     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+     updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+   });
+```
+
+   ADD sales table:
+```typescript
+   export const sales = sqliteTable('sales', {
+     id: integer('id').primaryKey({ autoIncrement: true }),
+     farmId: integer('farm_id').notNull().references(() => farms.id),
+     customerId: integer('customer_id').notNull().references(() => customers.id),
+     invoiceNumber: text('invoice_number').notNull().unique(),
+     saleDate: text('sale_date').notNull(),
+     eggsQty: integer('eggs_qty').default(0),
+     eggPrice: real('egg_price'),
+     traysQty: integer('trays_qty').default(0),
+     trayPrice: real('tray_price'),
+     subtotal: real('subtotal').notNull(),
+     discountPercent: real('discount_percent').default(0),
+     discountAmount: real('discount_amount').default(0),
+     totalAmount: real('total_amount').notNull(),
+     paidAmount: real('paid_amount').default(0),
+     balanceDue: real('balance_due').notNull(),
+     paymentStatus: text('payment_status').default('unpaid'), // paid, partial, unpaid
+     dueDate: text('due_date'),
+     notes: text('notes'),
+     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+   });
+```
+
+   ADD payments table:
+```typescript
+   export const payments = sqliteTable('payments', {
+     id: integer('id').primaryKey({ autoIncrement: true }),
+     saleId: integer('sale_id').notNull().references(() => sales.id),
+     paymentDate: text('payment_date').notNull(),
+     amount: real('amount').notNull(),
+     paymentMethod: text('payment_method').notNull(), // cash, credit, bank_transfer, partial
+     referenceNumber: text('reference_number'),
+     notes: text('notes'),
+     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+   });
+```
+
+2. src/pages/farm/CustomersPage.tsx
+   - Route: /farm/customers
+   - Header: "Customers" with "Add Customer" button
+   
+   - Filter bar:
+     * Search by name, phone, business name
+     * Category filter dropdown
+     * Status filter (Active/Inactive/All)
+   
+   - Customer list/grid:
+     * Card or table view toggle
+     * Show: name, business name, phone, category badge
+     * Show: total purchases, balance due
+     * Quick actions: View, Edit, New Sale
+   
+   - Summary cards:
+     * Total customers
+     * Active customers
+     * Total receivables (money owed)
+
+3. src/pages/farm/AddCustomerPage.tsx
+   - Route: /farm/customers/new
+   - Form fields:
+     * Name (required)
+     * Phone (required)
+     * Business Name (optional)
+     * Address (optional, textarea)
+     * Category (required, dropdown):
+       - Retailer
+       - Wholesaler
+       - Restaurant/Hotel
+       - Individual
+       - Other
+     * Payment Terms (dropdown):
+       - Cash (0 days)
+       - 7 days credit
+       - 14 days credit
+       - 30 days credit
+       - Custom (number input)
+     * Default Price per Egg (optional)
+     * Default Price per Tray (optional)
+     * Notes (optional, textarea)
+   - Save and Cancel buttons
+
+4. src/pages/farm/EditCustomerPage.tsx
+   - Route: /farm/customers/:customerId/edit
+   - Same form as Add, pre-filled
+   - Additional: Deactivate customer option
+
+5. src/pages/farm/CustomerDetailPage.tsx
+   - Route: /farm/customers/:customerId
+   - Header: Customer name, category badge, status
+   
+   - Contact Info Card:
+     * Phone, address, business name
+     * Payment terms
+     * Default prices
+   
+   - Stats Cards:
+     * Total Purchases (all time)
+     * Total Paid
+     * Balance Due (outstanding)
+     * Last Purchase Date
+   
+   - Tabs:
+     * Sales History (list of all sales)
+     * Payment History (list of all payments)
+     * Invoices (list with download links)
+   
+   - Actions: Edit, New Sale, Record Payment
+
+6. src/components/customers/CustomerCard.tsx
+   - Card component for customer list
+   - Shows: name, business, phone, category
+   - Balance due badge (red if > 0)
+   - Click to view details
+
+7. src/components/customers/CustomerTable.tsx
+   - Table view for customers
+   - Sortable columns
+   - Pagination
+
+8. src/components/customers/CategoryBadge.tsx
+   - Colored badge for category
+   - Retailer: blue
+   - Wholesaler: purple
+   - Restaurant: orange
+   - Individual: green
+   - Other: gray
+
+9. src/components/customers/CustomerSelector.tsx
+   - Dropdown/combobox to select customer
+   - Search by name/phone
+   - Show recent customers first
+   - "Add New Customer" option at bottom
+   - Used in sales form
+
+10. electron/ipc-handlers.ts (add handlers)
+    - customers.create(data): create customer
+    - customers.getByFarm(farmId, filters): get all with filters
+    - customers.getById(customerId): get with stats
+    - customers.update(customerId, data): update customer
+    - customers.delete(customerId): soft delete (set inactive)
+    - customers.getStats(customerId): get purchase stats
+    - customers.search(farmId, query): search by name/phone
+
+11. src/lib/api.ts (add customer functions)
+    - createCustomer(data)
+    - getCustomers(farmId, filters)
+    - getCustomerById(id)
+    - updateCustomer(id, data)
+    - deleteCustomer(id)
+    - getCustomerStats(id)
+    - searchCustomers(farmId, query)
+
+12. src/hooks/useCustomers.ts
+    - Hook for customer list with filters
+    - Return: { customers, isLoading, filters, setFilters }
+
+13. src/App.tsx (add routes)
+    - /farm/customers - CustomersPage
+    - /farm/customers/new - AddCustomerPage
+    - /farm/customers/:customerId - CustomerDetailPage
+    - /farm/customers/:customerId/edit - EditCustomerPage
+
+14. Update sidebar navigation
+    - Add "Customers" menu item with users icon
+    - Place after Daily Entry or Expenses
+
+CUSTOMER CATEGORIES:
+- retailer: "Retailer" (blue badge)
+- wholesaler: "Wholesaler" (purple badge)
+- restaurant: "Restaurant/Hotel" (orange badge)
+- individual: "Individual" (green badge)
+- other: "Other" (gray badge)
+
+PAYMENT TERMS OPTIONS:
+- 0: "Cash on Delivery"
+- 7: "7 Days Credit"
+- 14: "14 Days Credit"
+- 30: "30 Days Credit"
+- custom: Allow manual entry
+
+VALIDATION RULES:
+- Name: required, 2-100 characters
+- Phone: required, valid phone format
+- Category: required
+- Payment terms: non-negative integer
+- Default prices: positive numbers if provided
+
+UI/UX REQUIREMENTS:
+- Search is fast and responsive
+- Category filter is visual (colored)
+- Balance due prominently displayed
+- Easy to add new customer from anywhere
+- Recent customers shown first
+
+OUTPUT: Complete customer management with add, edit, view, search. Customer cards show key info and balance due. Categories are color-coded.

@@ -3342,6 +3342,7 @@ export function registerIpcHandlers(): void {
         }
         db.delete(schema.flocks).where(eq(schema.flocks.farmId, farmId)).run();
       }
+      db.delete(schema.customers).where(eq(schema.customers.farmId, farmId)).run();
       db.delete(schema.expenses).where(eq(schema.expenses.farmId, farmId)).run();
       db.delete(schema.inventory).where(eq(schema.inventory.farmId, farmId)).run();
       db.delete(schema.eggPrices).where(eq(schema.eggPrices.farmId, farmId)).run();
@@ -3366,6 +3367,7 @@ export function registerIpcHandlers(): void {
           db.delete(schema.vaccinations).where(eq(schema.vaccinations.flockId, fid)).run();
         }
         db.delete(schema.flocks).where(eq(schema.flocks.farmId, farm.id)).run();
+        db.delete(schema.customers).where(eq(schema.customers.farmId, farm.id)).run();
         db.delete(schema.expenses).where(eq(schema.expenses.farmId, farm.id)).run();
         db.delete(schema.inventory).where(eq(schema.inventory.farmId, farm.id)).run();
         db.delete(schema.eggPrices).where(eq(schema.eggPrices.farmId, farm.id)).run();
@@ -3378,6 +3380,167 @@ export function registerIpcHandlers(): void {
       currentSession = null;
       store.set("session", null);
       return { success: true };
+    })
+  );
+
+  ipcMain.handle(
+    "customers:create",
+    wrapHandler(async (_e: unknown, data: {
+      farmId: number; name: string; phone?: string; address?: string;
+      businessName?: string; category: string; paymentTermsDays?: number;
+      defaultPricePerEgg?: number; defaultPricePerTray?: number; notes?: string;
+    }) => {
+      requireFarmAccess(data.farmId);
+      if (!data.name || data.name.trim().length < 2) throw new Error("Name is required (min 2 characters)");
+      if (!data.category) throw new Error("Category is required");
+
+      const result = db.insert(schema.customers).values({
+        farmId: data.farmId,
+        name: data.name.trim(),
+        phone: data.phone?.trim() || null,
+        address: data.address?.trim() || null,
+        businessName: data.businessName?.trim() || null,
+        category: data.category,
+        paymentTermsDays: data.paymentTermsDays ?? 0,
+        defaultPricePerEgg: data.defaultPricePerEgg !== undefined && data.defaultPricePerEgg !== null ? data.defaultPricePerEgg : null,
+        defaultPricePerTray: data.defaultPricePerTray !== undefined && data.defaultPricePerTray !== null ? data.defaultPricePerTray : null,
+        notes: data.notes?.trim() || null,
+      }).run();
+
+      return db.select().from(schema.customers)
+        .where(eq(schema.customers.id, Number(result.lastInsertRowid))).get();
+    })
+  );
+
+  ipcMain.handle(
+    "customers:getByFarm",
+    wrapHandler(async (_e: unknown, farmId: number, filters?: {
+      search?: string; category?: string; status?: string;
+    }) => {
+      requireFarmAccess(farmId);
+      const conditions = [eq(schema.customers.farmId, farmId)];
+
+      if (filters?.category && filters.category !== "all") {
+        conditions.push(eq(schema.customers.category, filters.category));
+      }
+      if (filters?.status === "active") {
+        conditions.push(eq(schema.customers.isActive, 1));
+      } else if (filters?.status === "inactive") {
+        conditions.push(eq(schema.customers.isActive, 0));
+      }
+
+      let results = db.select().from(schema.customers)
+        .where(and(...conditions))
+        .orderBy(desc(schema.customers.createdAt))
+        .all();
+
+      if (filters?.search) {
+        const q = filters.search.toLowerCase();
+        results = results.filter(c =>
+          c.name.toLowerCase().includes(q) ||
+          (c.phone && c.phone.toLowerCase().includes(q)) ||
+          (c.businessName && c.businessName.toLowerCase().includes(q))
+        );
+      }
+
+      return results;
+    })
+  );
+
+  ipcMain.handle(
+    "customers:getById",
+    wrapHandler(async (_e: unknown, customerId: number) => {
+      requireAuth();
+      const customer = db.select().from(schema.customers)
+        .where(eq(schema.customers.id, customerId)).get();
+      if (!customer) throw new Error("Customer not found");
+      requireFarmAccess(customer.farmId);
+
+      const stats = {
+        totalPurchases: 0,
+        totalPaid: 0,
+        balanceDue: 0,
+        lastPurchaseDate: null as string | null,
+        totalOrders: 0,
+      };
+
+      return { ...customer, stats };
+    })
+  );
+
+  ipcMain.handle(
+    "customers:update",
+    wrapHandler(async (_e: unknown, customerId: number, data: {
+      name?: string; phone?: string; address?: string; businessName?: string;
+      category?: string; paymentTermsDays?: number; defaultPricePerEgg?: number | null;
+      defaultPricePerTray?: number | null; notes?: string; isActive?: number;
+    }) => {
+      requireAuth();
+      const existing = db.select().from(schema.customers)
+        .where(eq(schema.customers.id, customerId)).get();
+      if (!existing) throw new Error("Customer not found");
+      requireFarmAccess(existing.farmId);
+
+      if (data.name !== undefined && data.name.trim().length < 2) {
+        throw new Error("Name must be at least 2 characters");
+      }
+
+      const updateData: Record<string, unknown> = { updatedAt: new Date().toISOString() };
+      if (data.name !== undefined) updateData.name = data.name.trim();
+      if (data.phone !== undefined) updateData.phone = data.phone.trim() || null;
+      if (data.address !== undefined) updateData.address = data.address.trim() || null;
+      if (data.businessName !== undefined) updateData.businessName = data.businessName.trim() || null;
+      if (data.category !== undefined) updateData.category = data.category;
+      if (data.paymentTermsDays !== undefined) updateData.paymentTermsDays = data.paymentTermsDays;
+      if (data.defaultPricePerEgg !== undefined) updateData.defaultPricePerEgg = data.defaultPricePerEgg !== null ? data.defaultPricePerEgg : null;
+      if (data.defaultPricePerTray !== undefined) updateData.defaultPricePerTray = data.defaultPricePerTray !== null ? data.defaultPricePerTray : null;
+      if (data.notes !== undefined) updateData.notes = data.notes.trim() || null;
+      if (data.isActive !== undefined) updateData.isActive = data.isActive;
+
+      db.update(schema.customers).set(updateData)
+        .where(eq(schema.customers.id, customerId)).run();
+
+      return db.select().from(schema.customers)
+        .where(eq(schema.customers.id, customerId)).get();
+    })
+  );
+
+  ipcMain.handle(
+    "customers:delete",
+    wrapHandler(async (_e: unknown, customerId: number) => {
+      requireAuth();
+      const existing = db.select().from(schema.customers)
+        .where(eq(schema.customers.id, customerId)).get();
+      if (!existing) throw new Error("Customer not found");
+      requireFarmAccess(existing.farmId);
+
+      db.update(schema.customers).set({ isActive: 0, updatedAt: new Date().toISOString() })
+        .where(eq(schema.customers.id, customerId)).run();
+
+      return { success: true };
+    })
+  );
+
+  ipcMain.handle(
+    "customers:search",
+    wrapHandler(async (_e: unknown, farmId: number, query: string) => {
+      requireFarmAccess(farmId);
+      const allCustomers = db.select().from(schema.customers)
+        .where(and(
+          eq(schema.customers.farmId, farmId),
+          eq(schema.customers.isActive, 1)
+        ))
+        .orderBy(desc(schema.customers.createdAt))
+        .all();
+
+      if (!query || !query.trim()) return allCustomers;
+
+      const q = query.toLowerCase().trim();
+      return allCustomers.filter(c =>
+        c.name.toLowerCase().includes(q) ||
+        (c.phone && c.phone.toLowerCase().includes(q)) ||
+        (c.businessName && c.businessName.toLowerCase().includes(q))
+      );
     })
   );
 }

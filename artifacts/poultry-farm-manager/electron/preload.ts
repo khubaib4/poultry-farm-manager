@@ -239,4 +239,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
     generateForFlock: (flockId: number) =>
       ipcRenderer.invoke("vaccinationSchedule:generateForFlock", flockId),
   },
+  customers: {
+    create: (data: unknown) => ipcRenderer.invoke("customers:create", data),
+    getByFarm: (farmId: number, filters?: unknown) =>
+      ipcRenderer.invoke("customers:getByFarm", farmId, filters),
+    getById: (id: number) => ipcRenderer.invoke("customers:getById", id),
+    update: (id: number, data: unknown) =>
+      ipcRenderer.invoke("customers:update", id, data),
+    delete: (id: number) => ipcRenderer.invoke("customers:delete", id),
+    search: (farmId: number, query: string) =>
+      ipcRenderer.invoke("customers:search", farmId, query),
+  },
 });

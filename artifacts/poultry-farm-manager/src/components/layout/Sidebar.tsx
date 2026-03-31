@@ -20,6 +20,7 @@ import {
   PanelLeftClose,
   PanelLeft,
   HardDrive,
+  Users,
 } from "lucide-react";
 import AlertBadge from "@/components/alerts/AlertBadge";
 
@@ -45,6 +46,7 @@ const farmNavItems: NavItem[] = [
   { label: "Flocks", path: "/farm/flocks", icon: <Bird className="h-5 w-5" /> },
   { label: "Inventory", path: "/farm/inventory", icon: <Package className="h-5 w-5" />, badgeKey: "inventory" },
   { label: "Vaccinations", path: "/farm/vaccinations", icon: <Syringe className="h-5 w-5" />, badgeKey: "vaccinations" },
+  { label: "Customers", path: "/farm/customers", icon: <Users className="h-5 w-5" /> },
   { label: "Expenses", path: "/farm/expenses", icon: <Receipt className="h-5 w-5" /> },
   { label: "Revenue", path: "/farm/revenue", icon: <TrendingUp className="h-5 w-5" /> },
   { label: "Finances", path: "/farm/finances", icon: <DollarSign className="h-5 w-5" /> },

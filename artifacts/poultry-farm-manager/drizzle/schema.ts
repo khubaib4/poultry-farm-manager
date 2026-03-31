@@ -143,6 +143,23 @@ export const vaccinations = sqliteTable("vaccinations", {
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const customers = sqliteTable("customers", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  farmId: integer("farm_id").notNull().references(() => farms.id),
+  name: text("name").notNull(),
+  phone: text("phone"),
+  address: text("address"),
+  businessName: text("business_name"),
+  category: text("category").notNull().default("individual"),
+  paymentTermsDays: integer("payment_terms_days").default(0),
+  defaultPricePerEgg: real("default_price_per_egg"),
+  defaultPricePerTray: real("default_price_per_tray"),
+  notes: text("notes"),
+  isActive: integer("is_active").default(1),
+  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const vaccinationSchedule = sqliteTable("vaccination_schedule", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   vaccineName: text("vaccine_name").notNull(),

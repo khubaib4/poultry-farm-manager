@@ -189,6 +189,25 @@ function createTablesManually(): void {
   `);
 
   sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS customers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      farm_id INTEGER NOT NULL REFERENCES farms(id),
+      name TEXT NOT NULL,
+      phone TEXT,
+      address TEXT,
+      business_name TEXT,
+      category TEXT NOT NULL DEFAULT 'individual',
+      payment_terms_days INTEGER DEFAULT 0,
+      default_price_per_egg REAL,
+      default_price_per_tray REAL,
+      notes TEXT,
+      is_active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  sqlite.exec(`
     CREATE TABLE IF NOT EXISTS dismissed_alerts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       farm_id INTEGER REFERENCES farms(id),
