@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { isElectron, customers as customersApi } from "@/lib/api";
@@ -34,6 +34,12 @@ export default function AddCustomerPage(): React.ReactElement {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (saved) {
+      navigate("/farm/customers", { replace: true });
+    }
+  }, [saved, navigate]);
 
   if (!isElectron()) {
     return <div className="p-6 text-center text-gray-500">This feature is only available in the desktop app.</div>;
@@ -74,9 +80,8 @@ export default function AddCustomerPage(): React.ReactElement {
         defaultPricePerTray: defaultPricePerTray !== "" ? Number(defaultPricePerTray) : undefined,
         notes: notes.trim() || undefined,
       });
-      setSaved(true);
       showToast("Customer added successfully", "success");
-      navigate("/farm/customers");
+      setSaved(true);
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Failed to add customer", "error");
       setSaving(false);
