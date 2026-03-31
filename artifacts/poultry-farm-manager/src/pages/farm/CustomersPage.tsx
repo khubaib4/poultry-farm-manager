@@ -41,16 +41,18 @@ export default function CustomersPage(): React.ReactElement {
 
   async function handleDeletePermanently() {
     if (!deleteTarget) return;
+    const customerName = deleteTarget.name;
     try {
       setIsDeleting(true);
       await customersApi.deletePermanently(deleteTarget.id);
-      showToast(`${deleteTarget.name} deleted permanently`, "success");
       setDeleteTarget(null);
-      await refresh();
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : "Failed to delete customer", "error");
-    } finally {
       setIsDeleting(false);
+      showToast(`${customerName} deleted permanently`, "success");
+      refresh();
+    } catch (err) {
+      setDeleteTarget(null);
+      setIsDeleting(false);
+      showToast(err instanceof Error ? err.message : "Failed to delete customer", "error");
     }
   }
 
