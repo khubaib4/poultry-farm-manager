@@ -1,0 +1,70 @@
+OBJECTIVE: Show vaccination route on upcoming vaccination cards
+
+PROBLEM:
+On the Vaccination Management page, the upcoming vaccination cards show:
+- Vaccine name ✓
+- Flock name ✓
+- Due date ✓
+- Flock age at dose ✓
+
+BUT missing:
+- Route (Eye drop, Drinking water, Injection, etc.)
+
+PLEASE FIX:
+
+1. UPDATE src/components/vaccinations/UpcomingVaccinationCard.tsx (or similar component):
+   
+   Add Route display to each card:
+```typescript
+   // Show route with icon
+   <span className="text-gray-500 text-sm">
+     Route: {formatRoute(vaccination.route)}
+   </span>
+```
+   
+   Or with an icon:
+```typescript
+   <div className="flex items-center gap-1 text-sm text-gray-500">
+     <Syringe className="h-3 w-3" /> {/* or appropriate icon */}
+     {formatRoute(vaccination.route)}
+   </div>
+```
+
+2. Add route formatting helper (if not exists):
+```typescript
+   const formatRoute = (route: string) => {
+     const routes: Record<string, string> = {
+       'eye_drop': 'Eye Drop',
+       'drinking_water': 'Drinking Water',
+       'injection': 'Injection',
+       'spray': 'Spray',
+       'wing_web': 'Wing Web',
+       'oral': 'Oral',
+     };
+     return routes[route] || route || 'Not specified';
+   };
+```
+
+3. Position the route info:
+   - Below the flock name, OR
+   - Next to "Flock age at dose", OR
+   - As a small badge/tag
+
+4. Make sure the route data is being fetched in the IPC handler:
+   - Check vaccinations.getUpcoming handler
+   - Ensure it includes the route field in the SELECT
+
+5. Example card layout:
+┌─────────────────────────────────────────────────────┐
+│ ⚠️ E. coli                      DUE NOW            │
+│    Batch-2026-001 · Lohmann Brown                  │
+│    Due: 4/2/2026 · Due today · Flock age: 3 days   │
+│    📍 Route: Drinking Water                        │ ← ADD THIS
+│                                   [Complete] [Skip]│
+└─────────────────────────────────────────────────────┘
+
+6. Also update VaccinationList.tsx if it's used elsewhere to show route.
+
+7. Commit and push.
+
+OUTPUT: Vaccination cards show the route (Eye Drop, Drinking Water, Injection, etc.) so users know how to administer the vaccine

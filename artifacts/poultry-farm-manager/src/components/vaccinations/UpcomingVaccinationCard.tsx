@@ -1,6 +1,19 @@
 import React from "react";
-import { CheckCircle2, SkipForward, Clock, AlertCircle, AlertTriangle, Calendar } from "lucide-react";
+import { CheckCircle2, SkipForward, Clock, AlertCircle, AlertTriangle, Calendar, Syringe } from "lucide-react";
 import type { UpcomingVaccination } from "@/types/electron";
+
+const formatRoute = (route: string | null | undefined): string => {
+  if (!route) return "";
+  const routes: Record<string, string> = {
+    eye_drop: "Eye Drop",
+    drinking_water: "Drinking Water",
+    injection: "Injection",
+    spray: "Spray",
+    wing_web: "Wing Web",
+    oral: "Oral",
+  };
+  return routes[route] || route;
+};
 
 interface UpcomingVaccinationCardProps {
   vaccination: UpcomingVaccination;
@@ -45,6 +58,12 @@ export default function UpcomingVaccinationCard({ vaccination, onComplete, onSki
                   : `In ${vaccination.daysUntilDue} day(s)`}
               </span>
               <span>Flock age at dose: {vaccination.vaccAgeDays} days</span>
+              {vaccination.route && (
+                <span className="inline-flex items-center gap-1">
+                  <Syringe className="h-3 w-3" />
+                  {formatRoute(vaccination.route)}
+                </span>
+              )}
             </div>
           </div>
         </div>
