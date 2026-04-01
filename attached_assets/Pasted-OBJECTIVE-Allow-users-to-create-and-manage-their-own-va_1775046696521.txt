@@ -1,0 +1,111 @@
+OBJECTIVE: Allow users to create and manage their own vaccine names list
+
+REQUIREMENTS:
+- User can add custom vaccine names (saved to database)
+- User can edit/delete their vaccines
+- Vaccine selector shows user's saved vaccines
+- Keep some default vaccines as starting point
+- Similar to how "Death Causes" works in Settings
+
+FILES TO CREATE/MODIFY:
+
+1. CREATE src/pages/farm/VaccineSettingsPage.tsx (or add to Settings):
+   - Route: /farm/settings/vaccines OR section in existing Settings page
+   - Header: "Manage Vaccines"
+   
+   - List of saved vaccine names
+   - "Add Vaccine" button
+   - Edit/Delete actions per vaccine
+   - "Reset to Defaults" button
+   
+   - Form fields for adding/editing:
+     * Vaccine Name (required)
+     * Default Route (optional dropdown)
+     * Notes/Description (optional)
+
+2. UPDATE drizzle/schema.ts - Add vaccines table:
+```typescript
+   export const vaccines = sqliteTable('vaccines', {
+     id: integer('id').primaryKey({ autoIncrement: true }),
+     farmId: integer('farm_id').notNull().references(() => farms.id),
+     name: text('name').notNull(),
+     defaultRoute: text('default_route'), // eye_drop, injection, etc.
+     notes: text('notes'),
+     isDefault: integer('is_default').default(0), // 1 for system defaults
+     isActive: integer('is_active').default(1),
+     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+   });
+```
+
+3. UPDATE electron/ipc-handlers.ts - Add vaccine management handlers:
+   
+   - vaccines.getByFarm(farmId):
+     * Get all active vaccines for farm
+     * Return sorted alphabetically
+   
+   - vaccines.create(farmId, data):
+     * Add new vaccine name
+     * Check for duplicates
+   
+   - vaccines.update(vaccineId, data):
+     * Update vaccine name/route/notes
+   
+   - vaccines.delete(vaccineId):
+     * Soft delete (set isActive = 0)
+     * Or hard delete if not used in any vaccination records
+   
+   - vaccines.resetToDefaults(farmId):
+     * Delete all custom vaccines
+     * Insert default vaccines list
+
+4. UPDATE electron/database.ts (or initialization):
+   - On first farm creation OR when vaccines table is empty for a farm:
+   - Insert default vaccines:
+```typescript
+     const defaultVaccines = [
+       { name: 'Newcastle Disease', defaultRoute: 'eye_drop' },
+       { name: 'Infectious Bronchitis (IB)', defaultRoute: 'eye_drop' },
+       { name: 'Newcastle + IB', defaultRoute: 'drinking_water' },
+       { name: 'Gumboro (IBD)', defaultRoute: 'drinking_water' },
+       { name: 'Marek\'s Disease', defaultRoute: 'injection' },
+       { name: 'Fowl Pox', defaultRoute: 'wing_web' },
+       { name: 'Infectious Coryza', defaultRoute: 'injection' },
+       { name: 'Avian Influenza', defaultRoute: 'injection' },
+       { name: 'Salmonella', defaultRoute: 'injection' },
+       { name: 'E. coli', defaultRoute: 'injection' },
+       { name: 'Mycoplasma', defaultRoute: 'injection' },
+       { name: 'Egg Drop Syndrome (EDS)', defaultRoute: 'injection' },
+       { name: 'Laryngotracheitis (ILT)', defaultRoute: 'eye_drop' },
+     ];
+```
+
+5. UPDATE src/components/vaccinations/VaccineSelector.tsx:
+   - Fetch vaccines from database instead of hardcoded list
+   - Show user's saved vaccines in dropdown
+   - Still allow typing custom name (for one-time use)
+   - "Manage Vaccines" link at bottom of dropdown
+
+6. UPDATE src/lib/api.ts:
+   - getVaccines(farmId)
+   - createVaccine(farmId, data)
+   - updateVaccine(vaccineId, data)
+   - deleteVaccine(vaccineId)
+   - resetVaccinesToDefaults(farmId)
+
+7. ADD navigation to vaccine settings:
+   - Link in Settings page under "Farm Settings" section
+   - OR link from Vaccination page header
+   - OR "Manage Vaccines" link in VaccineSelector dropdown
+
+8. UPDATE preload.ts:
+   - Add vaccines IPC bindings
+
+UI/UX FLOW:
+1. User goes to Settings > Vaccines (or Vaccinations > Manage Vaccines)
+2. Sees list of vaccine names
+3. Can add new: "Vitamin B12", "Deworming", etc.
+4. Can edit/delete existing
+5. When adding vaccination, dropdown shows their saved vaccines
+6. Can still type custom name for one-time use
+
+OUTPUT: Users can manage their own list of vaccine names. Vaccine selector shows saved vaccines from database. Default vaccines provided as starting point.

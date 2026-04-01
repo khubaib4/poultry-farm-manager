@@ -160,7 +160,13 @@ export default function FarmSettings(): React.ReactElement {
             <div className="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-emerald-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600" />
           </label>
         </SettingRow>
-        <div className="px-6 py-3">
+        <div className="px-6 py-3 space-y-2">
+          <button
+            onClick={() => navigate("/farm/settings/vaccines")}
+            className="text-sm text-emerald-600 hover:text-emerald-700 flex items-center gap-1.5"
+          >
+            <Syringe className="h-4 w-4" /> Manage Vaccine Names
+          </button>
           <button
             onClick={() => navigate("/farm/vaccinations/template")}
             className="text-sm text-emerald-600 hover:text-emerald-700 flex items-center gap-1.5"

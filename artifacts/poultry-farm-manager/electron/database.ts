@@ -187,6 +187,17 @@ function createTablesManually(): void {
       route TEXT,
       notes TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS vaccines (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      farm_id INTEGER NOT NULL REFERENCES farms(id),
+      name TEXT NOT NULL,
+      default_route TEXT,
+      notes TEXT,
+      is_default INTEGER DEFAULT 0,
+      is_active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
   `);
   console.log("Database initialized successfully (tables created manually)");
 

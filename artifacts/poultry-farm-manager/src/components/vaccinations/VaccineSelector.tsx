@@ -1,6 +1,11 @@
 import React, { useState, useRef, useEffect } from "react";
+import { vaccinesApi, isElectron } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
+import { Settings } from "lucide-react";
+import type { Vaccine } from "@/types/electron";
 
-const commonVaccines = [
+const fallbackVaccines = [
   "Newcastle Disease",
   "Infectious Bronchitis (IB)",
   "Newcastle + IB",
@@ -18,19 +23,32 @@ const commonVaccines = [
 
 interface VaccineSelectorProps {
   value: string;
-  onChange: (value: string) => void;
+  onChange: (value: string, defaultRoute?: string) => void;
   error?: boolean;
 }
 
 export default function VaccineSelector({ value, onChange, error }: VaccineSelectorProps): React.ReactElement {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState(value);
+  const [vaccineList, setVaccineList] = useState<Vaccine[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const farmId = user?.farmId ?? null;
 
   useEffect(() => {
     setSearch(value);
   }, [value]);
+
+  useEffect(() => {
+    if (!isElectron() || !farmId) { setLoaded(true); return; }
+    vaccinesApi.getByFarm(farmId)
+      .then((list) => setVaccineList(list))
+      .catch(() => {})
+      .finally(() => setLoaded(true));
+  }, [farmId]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -45,13 +63,18 @@ export default function VaccineSelector({ value, onChange, error }: VaccineSelec
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [search, onChange]);
 
-  const filtered = commonVaccines.filter(v =>
+  const names = loaded && vaccineList.length > 0
+    ? vaccineList.map(v => v.name)
+    : fallbackVaccines;
+
+  const filtered = names.filter(v =>
     v.toLowerCase().includes(search.toLowerCase())
   );
 
-  function handleSelect(vaccine: string) {
-    onChange(vaccine);
-    setSearch(vaccine);
+  function handleSelect(vaccineName: string) {
+    const match = vaccineList.find(v => v.name === vaccineName);
+    onChange(vaccineName, match?.defaultRoute || undefined);
+    setSearch(vaccineName);
     setIsOpen(false);
   }
 
@@ -74,7 +97,7 @@ export default function VaccineSelector({ value, onChange, error }: VaccineSelec
           error ? "border-red-300 bg-red-50" : "border-gray-300"
         }`}
       />
-      {isOpen && filtered.length > 0 && (
+      {isOpen && (filtered.length > 0 || search.trim()) && (
         <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
           {filtered.map(vaccine => (
             <button
@@ -88,6 +111,21 @@ export default function VaccineSelector({ value, onChange, error }: VaccineSelec
               {vaccine}
             </button>
           ))}
+          {filtered.length === 0 && search.trim() && (
+            <div className="px-3 py-2 text-sm text-gray-500 italic">
+              No match — press Tab or click away to use "{search.trim()}"
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(false);
+              navigate("/farm/settings/vaccines");
+            }}
+            className="w-full text-left px-3 py-2 text-sm text-emerald-600 hover:bg-emerald-50 border-t border-gray-100 flex items-center gap-1.5"
+          >
+            <Settings className="h-3.5 w-3.5" /> Manage Vaccines
+          </button>
         </div>
       )}
     </div>

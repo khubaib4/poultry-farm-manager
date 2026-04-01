@@ -129,7 +129,10 @@ export default function AddVaccinationPage(): React.ReactElement {
           </label>
           <VaccineSelector
             value={vaccineName}
-            onChange={setVaccineName}
+            onChange={(name, defaultRoute) => {
+              setVaccineName(name);
+              if (defaultRoute && !route) setRoute(defaultRoute);
+            }}
             error={!!errors.vaccineName}
           />
           {errors.vaccineName && <p className="text-xs text-red-600 mt-1">{errors.vaccineName}</p>}

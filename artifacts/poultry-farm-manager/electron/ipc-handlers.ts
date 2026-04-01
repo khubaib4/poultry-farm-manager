@@ -2129,6 +2129,150 @@ export function registerIpcHandlers(): void {
     })
   );
 
+  const defaultVaccinesList = [
+    { name: "Newcastle Disease", defaultRoute: "eye_drop" },
+    { name: "Infectious Bronchitis (IB)", defaultRoute: "eye_drop" },
+    { name: "Newcastle + IB", defaultRoute: "drinking_water" },
+    { name: "Gumboro (IBD)", defaultRoute: "drinking_water" },
+    { name: "Marek's Disease", defaultRoute: "injection" },
+    { name: "Fowl Pox", defaultRoute: "wing_web" },
+    { name: "Infectious Coryza", defaultRoute: "injection" },
+    { name: "Avian Influenza", defaultRoute: "injection" },
+    { name: "Salmonella", defaultRoute: "injection" },
+    { name: "E. coli", defaultRoute: "injection" },
+    { name: "Mycoplasma", defaultRoute: "injection" },
+    { name: "Egg Drop Syndrome (EDS)", defaultRoute: "injection" },
+    { name: "Laryngotracheitis (ILT)", defaultRoute: "eye_drop" },
+  ];
+
+  ipcMain.handle(
+    "vaccines:getByFarm",
+    wrapHandler((_e: unknown, farmId: number) => {
+      requireFarmAccess(farmId);
+      const existing = db.select().from(schema.vaccines)
+        .where(and(eq(schema.vaccines.farmId, farmId), eq(schema.vaccines.isActive, 1)))
+        .all();
+      if (existing.length === 0) {
+        for (const v of defaultVaccinesList) {
+          db.insert(schema.vaccines).values({
+            farmId,
+            name: v.name,
+            defaultRoute: v.defaultRoute,
+            isDefault: 1,
+            isActive: 1,
+          }).run();
+        }
+        return db.select().from(schema.vaccines)
+          .where(and(eq(schema.vaccines.farmId, farmId), eq(schema.vaccines.isActive, 1)))
+          .orderBy(schema.vaccines.name)
+          .all();
+      }
+      return existing.sort((a, b) => a.name.localeCompare(b.name));
+    })
+  );
+
+  ipcMain.handle(
+    "vaccines:create",
+    wrapHandler((_e: unknown, farmId: number, data: { name: string; defaultRoute?: string; notes?: string }) => {
+      requireFarmAccess(farmId);
+      if (!data.name || !data.name.trim()) throw new Error("Vaccine name is required");
+      const dup = db.select().from(schema.vaccines)
+        .where(and(
+          eq(schema.vaccines.farmId, farmId),
+          eq(schema.vaccines.name, data.name.trim()),
+          eq(schema.vaccines.isActive, 1)
+        ))
+        .get();
+      if (dup) throw new Error("A vaccine with this name already exists");
+      return db.insert(schema.vaccines).values({
+        farmId,
+        name: data.name.trim(),
+        defaultRoute: data.defaultRoute || null,
+        notes: data.notes || null,
+        isDefault: 0,
+        isActive: 1,
+      }).returning().get();
+    })
+  );
+
+  ipcMain.handle(
+    "vaccines:update",
+    wrapHandler((_e: unknown, id: number, data: { name?: string; defaultRoute?: string; notes?: string }) => {
+      requireAuth();
+      const vaccine = db.select().from(schema.vaccines).where(eq(schema.vaccines.id, id)).get();
+      if (!vaccine) throw new Error("Vaccine not found");
+      requireFarmAccess(vaccine.farmId);
+      if (data.name !== undefined) {
+        const dup = db.select().from(schema.vaccines)
+          .where(and(
+            eq(schema.vaccines.farmId, vaccine.farmId),
+            eq(schema.vaccines.name, data.name.trim()),
+            eq(schema.vaccines.isActive, 1)
+          ))
+          .get();
+        if (dup && dup.id !== id) throw new Error("A vaccine with this name already exists");
+      }
+      const result = db.update(schema.vaccines)
+        .set({
+          name: data.name !== undefined ? data.name.trim() : undefined,
+          defaultRoute: data.defaultRoute !== undefined ? (data.defaultRoute || null) : undefined,
+          notes: data.notes !== undefined ? (data.notes || null) : undefined,
+        })
+        .where(eq(schema.vaccines.id, id))
+        .returning()
+        .get();
+      if (!result) throw new Error("Vaccine not found");
+      return result;
+    })
+  );
+
+  ipcMain.handle(
+    "vaccines:delete",
+    wrapHandler((_e: unknown, id: number) => {
+      requireAuth();
+      const vaccine = db.select().from(schema.vaccines).where(eq(schema.vaccines.id, id)).get();
+      if (!vaccine) throw new Error("Vaccine not found");
+      requireFarmAccess(vaccine.farmId);
+      const usedInRecords = db.select().from(schema.vaccinations)
+        .innerJoin(schema.flocks, eq(schema.vaccinations.flockId, schema.flocks.id))
+        .where(and(
+          eq(schema.vaccinations.vaccineName, vaccine.name),
+          eq(schema.flocks.farmId, vaccine.farmId)
+        ))
+        .get();
+      if (usedInRecords) {
+        db.update(schema.vaccines)
+          .set({ isActive: 0 })
+          .where(eq(schema.vaccines.id, id))
+          .run();
+      } else {
+        db.delete(schema.vaccines).where(eq(schema.vaccines.id, id)).run();
+      }
+      return { id };
+    })
+  );
+
+  ipcMain.handle(
+    "vaccines:resetToDefaults",
+    wrapHandler((_e: unknown, farmId: number) => {
+      requireFarmAccess(farmId);
+      db.delete(schema.vaccines).where(eq(schema.vaccines.farmId, farmId)).run();
+      for (const v of defaultVaccinesList) {
+        db.insert(schema.vaccines).values({
+          farmId,
+          name: v.name,
+          defaultRoute: v.defaultRoute,
+          isDefault: 1,
+          isActive: 1,
+        }).run();
+      }
+      return db.select().from(schema.vaccines)
+        .where(and(eq(schema.vaccines.farmId, farmId), eq(schema.vaccines.isActive, 1)))
+        .orderBy(schema.vaccines.name)
+        .all();
+    })
+  );
+
   ipcMain.handle(
     "dashboard:getFarmStats",
     wrapHandler((_e: unknown, farmId: number) => {

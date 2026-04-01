@@ -23,6 +23,8 @@ import type {
   FarmAlert,
   VaccinationData,
   VaccinationScheduleData,
+  Vaccine,
+  VaccineData,
   UpcomingVaccination,
   CompletedVaccination,
   CompleteVaccinationData,
@@ -352,6 +354,23 @@ export const vaccinationSchedule = {
 
   applyToFlocks: (farmId: number, flockIds: number[]) =>
     invoke<{ count: number }>(() => getApi()!.vaccinationSchedule.applyToFlocks(farmId, flockIds)),
+};
+
+export const vaccinesApi = {
+  getByFarm: (farmId: number) =>
+    invoke<Vaccine[]>(() => getApi()!.vaccines.getByFarm(farmId)),
+
+  create: (farmId: number, data: VaccineData) =>
+    invoke<Vaccine>(() => getApi()!.vaccines.create(farmId, data)),
+
+  update: (id: number, data: Partial<VaccineData>) =>
+    invoke<Vaccine>(() => getApi()!.vaccines.update(id, data)),
+
+  delete: (id: number) =>
+    invoke(() => getApi()!.vaccines.delete(id)),
+
+  resetToDefaults: (farmId: number) =>
+    invoke<Vaccine[]>(() => getApi()!.vaccines.resetToDefaults(farmId)),
 };
 
 export const dashboard = {

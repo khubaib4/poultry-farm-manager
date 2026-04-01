@@ -954,6 +954,23 @@ export interface VaccinationScheduleData {
   notes?: string;
 }
 
+export interface Vaccine {
+  id: number;
+  farmId: number;
+  name: string;
+  defaultRoute: string | null;
+  notes: string | null;
+  isDefault: number | null;
+  isActive: number | null;
+  createdAt: string | null;
+}
+
+export interface VaccineData {
+  name: string;
+  defaultRoute?: string;
+  notes?: string;
+}
+
 export interface UserData {
   farmId: number;
   name: string;
@@ -1231,6 +1248,13 @@ export interface ElectronAPI {
     resetToDefaults: () => Promise<IpcResponse>;
     generateForFlock: (flockId: number) => Promise<IpcResponse>;
     applyToFlocks: (farmId: number, flockIds: number[]) => Promise<IpcResponse<{ count: number }>>;
+  };
+  vaccines: {
+    getByFarm: (farmId: number) => Promise<IpcResponse<Vaccine[]>>;
+    create: (farmId: number, data: VaccineData) => Promise<IpcResponse<Vaccine>>;
+    update: (id: number, data: Partial<VaccineData>) => Promise<IpcResponse<Vaccine>>;
+    delete: (id: number) => Promise<IpcResponse>;
+    resetToDefaults: (farmId: number) => Promise<IpcResponse<Vaccine[]>>;
   };
   customers: {
     create: (data: CustomerData) => Promise<IpcResponse<Customer>>;

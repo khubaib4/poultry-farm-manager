@@ -37,6 +37,7 @@ const InventoryPage = lazy(() => import("@/pages/farm/InventoryPage"));
 const AddInventoryItemPage = lazy(() => import("@/pages/farm/AddInventoryItemPage"));
 const EditInventoryItemPage = lazy(() => import("@/pages/farm/EditInventoryItemPage"));
 const AlertsPage = lazy(() => import("@/pages/farm/AlertsPage"));
+const VaccineSettingsPage = lazy(() => import("@/pages/farm/VaccineSettingsPage"));
 const VaccinationSchedulePage = lazy(() => import("@/pages/farm/VaccinationSchedulePage"));
 const VaccinationTemplatePage = lazy(() => import("@/pages/farm/VaccinationTemplatePage"));
 const VaccinationHistoryPage = lazy(() => import("@/pages/farm/VaccinationHistoryPage"));
@@ -119,6 +120,7 @@ export default function App(): React.ReactElement {
                 <Route path="/farm/inventory/:itemId/edit" element={<FarmLayout><EditInventoryItemPage /></FarmLayout>} />
                 <Route path="/farm/vaccinations" element={<FarmLayout><VaccinationSchedulePage /></FarmLayout>} />
                 <Route path="/farm/vaccinations/new" element={<FarmLayout><AddVaccinationPage /></FarmLayout>} />
+                <Route path="/farm/settings/vaccines" element={<FarmLayout><VaccineSettingsPage /></FarmLayout>} />
                 <Route path="/farm/vaccinations/template" element={<FarmLayout><VaccinationTemplatePage /></FarmLayout>} />
                 <Route path="/farm/vaccinations/history" element={<FarmLayout><VaccinationHistoryPage /></FarmLayout>} />
                 <Route path="/farm/vaccinations/:vaccinationId/edit" element={<FarmLayout><EditVaccinationPage /></FarmLayout>} />
