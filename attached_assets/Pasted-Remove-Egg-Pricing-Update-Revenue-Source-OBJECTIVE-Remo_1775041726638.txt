@@ -1,0 +1,124 @@
+Remove Egg Pricing & Update Revenue Source
+OBJECTIVE: Remove Egg Pricing page and update revenue to come from Sales
+
+REQUIREMENTS:
+- Remove Egg Pricing page completely
+- Update Revenue page to show sales-based revenue
+- Keep daily entry for production tracking (eggs collected, not for revenue)
+- Revenue now = Sum of sales totals
+
+FILES TO MODIFY/DELETE:
+
+1. DELETE these files:
+   - src/pages/farm/EggPricingPage.tsx
+   - src/components/pricing/* (all pricing components)
+   - Any egg pricing related components
+
+2. UPDATE src/components/Sidebar.tsx (or navigation):
+   - Remove "Egg Pricing" or "Pricing" menu item
+   - Keep "Sales" menu item
+
+3. UPDATE src/pages/farm/RevenuePage.tsx:
+   - Change from calculated revenue (eggs × prices) to sales-based revenue
+   - Show:
+     * Total Sales Revenue (sum of all sales totals)
+     * Total Collected (sum of payments received)
+     * Outstanding (unpaid balance)
+   - Revenue breakdown by:
+     * Daily/Weekly/Monthly view
+     * By customer
+     * By egg grade (from sales items)
+   - Charts:
+     * Revenue trend over time
+     * Collections vs Outstanding
+   - Remove any reference to egg_prices table
+
+4. UPDATE electron/ipc-handlers.ts:
+   - REMOVE or deprecate egg pricing handlers:
+     * eggPrices.* handlers (can keep in code but not used)
+   
+   - UPDATE revenue handlers to use sales data:
+     * revenue.getDailySummary(farmId, startDate, endDate):
+       - Query sales table instead of daily_entries × egg_prices
+       - Return: date, salesCount, totalAmount, collectedAmount
+     
+     * revenue.getTotalRevenue(farmId, startDate, endDate):
+       - Sum of sales.totalAmount
+       - Sum of payments received
+       - Outstanding balance
+     
+     * revenue.getByCustomer(farmId, startDate, endDate):
+       - Revenue grouped by customer
+     
+     * revenue.getByGrade(farmId, startDate, endDate):
+       - Revenue from eggs vs trays, by grade
+       - From sales items breakdown
+
+5. UPDATE src/lib/api.ts:
+   - Remove egg pricing API functions (or leave unused)
+   - Update revenue functions to match new handlers
+
+6. UPDATE Daily Entry Form (src/pages/farm/DailyEntryPage.tsx):
+   - Keep egg collection fields (Grade A, B, Cracked)
+   - Remove any "revenue" or "value" display that used egg prices
+   - Eggs are now just production tracking numbers
+   - Maybe add label: "Eggs Collected" instead of implying value
+
+7. UPDATE any components that calculated revenue from eggs × prices:
+   - Search for "eggPrice" or "egg_prices" references
+   - Remove or update to use sales data
+
+8. UPDATE App.tsx routes:
+   - Remove route for EggPricingPage
+   - Keep RevenuePage route
+
+9. Database cleanup (optional, can leave table):
+   - egg_prices table can remain but won't be used
+   - No need to delete data, just stop using it
+
+NEW REVENUE CALCULATIONS:
+```typescript
+// Total Revenue (period)
+const totalRevenue = sales.reduce((sum, sale) => sum + sale.totalAmount, 0);
+
+// Total Collected
+const totalCollected = sales.reduce((sum, sale) => sum + sale.paidAmount, 0);
+
+// Outstanding
+const outstanding = totalRevenue - totalCollected;
+
+// Daily Revenue
+const dailyRevenue = sales
+  .filter(sale => sale.saleDate === date)
+  .reduce((sum, sale) => sum + sale.totalAmount, 0);
+```
+
+REVENUE PAGE NEW LAYOUT:
++--------------------------------------------------+
+|  Revenue                        [Date Range ▼]   |
++--------------------------------------------------+
+|  [Total Revenue]  [Collected]  [Outstanding]     |
+|   PKR 250,000     PKR 180,000   PKR 70,000       |
++--------------------------------------------------+
+|  Revenue Trend Chart                             |
+|  [Bar chart showing daily/weekly revenue]        |
++--------------------------------------------------+
+|  Revenue by Customer              Revenue by Type|
+|  +----------------------+    +------------------+|
+|  | Haris    | 85,000   |    | Eggs   | 180,000 ||
+|  | Ali      | 65,000   |    | Trays  | 70,000  ||
+|  | Usman    | 50,000   |    +------------------+|
+|  +----------------------+                        |
++--------------------------------------------------+
+|  Daily Breakdown Table                           |
+|  Date     | Sales | Revenue  | Collected | Due  |
+|  01/04    | 3     | 25,000   | 20,000    | 5,000|
++--------------------------------------------------+
+
+UI/UX REQUIREMENTS:
+- Revenue page shows real sales data
+- Clear distinction: Revenue vs Collected vs Outstanding
+- Easy to see trends
+- Remove all egg pricing references from UI
+
+OUTPUT: Egg Pricing page removed. Revenue now calculated from actual sales. Daily entry still tracks egg production but not used for revenue calculation.

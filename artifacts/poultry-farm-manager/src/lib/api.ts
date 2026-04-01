@@ -5,7 +5,6 @@ import type {
   FarmData,
   FlockData,
   DailyEntryData,
-  EggPriceData,
   ExpenseData,
   ExpenseFilters,
   ExpenseSummary,
@@ -189,20 +188,6 @@ export const dailyEntries = {
 
   getPreviousDayStock: (flockId: number, date: string) =>
     invoke(() => getApi()!.dailyEntries.getPreviousDayStock(flockId, date)),
-};
-
-export const eggPrices = {
-  createBatch: (farmId: number, prices: { grade: string; pricePerEgg: number; pricePerTray: number }[], effectiveDate: string) =>
-    invoke(() => getApi()!.eggPrices.createBatch(farmId, prices, effectiveDate)),
-
-  getCurrentPrices: (farmId: number) =>
-    invoke(() => getApi()!.eggPrices.getCurrentPrices(farmId)),
-
-  getHistory: (farmId: number, limit?: number) =>
-    invoke(() => getApi()!.eggPrices.getHistory(farmId, limit)),
-
-  getPriceOnDate: (farmId: number, date: string) =>
-    invoke(() => getApi()!.eggPrices.getPriceOnDate(farmId, date)),
 };
 
 export const expenses = {

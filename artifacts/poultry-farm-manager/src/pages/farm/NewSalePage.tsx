@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { isElectron, customers as customersApi, sales as salesApi, eggPrices } from "@/lib/api";
+import { isElectron, customers as customersApi, sales as salesApi } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { ArrowLeft, ShoppingCart } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
@@ -47,26 +47,6 @@ export default function NewSalePage(): React.ReactElement {
   useEffect(() => {
     if (!farmId || !isElectron()) return;
     customersApi.getByFarm(farmId, { status: "active" }).then(setCustomers).catch(() => {});
-  }, [farmId]);
-
-  useEffect(() => {
-    if (!farmId || !isElectron()) return;
-    eggPrices.getCurrentPrices(farmId).then((prices: unknown) => {
-      if (Array.isArray(prices) && prices.length > 0) {
-        setItems(prev => prev.map(item => {
-          if (item.unitPrice) return item;
-          const gradeMap: Record<string, string> = { A: "A", B: "B", cracked: "cracked" };
-          const priceData = prices.find((p: { grade: string }) => p.grade === gradeMap[item.grade]);
-          if (priceData) {
-            const price = item.itemType === "egg"
-              ? (priceData as { pricePerEgg: number }).pricePerEgg
-              : (priceData as { pricePerTray: number }).pricePerTray;
-            return { ...item, unitPrice: price > 0 ? String(price) : "" };
-          }
-          return item;
-        }));
-      }
-    }).catch(() => {});
   }, [farmId]);
 
   useEffect(() => {

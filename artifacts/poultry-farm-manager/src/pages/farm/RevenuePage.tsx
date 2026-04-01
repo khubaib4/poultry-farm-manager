@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { isElectron, revenue as revenueApi } from "@/lib/api";
-import { AlertTriangle } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import RevenueSummaryCards from "@/components/revenue/RevenueSummaryCards";
-import RevenueByGradeCard from "@/components/revenue/RevenueByGradeCard";
+import RevenueBreakdownCard from "@/components/revenue/RevenueByGradeCard";
 import RevenueChart from "@/components/revenue/RevenueChart";
 import DailyRevenueTable from "@/components/revenue/DailyRevenueTable";
 import type { DailyRevenueEntry, TotalRevenue, RevenueVsExpenses } from "@/types/electron";
@@ -54,7 +53,6 @@ export default function RevenuePage(): React.ReactElement {
   const [dailyData, setDailyData] = useState<DailyRevenueEntry[]>([]);
   const [totals, setTotals] = useState<TotalRevenue | null>(null);
   const [profitData, setProfitData] = useState<RevenueVsExpenses | null>(null);
-  const [hasPrices, setHasPrices] = useState(true);
 
   function applyPreset(p: DatePreset) {
     setPreset(p);
@@ -88,7 +86,6 @@ export default function RevenuePage(): React.ReactElement {
         revenueApi.getRevenueVsExpenses(farmId, startDate, endDate),
       ]);
       setDailyData(daily.daily);
-      setHasPrices(daily.hasPrices);
       setTotals(total);
       setProfitData(profit);
     } catch {
@@ -117,19 +114,9 @@ export default function RevenuePage(): React.ReactElement {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Revenue Overview</h1>
-          <p className="text-sm text-gray-500 mt-1">Track egg production revenue and profitability</p>
+          <p className="text-sm text-gray-500 mt-1">Track sales revenue and collections</p>
         </div>
       </div>
-
-      {!hasPrices && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
-          <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-medium text-amber-800">No egg prices set</p>
-            <p className="text-sm text-amber-700">Revenue calculations require egg prices. Go to Pricing to set up your prices.</p>
-          </div>
-        </div>
-      )}
 
       <div className="bg-white rounded-xl border border-gray-200 p-4">
         <div className="flex flex-wrap items-end gap-3">
@@ -168,22 +155,20 @@ export default function RevenuePage(): React.ReactElement {
         <>
           <RevenueSummaryCards
             totalRevenue={totals?.totalRevenue ?? 0}
-            totalEggs={totals?.totalEggs ?? 0}
-            avgPricePerEgg={totals?.avgPricePerEgg ?? 0}
+            totalCollected={totals?.totalCollected ?? 0}
+            outstanding={totals?.outstanding ?? 0}
             profit={profitData?.profit ?? 0}
           />
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2">
-              <RevenueChart data={dailyData} />
-            </div>
-            <div>
-              <RevenueByGradeCard
-                byGrade={totals?.byGrade ?? { A: { qty: 0, revenue: 0 }, B: { qty: 0, revenue: 0 }, cracked: { qty: 0, revenue: 0 } }}
-                totalRevenue={totals?.totalRevenue ?? 0}
-              />
-            </div>
+          <div className="grid grid-cols-1 lg:grid-cols-1 gap-4">
+            <RevenueChart data={dailyData} />
           </div>
+
+          <RevenueBreakdownCard
+            byCustomer={totals?.byCustomer ?? []}
+            byType={totals?.byType ?? []}
+            totalRevenue={totals?.totalRevenue ?? 0}
+          />
 
           {profitData && (
             <div className="bg-white rounded-xl border border-gray-200 p-5">

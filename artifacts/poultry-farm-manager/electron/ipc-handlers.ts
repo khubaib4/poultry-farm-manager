@@ -935,69 +935,38 @@ export function registerIpcHandlers(): void {
     wrapHandler((_e: unknown, farmId: number, startDate: string, endDate: string) => {
       requireFarmAccess(farmId);
 
-      const entries = db.select({
-        entryDate: schema.dailyEntries.entryDate,
-        eggsGradeA: schema.dailyEntries.eggsGradeA,
-        eggsGradeB: schema.dailyEntries.eggsGradeB,
-        eggsCracked: schema.dailyEntries.eggsCracked,
+      const salesRows = db.select({
+        saleDate: schema.sales.saleDate,
+        totalAmount: schema.sales.totalAmount,
+        paidAmount: schema.sales.paidAmount,
       })
-        .from(schema.dailyEntries)
-        .innerJoin(schema.flocks, eq(schema.dailyEntries.flockId, schema.flocks.id))
+        .from(schema.sales)
         .where(and(
-          eq(schema.flocks.farmId, farmId),
-          gte(schema.dailyEntries.entryDate, startDate),
-          lte(schema.dailyEntries.entryDate, endDate)
+          eq(schema.sales.farmId, farmId),
+          eq(schema.sales.isDeleted, 0),
+          gte(schema.sales.saleDate, startDate),
+          lte(schema.sales.saleDate, endDate)
         ))
         .all();
 
-      const prices = db.select()
-        .from(schema.eggPrices)
-        .where(eq(schema.eggPrices.farmId, farmId))
-        .orderBy(desc(schema.eggPrices.effectiveDate))
-        .all();
+      const dailyMap: Record<string, { salesCount: number; totalAmount: number; collectedAmount: number; outstanding: number }> = {};
 
-      function getPriceOnDate(grade: string, date: string): number {
-        const matching = prices.find(p => p.grade === grade && p.effectiveDate <= date);
-        return matching?.pricePerEgg ?? 0;
-      }
-
-      const dailyMap: Record<string, { gradeA: { qty: number; revenue: number }; gradeB: { qty: number; revenue: number }; cracked: { qty: number; revenue: number }; total: number }> = {};
-
-      for (const entry of entries) {
-        const date = entry.entryDate;
+      for (const sale of salesRows) {
+        const date = sale.saleDate;
         if (!dailyMap[date]) {
-          dailyMap[date] = {
-            gradeA: { qty: 0, revenue: 0 },
-            gradeB: { qty: 0, revenue: 0 },
-            cracked: { qty: 0, revenue: 0 },
-            total: 0,
-          };
+          dailyMap[date] = { salesCount: 0, totalAmount: 0, collectedAmount: 0, outstanding: 0 };
         }
         const d = dailyMap[date];
-        const a = entry.eggsGradeA ?? 0;
-        const b = entry.eggsGradeB ?? 0;
-        const c = entry.eggsCracked ?? 0;
-        d.gradeA.qty += a;
-        d.gradeB.qty += b;
-        d.cracked.qty += c;
-
-        const priceA = getPriceOnDate("A", date);
-        const priceB = getPriceOnDate("B", date);
-        const priceC = getPriceOnDate("cracked", date);
-
-        d.gradeA.revenue += a * priceA;
-        d.gradeB.revenue += b * priceB;
-        d.cracked.revenue += c * priceC;
-        d.total += (a * priceA) + (b * priceB) + (c * priceC);
+        d.salesCount += 1;
+        d.totalAmount += sale.totalAmount;
+        d.collectedAmount += sale.paidAmount ?? 0;
+        d.outstanding += sale.totalAmount - (sale.paidAmount ?? 0);
       }
-
-      const hasPrices = prices.length > 0;
 
       return {
         daily: Object.entries(dailyMap)
           .map(([date, data]) => ({ date, ...data }))
           .sort((a, b) => b.date.localeCompare(a.date)),
-        hasPrices,
       };
     })
   );
@@ -1007,60 +976,86 @@ export function registerIpcHandlers(): void {
     wrapHandler((_e: unknown, farmId: number, startDate: string, endDate: string) => {
       requireFarmAccess(farmId);
 
-      const entries = db.select({
-        entryDate: schema.dailyEntries.entryDate,
-        eggsGradeA: schema.dailyEntries.eggsGradeA,
-        eggsGradeB: schema.dailyEntries.eggsGradeB,
-        eggsCracked: schema.dailyEntries.eggsCracked,
+      const salesRows = db.select({
+        id: schema.sales.id,
+        customerId: schema.sales.customerId,
+        totalAmount: schema.sales.totalAmount,
+        paidAmount: schema.sales.paidAmount,
       })
-        .from(schema.dailyEntries)
-        .innerJoin(schema.flocks, eq(schema.dailyEntries.flockId, schema.flocks.id))
+        .from(schema.sales)
         .where(and(
-          eq(schema.flocks.farmId, farmId),
-          gte(schema.dailyEntries.entryDate, startDate),
-          lte(schema.dailyEntries.entryDate, endDate)
+          eq(schema.sales.farmId, farmId),
+          eq(schema.sales.isDeleted, 0),
+          gte(schema.sales.saleDate, startDate),
+          lte(schema.sales.saleDate, endDate)
         ))
         .all();
 
-      const prices = db.select()
-        .from(schema.eggPrices)
-        .where(eq(schema.eggPrices.farmId, farmId))
-        .orderBy(desc(schema.eggPrices.effectiveDate))
-        .all();
-
-      function getPriceOnDate(grade: string, date: string): number {
-        const matching = prices.find(p => p.grade === grade && p.effectiveDate <= date);
-        return matching?.pricePerEgg ?? 0;
-      }
-
       let totalRevenue = 0;
-      let totalEggs = 0;
-      const byGrade = { A: { qty: 0, revenue: 0 }, B: { qty: 0, revenue: 0 }, cracked: { qty: 0, revenue: 0 } };
+      let totalCollected = 0;
+      const customerTotals: Record<number, { totalAmount: number; collectedAmount: number }> = {};
 
-      for (const entry of entries) {
-        const a = entry.eggsGradeA ?? 0;
-        const b = entry.eggsGradeB ?? 0;
-        const c = entry.eggsCracked ?? 0;
-        const date = entry.entryDate;
-
-        const revA = a * getPriceOnDate("A", date);
-        const revB = b * getPriceOnDate("B", date);
-        const revC = c * getPriceOnDate("cracked", date);
-
-        byGrade.A.qty += a;
-        byGrade.A.revenue += revA;
-        byGrade.B.qty += b;
-        byGrade.B.revenue += revB;
-        byGrade.cracked.qty += c;
-        byGrade.cracked.revenue += revC;
-
-        totalEggs += a + b + c;
-        totalRevenue += revA + revB + revC;
+      for (const sale of salesRows) {
+        totalRevenue += sale.totalAmount;
+        totalCollected += sale.paidAmount ?? 0;
+        if (!customerTotals[sale.customerId]) {
+          customerTotals[sale.customerId] = { totalAmount: 0, collectedAmount: 0 };
+        }
+        customerTotals[sale.customerId].totalAmount += sale.totalAmount;
+        customerTotals[sale.customerId].collectedAmount += sale.paidAmount ?? 0;
       }
 
-      const avgPricePerEgg = totalEggs > 0 ? totalRevenue / totalEggs : 0;
+      const customerIds = Object.keys(customerTotals).map(Number);
+      const customerRows = customerIds.length > 0
+        ? db.select({ id: schema.customers.id, name: schema.customers.name })
+            .from(schema.customers)
+            .where(inArray(schema.customers.id, customerIds))
+            .all()
+        : [];
+      const customerNameMap: Record<number, string> = {};
+      for (const c of customerRows) customerNameMap[c.id] = c.name;
 
-      return { totalRevenue, totalEggs, avgPricePerEgg, byGrade };
+      const byCustomer = customerIds.map(id => ({
+        customerId: id,
+        customerName: customerNameMap[id] ?? "Unknown",
+        totalAmount: customerTotals[id].totalAmount,
+        collectedAmount: customerTotals[id].collectedAmount,
+      })).sort((a, b) => b.totalAmount - a.totalAmount);
+
+      const saleIds = salesRows.map(s => s.id);
+      const itemRows = saleIds.length > 0
+        ? db.select({
+            itemType: schema.saleItems.itemType,
+            grade: schema.saleItems.grade,
+            quantity: schema.saleItems.quantity,
+            lineTotal: schema.saleItems.lineTotal,
+          })
+            .from(schema.saleItems)
+            .where(inArray(schema.saleItems.saleId, saleIds))
+            .all()
+        : [];
+
+      const typeMap: Record<string, { quantity: number; revenue: number }> = {};
+      for (const item of itemRows) {
+        const key = `${item.itemType}:${item.grade}`;
+        if (!typeMap[key]) typeMap[key] = { quantity: 0, revenue: 0 };
+        typeMap[key].quantity += item.quantity;
+        typeMap[key].revenue += item.lineTotal;
+      }
+
+      const byType = Object.entries(typeMap).map(([key, data]) => {
+        const [itemType, grade] = key.split(":");
+        return { itemType, grade, quantity: data.quantity, revenue: data.revenue };
+      }).sort((a, b) => b.revenue - a.revenue);
+
+      return {
+        totalRevenue,
+        totalCollected,
+        outstanding: totalRevenue - totalCollected,
+        totalSales: salesRows.length,
+        byCustomer,
+        byType,
+      };
     })
   );
 
@@ -1069,39 +1064,17 @@ export function registerIpcHandlers(): void {
     wrapHandler((_e: unknown, farmId: number, startDate: string, endDate: string) => {
       requireFarmAccess(farmId);
 
-      const entries = db.select({
-        entryDate: schema.dailyEntries.entryDate,
-        eggsGradeA: schema.dailyEntries.eggsGradeA,
-        eggsGradeB: schema.dailyEntries.eggsGradeB,
-        eggsCracked: schema.dailyEntries.eggsCracked,
-      })
-        .from(schema.dailyEntries)
-        .innerJoin(schema.flocks, eq(schema.dailyEntries.flockId, schema.flocks.id))
+      const salesRows = db.select({ totalAmount: schema.sales.totalAmount })
+        .from(schema.sales)
         .where(and(
-          eq(schema.flocks.farmId, farmId),
-          gte(schema.dailyEntries.entryDate, startDate),
-          lte(schema.dailyEntries.entryDate, endDate)
+          eq(schema.sales.farmId, farmId),
+          eq(schema.sales.isDeleted, 0),
+          gte(schema.sales.saleDate, startDate),
+          lte(schema.sales.saleDate, endDate)
         ))
         .all();
 
-      const eggPricesRows = db.select()
-        .from(schema.eggPrices)
-        .where(eq(schema.eggPrices.farmId, farmId))
-        .orderBy(desc(schema.eggPrices.effectiveDate))
-        .all();
-
-      function getPriceOnDate(grade: string, date: string): number {
-        const matching = eggPricesRows.find(p => p.grade === grade && p.effectiveDate <= date);
-        return matching?.pricePerEgg ?? 0;
-      }
-
-      let revenue = 0;
-      for (const entry of entries) {
-        const date = entry.entryDate;
-        revenue += (entry.eggsGradeA ?? 0) * getPriceOnDate("A", date);
-        revenue += (entry.eggsGradeB ?? 0) * getPriceOnDate("B", date);
-        revenue += (entry.eggsCracked ?? 0) * getPriceOnDate("cracked", date);
-      }
+      const revenue = salesRows.reduce((s, r) => s + r.totalAmount, 0);
 
       const expenseRows = db.select({ amount: schema.expenses.amount })
         .from(schema.expenses)
@@ -1123,45 +1096,17 @@ export function registerIpcHandlers(): void {
     wrapHandler((_e: unknown, farmId: number, startDate: string, endDate: string) => {
       requireFarmAccess(farmId);
 
-      const entries = db.select({
-        entryDate: schema.dailyEntries.entryDate,
-        eggsGradeA: schema.dailyEntries.eggsGradeA,
-        eggsGradeB: schema.dailyEntries.eggsGradeB,
-        eggsCracked: schema.dailyEntries.eggsCracked,
-      })
-        .from(schema.dailyEntries)
-        .innerJoin(schema.flocks, eq(schema.dailyEntries.flockId, schema.flocks.id))
+      const salesRows = db.select({ totalAmount: schema.sales.totalAmount })
+        .from(schema.sales)
         .where(and(
-          eq(schema.flocks.farmId, farmId),
-          gte(schema.dailyEntries.entryDate, startDate),
-          lte(schema.dailyEntries.entryDate, endDate)
+          eq(schema.sales.farmId, farmId),
+          eq(schema.sales.isDeleted, 0),
+          gte(schema.sales.saleDate, startDate),
+          lte(schema.sales.saleDate, endDate)
         ))
         .all();
 
-      const eggPricesRows = db.select()
-        .from(schema.eggPrices)
-        .where(eq(schema.eggPrices.farmId, farmId))
-        .orderBy(desc(schema.eggPrices.effectiveDate))
-        .all();
-
-      function getPriceOnDate(grade: string, date: string): number {
-        const matching = eggPricesRows.find(p => p.grade === grade && p.effectiveDate <= date);
-        return matching?.pricePerEgg ?? 0;
-      }
-
-      const revenueByGrade = { A: 0, B: 0, cracked: 0 };
-      let totalRevenue = 0;
-
-      for (const entry of entries) {
-        const date = entry.entryDate;
-        const revA = (entry.eggsGradeA ?? 0) * getPriceOnDate("A", date);
-        const revB = (entry.eggsGradeB ?? 0) * getPriceOnDate("B", date);
-        const revC = (entry.eggsCracked ?? 0) * getPriceOnDate("cracked", date);
-        revenueByGrade.A += revA;
-        revenueByGrade.B += revB;
-        revenueByGrade.cracked += revC;
-        totalRevenue += revA + revB + revC;
-      }
+      const totalRevenue = salesRows.reduce((s, r) => s + r.totalAmount, 0);
 
       const expenseRows = db.select({
         category: schema.expenses.category,
@@ -1186,7 +1131,7 @@ export function registerIpcHandlers(): void {
       const margin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
 
       return {
-        revenue: { byGrade: revenueByGrade, total: totalRevenue },
+        revenue: { byGrade: { A: 0, B: 0, cracked: 0 }, total: totalRevenue },
         expenses: { byCategory, total: totalExpenses },
         profit,
         margin,
@@ -1198,32 +1143,6 @@ export function registerIpcHandlers(): void {
     "financial:getFinancialTrends",
     wrapHandler((_e: unknown, farmId: number, startDate: string, endDate: string, groupBy: string) => {
       requireFarmAccess(farmId);
-
-      const entries = db.select({
-        entryDate: schema.dailyEntries.entryDate,
-        eggsGradeA: schema.dailyEntries.eggsGradeA,
-        eggsGradeB: schema.dailyEntries.eggsGradeB,
-        eggsCracked: schema.dailyEntries.eggsCracked,
-      })
-        .from(schema.dailyEntries)
-        .innerJoin(schema.flocks, eq(schema.dailyEntries.flockId, schema.flocks.id))
-        .where(and(
-          eq(schema.flocks.farmId, farmId),
-          gte(schema.dailyEntries.entryDate, startDate),
-          lte(schema.dailyEntries.entryDate, endDate)
-        ))
-        .all();
-
-      const eggPricesRows = db.select()
-        .from(schema.eggPrices)
-        .where(eq(schema.eggPrices.farmId, farmId))
-        .orderBy(desc(schema.eggPrices.effectiveDate))
-        .all();
-
-      function getPriceOnDate(grade: string, date: string): number {
-        const matching = eggPricesRows.find(p => p.grade === grade && p.effectiveDate <= date);
-        return matching?.pricePerEgg ?? 0;
-      }
 
       function getPeriodKey(dateStr: string): string {
         const d = new Date(dateStr + "T00:00:00");
@@ -1238,13 +1157,23 @@ export function registerIpcHandlers(): void {
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       }
 
+      const salesRows = db.select({
+        saleDate: schema.sales.saleDate,
+        totalAmount: schema.sales.totalAmount,
+      })
+        .from(schema.sales)
+        .where(and(
+          eq(schema.sales.farmId, farmId),
+          eq(schema.sales.isDeleted, 0),
+          gte(schema.sales.saleDate, startDate),
+          lte(schema.sales.saleDate, endDate)
+        ))
+        .all();
+
       const revenueMap: Record<string, number> = {};
-      for (const entry of entries) {
-        const key = getPeriodKey(entry.entryDate);
-        const rev = (entry.eggsGradeA ?? 0) * getPriceOnDate("A", entry.entryDate)
-          + (entry.eggsGradeB ?? 0) * getPriceOnDate("B", entry.entryDate)
-          + (entry.eggsCracked ?? 0) * getPriceOnDate("cracked", entry.entryDate);
-        revenueMap[key] = (revenueMap[key] ?? 0) + rev;
+      for (const sale of salesRows) {
+        const key = getPeriodKey(sale.saleDate);
+        revenueMap[key] = (revenueMap[key] ?? 0) + sale.totalAmount;
       }
 
       const expenseRows = db.select({
@@ -1295,38 +1224,17 @@ export function registerIpcHandlers(): void {
 
       const avgBirds = activeFlocks.reduce((s, f) => s + f.currentCount, 0);
 
-      const entries = db.select({
-        entryDate: schema.dailyEntries.entryDate,
-        eggsGradeA: schema.dailyEntries.eggsGradeA,
-        eggsGradeB: schema.dailyEntries.eggsGradeB,
-        eggsCracked: schema.dailyEntries.eggsCracked,
-      })
-        .from(schema.dailyEntries)
-        .innerJoin(schema.flocks, eq(schema.dailyEntries.flockId, schema.flocks.id))
+      const salesRows = db.select({ totalAmount: schema.sales.totalAmount })
+        .from(schema.sales)
         .where(and(
-          eq(schema.flocks.farmId, farmId),
-          gte(schema.dailyEntries.entryDate, startDate),
-          lte(schema.dailyEntries.entryDate, endDate)
+          eq(schema.sales.farmId, farmId),
+          eq(schema.sales.isDeleted, 0),
+          gte(schema.sales.saleDate, startDate),
+          lte(schema.sales.saleDate, endDate)
         ))
         .all();
 
-      const eggPricesRows = db.select()
-        .from(schema.eggPrices)
-        .where(eq(schema.eggPrices.farmId, farmId))
-        .orderBy(desc(schema.eggPrices.effectiveDate))
-        .all();
-
-      function getPriceOnDate(grade: string, date: string): number {
-        const matching = eggPricesRows.find(p => p.grade === grade && p.effectiveDate <= date);
-        return matching?.pricePerEgg ?? 0;
-      }
-
-      let totalRevenue = 0;
-      for (const entry of entries) {
-        totalRevenue += (entry.eggsGradeA ?? 0) * getPriceOnDate("A", entry.entryDate);
-        totalRevenue += (entry.eggsGradeB ?? 0) * getPriceOnDate("B", entry.entryDate);
-        totalRevenue += (entry.eggsCracked ?? 0) * getPriceOnDate("cracked", entry.entryDate);
-      }
+      const totalRevenue = salesRows.reduce((s, r) => s + r.totalAmount, 0);
 
       const expenseRows = db.select({ amount: schema.expenses.amount })
         .from(schema.expenses)
@@ -1355,7 +1263,6 @@ export function registerIpcHandlers(): void {
       requireFarmAccess(farmId);
 
       const entries = db.select({
-        entryDate: schema.dailyEntries.entryDate,
         eggsGradeA: schema.dailyEntries.eggsGradeA,
         eggsGradeB: schema.dailyEntries.eggsGradeB,
         eggsCracked: schema.dailyEntries.eggsCracked,
@@ -1369,28 +1276,22 @@ export function registerIpcHandlers(): void {
         ))
         .all();
 
-      const eggPricesRows = db.select()
-        .from(schema.eggPrices)
-        .where(eq(schema.eggPrices.farmId, farmId))
-        .orderBy(desc(schema.eggPrices.effectiveDate))
-        .all();
-
-      function getPriceOnDate(grade: string, date: string): number {
-        const matching = eggPricesRows.find(p => p.grade === grade && p.effectiveDate <= date);
-        return matching?.pricePerEgg ?? 0;
-      }
-
-      let totalRevenue = 0;
       let totalEggs = 0;
       for (const entry of entries) {
-        const a = entry.eggsGradeA ?? 0;
-        const b = entry.eggsGradeB ?? 0;
-        const c = entry.eggsCracked ?? 0;
-        totalEggs += a + b + c;
-        totalRevenue += a * getPriceOnDate("A", entry.entryDate)
-          + b * getPriceOnDate("B", entry.entryDate)
-          + c * getPriceOnDate("cracked", entry.entryDate);
+        totalEggs += (entry.eggsGradeA ?? 0) + (entry.eggsGradeB ?? 0) + (entry.eggsCracked ?? 0);
       }
+
+      const salesRows = db.select({ totalAmount: schema.sales.totalAmount })
+        .from(schema.sales)
+        .where(and(
+          eq(schema.sales.farmId, farmId),
+          eq(schema.sales.isDeleted, 0),
+          gte(schema.sales.saleDate, startDate),
+          lte(schema.sales.saleDate, endDate)
+        ))
+        .all();
+
+      const totalRevenue = salesRows.reduce((s, r) => s + r.totalAmount, 0);
 
       const expenseRows = db.select({ amount: schema.expenses.amount })
         .from(schema.expenses)
@@ -2237,28 +2138,6 @@ export function registerIpcHandlers(): void {
               link: `/farm/flocks/${flock.id}`,
             });
           }
-        }
-      }
-
-      const eggPriceRecord = db.select().from(schema.eggPrices)
-        .where(eq(schema.eggPrices.farmId, farmId))
-        .orderBy(sql`${schema.eggPrices.effectiveDate} DESC`)
-        .limit(1)
-        .get();
-      if (!eggPriceRecord) {
-        alerts.push({
-          type: "info",
-          message: "No egg prices configured. Set prices to track revenue.",
-          link: "/farm/pricing",
-        });
-      } else {
-        const daysSince = Math.floor((today.getTime() - new Date(eggPriceRecord.effectiveDate).getTime()) / (1000 * 60 * 60 * 24));
-        if (daysSince > 30) {
-          alerts.push({
-            type: "info",
-            message: `Egg prices haven't been updated in ${daysSince} days.`,
-            link: "/farm/pricing",
-          });
         }
       }
 

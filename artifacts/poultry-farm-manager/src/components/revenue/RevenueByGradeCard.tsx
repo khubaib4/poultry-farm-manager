@@ -1,59 +1,94 @@
 import React from "react";
 import { formatCurrency } from "@/lib/utils";
 
-interface GradeData {
-  qty: number;
+interface CustomerRevenue {
+  customerId: number;
+  customerName: string;
+  totalAmount: number;
+  collectedAmount: number;
+}
+
+interface TypeRevenue {
+  itemType: string;
+  grade: string;
+  quantity: number;
   revenue: number;
 }
 
-interface RevenueByGradeCardProps {
-  byGrade: {
-    A: GradeData;
-    B: GradeData;
-    cracked: GradeData;
-  };
+interface RevenueBreakdownProps {
+  byCustomer: CustomerRevenue[];
+  byType: TypeRevenue[];
   totalRevenue: number;
 }
 
-const GRADE_CONFIG = [
-  { key: "A" as const, label: "Grade A", color: "bg-green-500", lightBg: "bg-green-50", text: "text-green-700" },
-  { key: "B" as const, label: "Grade B", color: "bg-blue-500", lightBg: "bg-blue-50", text: "text-blue-700" },
-  { key: "cracked" as const, label: "Cracked", color: "bg-amber-500", lightBg: "bg-amber-50", text: "text-amber-700" },
-];
+function gradeLabel(itemType: string, grade: string): string {
+  const prefix = itemType === "tray" ? "Tray" : "Egg";
+  if (grade === "cracked") return `${prefix} - Cracked`;
+  return `${prefix} - Grade ${grade}`;
+}
 
-export default function RevenueByGradeCard({ byGrade, totalRevenue }: RevenueByGradeCardProps): React.ReactElement {
+export default function RevenueBreakdownCard({ byCustomer, byType, totalRevenue }: RevenueBreakdownProps): React.ReactElement {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
-      <h3 className="text-sm font-semibold text-gray-900 mb-4">Revenue by Egg Grade</h3>
-      <div className="space-y-4">
-        {GRADE_CONFIG.map(grade => {
-          const data = byGrade[grade.key];
-          const pct = totalRevenue > 0 ? (data.revenue / totalRevenue) * 100 : 0;
-          return (
-            <div key={grade.key}>
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-2">
-                  <div className={`h-3 w-3 rounded-full ${grade.color}`} />
-                  <span className="text-sm font-medium text-gray-700">{grade.label}</span>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <h3 className="text-sm font-semibold text-gray-900 mb-4">Revenue by Customer</h3>
+        {byCustomer.length === 0 ? (
+          <p className="text-sm text-gray-400">No sales in this period</p>
+        ) : (
+          <div className="space-y-3">
+            {byCustomer.slice(0, 8).map(c => {
+              const pct = totalRevenue > 0 ? (c.totalAmount / totalRevenue) * 100 : 0;
+              return (
+                <div key={c.customerId}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium text-gray-700 truncate max-w-[60%]">{c.customerName}</span>
+                    <span className="text-sm font-semibold text-gray-900">{formatCurrency(c.totalAmount)}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full bg-green-500" style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="text-xs text-gray-500 w-10 text-right">{pct.toFixed(0)}%</span>
+                  </div>
                 </div>
-                <span className="text-sm font-semibold text-gray-900">{formatCurrency(data.revenue)}</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full ${grade.color}`} style={{ width: `${pct}%` }} />
-                </div>
-                <span className="text-xs text-gray-500 w-24 text-right">
-                  {data.qty.toLocaleString()} eggs · {pct.toFixed(0)}%
-                </span>
-              </div>
-            </div>
-          );
-        })}
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-        <span className="text-sm font-medium text-gray-600">Total</span>
-        <span className="text-sm font-bold text-gray-900">{formatCurrency(totalRevenue)}</span>
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <h3 className="text-sm font-semibold text-gray-900 mb-4">Revenue by Type</h3>
+        {byType.length === 0 ? (
+          <p className="text-sm text-gray-400">No sales in this period</p>
+        ) : (
+          <div className="space-y-3">
+            {byType.map(t => {
+              const pct = totalRevenue > 0 ? (t.revenue / totalRevenue) * 100 : 0;
+              return (
+                <div key={`${t.itemType}:${t.grade}`}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium text-gray-700">{gradeLabel(t.itemType, t.grade)}</span>
+                    <span className="text-sm font-semibold text-gray-900">{formatCurrency(t.revenue)}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full bg-blue-500" style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="text-xs text-gray-500 w-20 text-right">
+                      {t.quantity.toLocaleString()} {t.itemType === "tray" ? "trays" : "eggs"} · {pct.toFixed(0)}%
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
+          <span className="text-sm font-medium text-gray-600">Total</span>
+          <span className="text-sm font-bold text-gray-900">{formatCurrency(totalRevenue)}</span>
+        </div>
       </div>
     </div>
   );

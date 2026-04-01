@@ -42,14 +42,6 @@ export interface DailyEntryData {
   recordedBy?: number;
 }
 
-export interface EggPriceData {
-  farmId: number;
-  grade: string;
-  pricePerEgg: number;
-  pricePerTray: number;
-  effectiveDate: string;
-}
-
 export interface ExpenseData {
   farmId: number;
   category: string;
@@ -76,26 +68,23 @@ export interface ExpenseSummary {
 
 export interface DailyRevenueEntry {
   date: string;
-  gradeA: { qty: number; revenue: number };
-  gradeB: { qty: number; revenue: number };
-  cracked: { qty: number; revenue: number };
-  total: number;
+  salesCount: number;
+  totalAmount: number;
+  collectedAmount: number;
+  outstanding: number;
 }
 
 export interface DailyRevenueSummary {
   daily: DailyRevenueEntry[];
-  hasPrices: boolean;
 }
 
 export interface TotalRevenue {
   totalRevenue: number;
-  totalEggs: number;
-  avgPricePerEgg: number;
-  byGrade: {
-    A: { qty: number; revenue: number };
-    B: { qty: number; revenue: number };
-    cracked: { qty: number; revenue: number };
-  };
+  totalCollected: number;
+  outstanding: number;
+  totalSales: number;
+  byCustomer: Array<{ customerId: number; customerName: string; totalAmount: number; collectedAmount: number }>;
+  byType: Array<{ itemType: string; grade: string; quantity: number; revenue: number }>;
 }
 
 export interface RevenueVsExpenses {
@@ -1107,12 +1096,6 @@ export interface ElectronAPI {
     getByFlock: (flockId: number, startDate?: string, endDate?: string) => Promise<IpcResponse>;
     getByFarm: (farmId: number, date: string) => Promise<IpcResponse>;
     getPreviousDayStock: (flockId: number, date: string) => Promise<IpcResponse>;
-  };
-  eggPrices: {
-    createBatch: (farmId: number, prices: { grade: string; pricePerEgg: number; pricePerTray: number }[], effectiveDate: string) => Promise<IpcResponse>;
-    getCurrentPrices: (farmId: number) => Promise<IpcResponse>;
-    getHistory: (farmId: number, limit?: number) => Promise<IpcResponse>;
-    getPriceOnDate: (farmId: number, date: string) => Promise<IpcResponse>;
   };
   expenses: {
     create: (data: ExpenseData) => Promise<IpcResponse>;

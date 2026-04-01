@@ -27,7 +27,6 @@ const FlockDetailPage = lazy(() => import("@/pages/farm/FlockDetailPage"));
 const EditFlockPage = lazy(() => import("@/pages/farm/EditFlockPage"));
 const DailyEntryPage = lazy(() => import("@/pages/farm/DailyEntryPage"));
 const DailyEntryHistoryPage = lazy(() => import("@/pages/farm/DailyEntryHistoryPage"));
-const EggPricingPage = lazy(() => import("@/pages/farm/EggPricingPage"));
 const ExpensesPage = lazy(() => import("@/pages/farm/ExpensesPage"));
 const AddExpensePage = lazy(() => import("@/pages/farm/AddExpensePage"));
 const EditExpensePage = lazy(() => import("@/pages/farm/EditExpensePage"));
@@ -137,7 +136,6 @@ export default function App(): React.ReactElement {
                 <Route path="/farm/finances" element={<FarmLayout><FinancialDashboard /></FarmLayout>} />
                 <Route path="/farm/finances/report" element={<FarmLayout><ProfitLossReport /></FarmLayout>} />
                 <Route path="/farm/alerts" element={<FarmLayout><AlertsPage /></FarmLayout>} />
-                <Route path="/farm/pricing" element={<FarmLayout><EggPricingPage /></FarmLayout>} />
                 <Route path="/farm/reports" element={<FarmLayout><ReportsPage /></FarmLayout>} />
                 <Route path="/farm/reports/sales" element={<FarmLayout><SalesReportPage /></FarmLayout>} />
                 <Route path="/farm/backup" element={<FarmLayout><BackupRestorePage /></FarmLayout>} />

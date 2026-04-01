@@ -1,15 +1,15 @@
 import React from "react";
-import { DollarSign, Egg, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown, CreditCard, AlertCircle } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 
 interface RevenueSummaryCardsProps {
   totalRevenue: number;
-  totalEggs: number;
-  avgPricePerEgg: number;
+  totalCollected: number;
+  outstanding: number;
   profit: number;
 }
 
-export default function RevenueSummaryCards({ totalRevenue, totalEggs, avgPricePerEgg, profit }: RevenueSummaryCardsProps): React.ReactElement {
+export default function RevenueSummaryCards({ totalRevenue, totalCollected, outstanding, profit }: RevenueSummaryCardsProps): React.ReactElement {
   const cards = [
     {
       label: "Total Revenue",
@@ -20,20 +20,20 @@ export default function RevenueSummaryCards({ totalRevenue, totalEggs, avgPriceP
       border: "border-green-200",
     },
     {
-      label: "Total Eggs",
-      value: totalEggs.toLocaleString(),
-      icon: <Egg className="h-5 w-5" />,
-      color: "text-amber-600",
-      bg: "bg-amber-50",
-      border: "border-amber-200",
-    },
-    {
-      label: "Avg Price/Egg",
-      value: `PKR ${avgPricePerEgg.toFixed(2)}`,
-      icon: <TrendingUp className="h-5 w-5" />,
+      label: "Collected",
+      value: formatCurrency(totalCollected),
+      icon: <CreditCard className="h-5 w-5" />,
       color: "text-blue-600",
       bg: "bg-blue-50",
       border: "border-blue-200",
+    },
+    {
+      label: "Outstanding",
+      value: formatCurrency(outstanding),
+      icon: <AlertCircle className="h-5 w-5" />,
+      color: outstanding > 0 ? "text-amber-600" : "text-gray-600",
+      bg: outstanding > 0 ? "bg-amber-50" : "bg-gray-50",
+      border: outstanding > 0 ? "border-amber-200" : "border-gray-200",
     },
     {
       label: "Profit/Loss",

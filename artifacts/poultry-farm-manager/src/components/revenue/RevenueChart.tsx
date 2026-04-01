@@ -28,7 +28,7 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
       {payload.map(p => (
         <div key={p.dataKey} className="flex items-center gap-2">
           <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color }} />
-          <span className="text-gray-600">{p.dataKey === "gradeARevenue" ? "Grade A" : p.dataKey === "gradeBRevenue" ? "Grade B" : "Cracked"}:</span>
+          <span className="text-gray-600">{p.dataKey === "collectedAmount" ? "Collected" : "Outstanding"}:</span>
           <span className="font-medium text-gray-900">{formatCurrency(p.value)}</span>
         </div>
       ))}
@@ -52,9 +52,8 @@ export default function RevenueChart({ data }: RevenueChartProps): React.ReactEl
     .sort((a, b) => a.date.localeCompare(b.date))
     .map(d => ({
       date: d.date,
-      gradeARevenue: d.gradeA.revenue,
-      gradeBRevenue: d.gradeB.revenue,
-      crackedRevenue: d.cracked.revenue,
+      collectedAmount: d.collectedAmount,
+      outstanding: d.outstanding,
     }));
 
   return (
@@ -76,16 +75,14 @@ export default function RevenueChart({ data }: RevenueChartProps): React.ReactEl
               axisLine={{ stroke: "#e5e7eb" }}
             />
             <Tooltip content={<CustomTooltip />} />
-            <Bar dataKey="gradeARevenue" stackId="a" fill="#22c55e" radius={[0, 0, 0, 0]} />
-            <Bar dataKey="gradeBRevenue" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} />
-            <Bar dataKey="crackedRevenue" stackId="a" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="collectedAmount" stackId="a" fill="#22c55e" radius={[0, 0, 0, 0]} />
+            <Bar dataKey="outstanding" stackId="a" fill="#f59e0b" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
       <div className="flex items-center justify-center gap-6 mt-3">
-        <div className="flex items-center gap-1.5"><div className="h-3 w-3 rounded bg-green-500" /><span className="text-xs text-gray-500">Grade A</span></div>
-        <div className="flex items-center gap-1.5"><div className="h-3 w-3 rounded bg-blue-500" /><span className="text-xs text-gray-500">Grade B</span></div>
-        <div className="flex items-center gap-1.5"><div className="h-3 w-3 rounded bg-amber-500" /><span className="text-xs text-gray-500">Cracked</span></div>
+        <div className="flex items-center gap-1.5"><div className="h-3 w-3 rounded bg-green-500" /><span className="text-xs text-gray-500">Collected</span></div>
+        <div className="flex items-center gap-1.5"><div className="h-3 w-3 rounded bg-amber-500" /><span className="text-xs text-gray-500">Outstanding</span></div>
       </div>
     </div>
   );
