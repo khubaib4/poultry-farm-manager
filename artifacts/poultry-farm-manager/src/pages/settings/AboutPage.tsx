@@ -32,7 +32,7 @@ export default function AboutPage(): React.ReactElement {
           <span className="text-3xl">🐔</span>
         </div>
         <h2 className="text-xl font-bold text-gray-900">Poultry Farm Manager</h2>
-        <p className="text-sm text-gray-500 mt-1">Version {systemInfo?.appVersion || "1.1.0"}</p>
+        <p className="text-sm text-gray-500 mt-1">Version {systemInfo?.appVersion || "1.2.0"}</p>
         <p className="text-xs text-gray-400 mt-1">Desktop Application for Farm Management</p>
       </div>
 
