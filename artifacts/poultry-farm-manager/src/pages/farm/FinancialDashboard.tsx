@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { isElectron } from "@/lib/api";
 import { useFinancialData } from "@/hooks/useFinancialData";
-import { DollarSign, Receipt, FileText } from "lucide-react";
+import { DollarSign, Receipt, FileText, CheckCircle } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import ProfitLossCard from "@/components/financial/ProfitLossCard";
 import FinancialTrendChart from "@/components/financial/FinancialTrendChart";
@@ -160,12 +160,13 @@ export default function FinancialDashboard(): React.ReactElement {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white rounded-xl border border-green-200 p-4">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-gray-500">Total Revenue</span>
+                <span className="text-sm text-gray-500">Sales Revenue</span>
                 <div className="h-9 w-9 rounded-lg bg-green-50 text-green-600 flex items-center justify-center">
                   <DollarSign className="h-5 w-5" />
                 </div>
               </div>
               <p className="text-xl font-bold text-green-600">{formatCurrency(profitLoss?.revenue.total ?? 0)}</p>
+              <p className="text-xs text-gray-400 mt-1">{profitLoss?.revenue.salesCount ?? 0} sales</p>
             </div>
 
             <div className="bg-white rounded-xl border border-red-200 p-4">
@@ -182,31 +183,30 @@ export default function FinancialDashboard(): React.ReactElement {
 
             <div className="bg-white rounded-xl border border-blue-200 p-4">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-gray-500">Profit Margin</span>
+                <span className="text-sm text-gray-500">Collected</span>
                 <div className="h-9 w-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
-                  <span className="text-sm font-bold">%</span>
+                  <CheckCircle className="h-5 w-5" />
                 </div>
               </div>
-              <p className={`text-xl font-bold ${(profitLoss?.margin ?? 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
-                {(profitLoss?.margin ?? 0).toFixed(1)}%
-              </p>
+              <p className="text-xl font-bold text-blue-600">{formatCurrency(profitLoss?.revenue.totalCollected ?? 0)}</p>
+              <p className="text-xs text-gray-400 mt-1">{(profitLoss?.revenue.collectionRate ?? 0).toFixed(1)}% rate</p>
             </div>
           </div>
 
           <FinancialTrendChart data={trends} groupBy={groupBy} onGroupByChange={setGroupBy} />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <RevenuePieChart
+              byCustomer={profitLoss?.revenue.byCustomer ?? []}
+              total={profitLoss?.revenue.total ?? 0}
+            />
             <ExpensePieChart
               byCategory={profitLoss?.expenses.byCategory ?? {}}
               total={profitLoss?.expenses.total ?? 0}
             />
-            <RevenuePieChart
-              byGrade={profitLoss?.revenue.byGrade ?? { A: 0, B: 0, cracked: 0 }}
-              total={profitLoss?.revenue.total ?? 0}
-            />
           </div>
 
-          <QuickStatsGrid perBird={perBird} perEgg={perEgg} />
+          <QuickStatsGrid revenue={profitLoss?.revenue ?? null} />
         </>
       )}
     </div>

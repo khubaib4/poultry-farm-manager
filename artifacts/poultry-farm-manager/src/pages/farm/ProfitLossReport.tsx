@@ -5,6 +5,7 @@ import { isElectron } from "@/lib/api";
 import { useFinancialData } from "@/hooks/useFinancialData";
 import { ArrowLeft, Printer, Download } from "lucide-react";
 import PLStatement from "@/components/financial/PLStatement";
+import type { ProfitLossData } from "@/types/electron";
 
 function getMonthStart(): string {
   const d = new Date();
@@ -51,19 +52,21 @@ function formatPeriodLabel(start: string, end: string): string {
   return `${s.toLocaleDateString("en-US", opts)} - ${e.toLocaleDateString("en-US", opts)}`;
 }
 
-function exportCSV(data: { revenue: { byGrade: Record<string, number>; total: number }; expenses: { byCategory: Record<string, number>; total: number }; profit: number; margin: number }, periodLabel: string) {
+function exportCSV(data: ProfitLossData, periodLabel: string) {
   const lines = [
     "Profit & Loss Statement",
     periodLabel,
     "",
     "REVENUE",
-    `Grade A,${data.revenue.byGrade.A ?? 0}`,
-    `Grade B,${data.revenue.byGrade.B ?? 0}`,
-    `Cracked,${data.revenue.byGrade.cracked ?? 0}`,
-    `Total Revenue,${data.revenue.total}`,
-    "",
-    "EXPENSES",
+    `Sales Revenue (${data.revenue.salesCount} sales),${data.revenue.total}`,
   ];
+
+  for (const p of data.revenue.byProduct) {
+    lines.push(`  ${p.name},${p.amount}`);
+  }
+  lines.push(`Total Revenue,${data.revenue.total}`);
+  lines.push("");
+  lines.push("EXPENSES");
 
   const cats = ["feed", "medicine", "labor", "utilities", "equipment", "misc"];
   const catLabels: Record<string, string> = { feed: "Feed Costs", medicine: "Medicine/Vaccines", labor: "Labor/Salaries", utilities: "Utilities", equipment: "Equipment/Maintenance", misc: "Miscellaneous" };
@@ -74,6 +77,12 @@ function exportCSV(data: { revenue: { byGrade: Record<string, number>; total: nu
   lines.push("");
   lines.push(`Net Profit/Loss,${data.profit}`);
   lines.push(`Profit Margin,${data.margin.toFixed(1)}%`);
+  lines.push("");
+  lines.push("COLLECTIONS");
+  lines.push(`Total Billed,${data.revenue.total}`);
+  lines.push(`Total Collected,${data.revenue.totalCollected}`);
+  lines.push(`Outstanding,${data.revenue.outstanding}`);
+  lines.push(`Collection Rate,${data.revenue.collectionRate.toFixed(1)}%`);
 
   const blob = new Blob([lines.join("\n")], { type: "text/csv" });
   const url = URL.createObjectURL(blob);

@@ -27,7 +27,7 @@ export default function FinancialReport({ data }: Props) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <div className="bg-green-50 rounded-lg p-3 text-center">
           <div className="text-2xl font-bold text-green-700">Rs {data.revenue.total.toLocaleString()}</div>
-          <div className="text-xs text-green-600">Total Revenue</div>
+          <div className="text-xs text-green-600">Sales Revenue</div>
         </div>
         <div className="bg-red-50 rounded-lg p-3 text-center">
           <div className="text-2xl font-bold text-red-700">Rs {data.expenses.total.toLocaleString()}</div>
@@ -45,40 +45,61 @@ export default function FinancialReport({ data }: Props) {
         </div>
       </div>
 
-      <h3 className="font-semibold text-gray-800 mb-2">Revenue Breakdown by Egg Grade</h3>
-      <div className="overflow-x-auto mb-6">
-        <table className="w-full text-sm border-collapse">
-          <thead>
-            <tr className="bg-gray-100">
-              <th className="px-3 py-2 text-left font-medium text-gray-700 border border-gray-200">Grade</th>
-              <th className="px-3 py-2 text-right font-medium text-gray-700 border border-gray-200">Eggs</th>
-              <th className="px-3 py-2 text-right font-medium text-gray-700 border border-gray-200">Price/Egg</th>
-              <th className="px-3 py-2 text-right font-medium text-gray-700 border border-gray-200">Revenue</th>
-              <th className="px-3 py-2 text-right font-medium text-gray-700 border border-gray-200">% of Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.revenue.byGrade.map(g => (
-              <tr key={g.grade} className="hover:bg-gray-50">
-                <td className="px-3 py-2 border border-gray-200 font-medium">Grade {g.grade}</td>
-                <td className="px-3 py-2 text-right border border-gray-200">{g.eggs.toLocaleString()}</td>
-                <td className="px-3 py-2 text-right border border-gray-200">Rs {g.pricePerEgg.toFixed(2)}</td>
-                <td className="px-3 py-2 text-right border border-gray-200 font-medium">Rs {g.revenue.toLocaleString()}</td>
-                <td className="px-3 py-2 text-right border border-gray-200">
-                  {data.revenue.total > 0 ? Math.round((g.revenue / data.revenue.total) * 100) : 0}%
-                </td>
-              </tr>
-            ))}
-            <tr className="bg-gray-100 font-semibold">
-              <td className="px-3 py-2 border border-gray-200">Total</td>
-              <td className="px-3 py-2 text-right border border-gray-200">{data.metrics.totalEggs.toLocaleString()}</td>
-              <td className="px-3 py-2 text-right border border-gray-200">—</td>
-              <td className="px-3 py-2 text-right border border-gray-200">Rs {data.revenue.total.toLocaleString()}</td>
-              <td className="px-3 py-2 text-right border border-gray-200">100%</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      {data.revenue.byCustomer.length > 0 && (
+        <>
+          <h3 className="font-semibold text-gray-800 mb-2">Top Customers by Revenue</h3>
+          <div className="overflow-x-auto mb-6">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="px-3 py-2 text-left font-medium text-gray-700 border border-gray-200">Customer</th>
+                  <th className="px-3 py-2 text-right font-medium text-gray-700 border border-gray-200">Revenue</th>
+                  <th className="px-3 py-2 text-right font-medium text-gray-700 border border-gray-200">% of Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.revenue.byCustomer.map(c => (
+                  <tr key={c.name} className="hover:bg-gray-50">
+                    <td className="px-3 py-2 border border-gray-200 font-medium">{c.name}</td>
+                    <td className="px-3 py-2 text-right border border-gray-200 font-medium">Rs {c.amount.toLocaleString()}</td>
+                    <td className="px-3 py-2 text-right border border-gray-200">
+                      {data.revenue.total > 0 ? Math.round((c.amount / data.revenue.total) * 100) : 0}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {data.revenue.byProduct.length > 0 && (
+        <>
+          <h3 className="font-semibold text-gray-800 mb-2">Revenue by Product</h3>
+          <div className="overflow-x-auto mb-6">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="px-3 py-2 text-left font-medium text-gray-700 border border-gray-200">Product</th>
+                  <th className="px-3 py-2 text-right font-medium text-gray-700 border border-gray-200">Revenue</th>
+                  <th className="px-3 py-2 text-right font-medium text-gray-700 border border-gray-200">% of Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.revenue.byProduct.map(p => (
+                  <tr key={p.name} className="hover:bg-gray-50">
+                    <td className="px-3 py-2 border border-gray-200 font-medium">{p.name}</td>
+                    <td className="px-3 py-2 text-right border border-gray-200 font-medium">Rs {p.amount.toLocaleString()}</td>
+                    <td className="px-3 py-2 text-right border border-gray-200">
+                      {data.revenue.total > 0 ? Math.round((p.amount / data.revenue.total) * 100) : 0}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
 
       <h3 className="font-semibold text-gray-800 mb-2">Expense Breakdown by Category</h3>
       <div className="mb-6 border border-gray-200 rounded-lg p-4">
@@ -108,11 +129,11 @@ export default function FinancialReport({ data }: Props) {
       <div className="mb-6 border border-gray-200 rounded-lg p-4">
         <div className="space-y-2 text-sm">
           <div className="flex justify-between font-semibold text-green-700 pb-2 border-b">
-            <span>Revenue</span><span>Rs {data.revenue.total.toLocaleString()}</span>
+            <span>Sales Revenue ({data.revenue.salesCount} sales)</span><span>Rs {data.revenue.total.toLocaleString()}</span>
           </div>
-          {data.revenue.byGrade.map(g => (
-            <div key={g.grade} className="flex justify-between pl-4 text-gray-600">
-              <span>Grade {g.grade}</span><span>Rs {g.revenue.toLocaleString()}</span>
+          {data.revenue.byProduct.map(p => (
+            <div key={p.name} className="flex justify-between pl-4 text-gray-600">
+              <span>{p.name}</span><span>Rs {p.amount.toLocaleString()}</span>
             </div>
           ))}
           <div className="flex justify-between font-semibold text-red-700 pt-2 pb-2 border-b border-t mt-2">
@@ -128,6 +149,21 @@ export default function FinancialReport({ data }: Props) {
             <span>Rs {Math.abs(data.profitLoss.profit).toLocaleString()}</span>
           </div>
           <div className="text-right text-xs text-gray-500">Profit Margin: {data.profitLoss.margin}%</div>
+        </div>
+      </div>
+
+      <h3 className="font-semibold text-gray-800 mb-2">Collections</h3>
+      <div className="mb-6 border border-gray-200 rounded-lg p-4">
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between"><span>Total Billed</span><span className="font-medium">Rs {data.revenue.total.toLocaleString()}</span></div>
+          <div className="flex justify-between"><span>Total Collected</span><span className="font-medium text-green-600">Rs {data.revenue.totalCollected.toLocaleString()}</span></div>
+          <div className="flex justify-between"><span>Outstanding</span><span className={`font-medium ${data.revenue.outstanding > 0 ? "text-amber-600" : "text-green-600"}`}>Rs {data.revenue.outstanding.toLocaleString()}</span></div>
+          <div className="flex justify-between border-t pt-2 mt-2 font-semibold">
+            <span>Collection Rate</span>
+            <span className={data.revenue.collectionRate >= 80 ? "text-green-600" : data.revenue.collectionRate >= 50 ? "text-amber-600" : "text-red-600"}>
+              {data.revenue.collectionRate}%
+            </span>
+          </div>
         </div>
       </div>
 

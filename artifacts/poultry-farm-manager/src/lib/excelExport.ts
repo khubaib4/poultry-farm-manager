@@ -214,14 +214,26 @@ export function exportFinancialReportExcel(data: FinancialReportData, farmName: 
   ], [25, 20]);
 
   addSheet(wb, "Revenue", [
-    ["Revenue by Egg Grade"],
-    ["Grade", "Eggs", "Price/Egg (Rs)", "Revenue (Rs)", "% of Total"],
-    ...data.revenue.byGrade.map(g => [
-      `Grade ${g.grade}`, g.eggs, g.pricePerEgg, g.revenue,
-      data.revenue.total > 0 ? `${Math.round((g.revenue / data.revenue.total) * 100)}%` : "0%",
+    ["Revenue by Customer"],
+    ["Customer", "Revenue (Rs)", "% of Total"],
+    ...data.revenue.byCustomer.map(c => [
+      c.name, c.amount,
+      data.revenue.total > 0 ? `${Math.round((c.amount / data.revenue.total) * 100)}%` : "0%",
     ]),
-    ["Total", data.metrics.totalEggs, "", data.revenue.total, "100%"],
-  ], [15, 10, 15, 15, 12]);
+    [],
+    ["Revenue by Product"],
+    ["Product", "Revenue (Rs)", "% of Total"],
+    ...data.revenue.byProduct.map(p => [
+      p.name, p.amount,
+      data.revenue.total > 0 ? `${Math.round((p.amount / data.revenue.total) * 100)}%` : "0%",
+    ]),
+    [],
+    ["Collections"],
+    ["Total Billed", data.revenue.total],
+    ["Total Collected", data.revenue.totalCollected],
+    ["Outstanding", data.revenue.outstanding],
+    ["Collection Rate (%)", data.revenue.collectionRate],
+  ], [20, 15, 12]);
 
   addSheet(wb, "Expenses", [
     ["Expenses by Category"],

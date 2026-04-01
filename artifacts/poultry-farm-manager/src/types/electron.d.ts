@@ -94,7 +94,16 @@ export interface RevenueVsExpenses {
 }
 
 export interface ProfitLossData {
-  revenue: { byGrade: { A: number; B: number; cracked: number }; total: number };
+  revenue: {
+    total: number;
+    totalCollected: number;
+    outstanding: number;
+    salesCount: number;
+    collectionRate: number;
+    customersServed: number;
+    byCustomer: Array<{ name: string; amount: number }>;
+    byProduct: Array<{ name: string; amount: number }>;
+  };
   expenses: { byCategory: Record<string, number>; total: number };
   profit: number;
   margin: number;
@@ -526,7 +535,12 @@ export interface FinancialReportData {
   farm: FarmInfo;
   revenue: {
     total: number;
-    byGrade: { grade: string; eggs: number; revenue: number; pricePerEgg: number }[];
+    totalCollected: number;
+    outstanding: number;
+    collectionRate: number;
+    salesCount: number;
+    byCustomer: Array<{ name: string; amount: number }>;
+    byProduct: Array<{ name: string; amount: number }>;
   };
   expenses: {
     total: number;

@@ -1,0 +1,144 @@
+Update Financial Dashboard & Reports
+OBJECTIVE: Update Financial Dashboard and Reports to use sales-based revenue
+
+REQUIREMENTS:
+- Financial Dashboard shows sales revenue
+- Profit/Loss reports use sales data
+- All financial reports consistent with new system
+
+FILES TO MODIFY:
+
+1. UPDATE src/pages/farm/FinancialDashboard.tsx:
+   - Revenue card: Total from sales
+   - Expenses card: Total expenses (no change)
+   - Profit card: Sales revenue - Expenses
+   - Margin card: (Profit / Revenue) × 100
+   
+   - Trend chart: Show sales revenue vs expenses over time
+   - Pie charts: 
+     * Revenue by customer (top 5)
+     * Expenses by category (existing)
+   
+   - Quick stats:
+     * Average sale value
+     * Total customers served
+     * Collection rate (collected / revenue × 100)
+
+2. UPDATE src/pages/farm/ProfitLossReport.tsx (or FinancialReport):
+   - Revenue section:
+     * Total Sales Revenue
+     * Breakdown by customer (optional)
+     * Breakdown by product (eggs/trays)
+   
+   - Expenses section (no change):
+     * By category
+   
+   - Profit calculation:
+     * Gross Profit = Revenue - Expenses
+     * Net Margin = (Profit / Revenue) × 100
+   
+   - Remove any reference to calculated egg revenue
+
+3. UPDATE src/components/reports/FinancialReport.tsx:
+   - Use sales totals for revenue
+   - Update P&L statement format
+   - Show actual vs collected
+
+4. UPDATE src/components/reports/MonthlyReport.tsx:
+   - Financial summary section uses sales data
+   - Revenue = sum of sales in month
+   - Profit = Revenue - Expenses
+
+5. UPDATE src/components/reports/WeeklyReport.tsx:
+   - Same updates for weekly financial summary
+
+6. UPDATE src/lib/pdfExport.ts (if financial reports exported):
+   - Update revenue sections to show sales-based data
+   - Update labels (e.g., "Sales Revenue" not "Calculated Revenue")
+
+7. UPDATE src/lib/excelExport.ts:
+   - Financial report Excel export uses sales data
+
+8. UPDATE any remaining financial calculations:
+   - Search for "eggPrice" or "egg_prices" references
+   - Search for "dailyEntries" used for revenue
+   - Update to use sales data
+
+9. UPDATE electron/ipc-handlers.ts (if needed):
+   - Ensure all financial handlers use sales data:
+     * financial.getProfitLoss - already updated in 8.1
+     * financial.getFinancialTrends - already updated in 8.1
+   
+   - Add if missing:
+     * financial.getRevenueByCustomer(farmId, startDate, endDate)
+     * financial.getCollectionRate(farmId, startDate, endDate)
+
+NEW FINANCIAL METRICS:
+```typescript
+// From sales data
+const totalRevenue = sales.sum(s => s.totalAmount);
+const totalCollected = sales.sum(s => s.paidAmount);
+const totalOutstanding = totalRevenue - totalCollected;
+
+// From expenses
+const totalExpenses = expenses.sum(e => e.amount);
+
+// Calculated
+const grossProfit = totalRevenue - totalExpenses;
+const profitMargin = (grossProfit / totalRevenue) * 100;
+const collectionRate = (totalCollected / totalRevenue) * 100;
+```
+
+FINANCIAL DASHBOARD LAYOUT:
++--------------------------------------------------+
+|  Financial Overview              [This Month ▼]  |
++--------------------------------------------------+
+|  [Revenue]    [Expenses]   [Profit]    [Margin]  |
+|  PKR 250,000  PKR 150,000  PKR 100,000   40%     |
+|  ↑ 12%        ↑ 5%         ↑ 18%        ↑ 3%     |
++--------------------------------------------------+
+|  Revenue vs Expenses Trend                       |
+|  [Line chart: revenue line, expenses line]       |
++--------------------------------------------------+
+|  Top Customers          |  Expense Categories    |
+|  [Pie chart]            |  [Pie chart]           |
++--------------------------------------------------+
+|  Quick Stats                                     |
+|  • Avg Sale: PKR 8,500  • Customers: 15          |
+|  • Collection Rate: 72% • Outstanding: PKR 70K   |
++--------------------------------------------------+
+
+P&L REPORT FORMAT:
+PROFIT & LOSS STATEMENT
+Period: March 1-31, 2026
+REVENUE
+Sales Revenue                     PKR 250,000
+─────────────────────────────────────────────
+Total Revenue                     PKR 250,000
+EXPENSES
+Feed                              PKR 80,000
+Medicine                          PKR 15,000
+Labor                             PKR 30,000
+Utilities                         PKR 10,000
+Equipment                         PKR 5,000
+Miscellaneous                     PKR 10,000
+─────────────────────────────────────────────
+Total Expenses                    PKR 150,000
+─────────────────────────────────────────────
+GROSS PROFIT                      PKR 100,000
+Profit Margin                          40.0%
+─────────────────────────────────────────────
+COLLECTIONS
+Total Billed                      PKR 250,000
+Total Collected                   PKR 180,000
+Outstanding                       PKR 70,000
+Collection Rate                        72.0%
+
+UI/UX REQUIREMENTS:
+- Clear revenue source (from sales)
+- Profit calculation accurate
+- Collection tracking visible
+- Consistent across all reports
+- PDF/Excel exports updated
+
+OUTPUT: Financial dashboard and all reports use sales-based revenue. P&L shows accurate profit. Collection rate tracked.

@@ -1096,7 +1096,11 @@ export function registerIpcHandlers(): void {
     wrapHandler((_e: unknown, farmId: number, startDate: string, endDate: string) => {
       requireFarmAccess(farmId);
 
-      const salesRows = db.select({ totalAmount: schema.sales.totalAmount })
+      const salesRows = db.select({
+        totalAmount: schema.sales.totalAmount,
+        paidAmount: schema.sales.paidAmount,
+        customerId: schema.sales.customerId,
+      })
         .from(schema.sales)
         .where(and(
           eq(schema.sales.farmId, farmId),
@@ -1106,7 +1110,66 @@ export function registerIpcHandlers(): void {
         ))
         .all();
 
-      const totalRevenue = salesRows.reduce((s, r) => s + r.totalAmount, 0);
+      let totalRevenue = 0;
+      let totalCollected = 0;
+      const customerAmounts: Record<number, number> = {};
+      for (const r of salesRows) {
+        totalRevenue += r.totalAmount;
+        totalCollected += (r.paidAmount ?? 0);
+        customerAmounts[r.customerId] = (customerAmounts[r.customerId] ?? 0) + r.totalAmount;
+      }
+      const outstanding = totalRevenue - totalCollected;
+      const collectionRate = totalRevenue > 0 ? (totalCollected / totalRevenue) * 100 : 0;
+
+      const customerIds = Object.keys(customerAmounts).map(Number);
+      const customerNames: Record<number, string> = {};
+      if (customerIds.length > 0) {
+        const custRows = db.select({ id: schema.customers.id, name: schema.customers.name })
+          .from(schema.customers)
+          .where(inArray(schema.customers.id, customerIds))
+          .all();
+        for (const c of custRows) customerNames[c.id] = c.name;
+      }
+
+      const byCustomer = Object.entries(customerAmounts)
+        .map(([id, amount]) => ({ name: customerNames[Number(id)] ?? "Unknown", amount }))
+        .sort((a, b) => b.amount - a.amount)
+        .slice(0, 5);
+
+      const filteredSaleIds = db.select({ id: schema.sales.id })
+        .from(schema.sales)
+        .where(and(
+          eq(schema.sales.farmId, farmId),
+          eq(schema.sales.isDeleted, 0),
+          gte(schema.sales.saleDate, startDate),
+          lte(schema.sales.saleDate, endDate)
+        ))
+        .all()
+        .map(r => r.id);
+
+      const byProduct: Array<{ name: string; amount: number }> = [];
+      if (filteredSaleIds.length > 0) {
+        const itemRows = db.select({
+          itemType: schema.saleItems.itemType,
+          grade: schema.saleItems.grade,
+          lineTotal: schema.saleItems.lineTotal,
+          saleId: schema.saleItems.saleId,
+        })
+          .from(schema.saleItems)
+          .where(inArray(schema.saleItems.saleId, filteredSaleIds))
+          .all();
+
+        const productAmounts: Record<string, number> = {};
+        for (const item of itemRows) {
+          const label = `${item.itemType === "tray" ? "Tray" : "Egg"} - ${item.grade}`;
+          productAmounts[label] = (productAmounts[label] ?? 0) + item.lineTotal;
+        }
+        byProduct.push(
+          ...Object.entries(productAmounts)
+            .map(([name, amount]) => ({ name, amount }))
+            .sort((a, b) => b.amount - a.amount)
+        );
+      }
 
       const expenseRows = db.select({
         category: schema.expenses.category,
@@ -1131,7 +1194,16 @@ export function registerIpcHandlers(): void {
       const margin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
 
       return {
-        revenue: { byGrade: { A: 0, B: 0, cracked: 0 }, total: totalRevenue },
+        revenue: {
+          total: totalRevenue,
+          totalCollected,
+          outstanding,
+          salesCount: salesRows.length,
+          collectionRate,
+          customersServed: customerIds.length,
+          byCustomer,
+          byProduct,
+        },
         expenses: { byCategory, total: totalExpenses },
         profit,
         margin,
@@ -2538,14 +2610,15 @@ export function registerIpcHandlers(): void {
       const totalDeaths = flockSummaries.reduce((s, f) => s + f.deaths, 0);
       const totalFeed = flockSummaries.reduce((s, f) => s + f.feedConsumedKg, 0);
 
-      const prices = db.select().from(schema.eggPrices)
-        .where(and(eq(schema.eggPrices.farmId, farmId), lte(schema.eggPrices.effectiveDate, date)))
-        .all();
-      const getPrice = (grade: string) => {
-        const matching = prices.filter(p => p.grade === grade).sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate));
-        return matching[0]?.pricePerEgg || 0;
-      };
-      const revenue = totalEggsA * getPrice("A") + totalEggsB * getPrice("B") + totalCracked * getPrice("Cracked");
+      const revenue = db.select({ totalAmount: schema.sales.totalAmount })
+        .from(schema.sales)
+        .where(and(
+          eq(schema.sales.farmId, farmId),
+          eq(schema.sales.isDeleted, 0),
+          eq(schema.sales.saleDate, date)
+        ))
+        .all()
+        .reduce((s, r) => s + r.totalAmount, 0);
 
       const dayExpenses = db.select().from(schema.expenses)
         .where(and(eq(schema.expenses.farmId, farmId), eq(schema.expenses.expenseDate, date)))
@@ -2616,14 +2689,16 @@ export function registerIpcHandlers(): void {
         .all();
       const totalExpenses = exps.reduce((s, e) => s + (e.amount || 0), 0);
 
-      const prices = db.select().from(schema.eggPrices)
-        .where(and(eq(schema.eggPrices.farmId, farmId), lte(schema.eggPrices.effectiveDate, endDate)))
-        .all();
-      const getPrice = (grade: string) => {
-        const matching = prices.filter(p => p.grade === grade).sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate));
-        return matching[0]?.pricePerEgg || 0;
-      };
-      const totalRevenue = weeklyTotals.eggsGradeA * getPrice("A") + weeklyTotals.eggsGradeB * getPrice("B") + weeklyTotals.eggsCracked * getPrice("Cracked");
+      const salesRevenue = db.select({ totalAmount: schema.sales.totalAmount })
+        .from(schema.sales)
+        .where(and(
+          eq(schema.sales.farmId, farmId),
+          eq(schema.sales.isDeleted, 0),
+          gte(schema.sales.saleDate, startDate),
+          lte(schema.sales.saleDate, endDate)
+        ))
+        .all()
+        .reduce((s, r) => s + r.totalAmount, 0);
 
       return {
         startDate, endDate,
@@ -2635,7 +2710,7 @@ export function registerIpcHandlers(): void {
           mortalityRate: totalInitial > 0 ? Math.round((weeklyTotals.deaths / totalInitial) * 10000) / 100 : 0,
           feedPerBird: totalBirds > 0 ? Math.round((weeklyTotals.feedKg / daysWithData / totalBirds) * 1000) / 1000 : 0,
         },
-        financial: { revenue: Math.round(totalRevenue * 100) / 100, expenses: Math.round(totalExpenses * 100) / 100, profit: Math.round((totalRevenue - totalExpenses) * 100) / 100 },
+        financial: { revenue: Math.round(salesRevenue * 100) / 100, expenses: Math.round(totalExpenses * 100) / 100, profit: Math.round((salesRevenue - totalExpenses) * 100) / 100 },
       };
     })
   );
@@ -2687,14 +2762,16 @@ export function registerIpcHandlers(): void {
       const totalFeed = entries.reduce((s, e) => s + (e.feedConsumedKg || 0), 0);
       const totalBirds = farmFlocks.reduce((s, f) => s + (f.currentCount || 0), 0);
 
-      const prices = db.select().from(schema.eggPrices)
-        .where(and(eq(schema.eggPrices.farmId, farmId), lte(schema.eggPrices.effectiveDate, endDate)))
-        .all();
-      const getPrice = (grade: string) => {
-        const matching = prices.filter(p => p.grade === grade).sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate));
-        return matching[0]?.pricePerEgg || 0;
-      };
-      const totalRevenue = totalEggsA * getPrice("A") + totalEggsB * getPrice("B") + totalCracked * getPrice("Cracked");
+      const totalRevenue = db.select({ totalAmount: schema.sales.totalAmount })
+        .from(schema.sales)
+        .where(and(
+          eq(schema.sales.farmId, farmId),
+          eq(schema.sales.isDeleted, 0),
+          gte(schema.sales.saleDate, startDate),
+          lte(schema.sales.saleDate, endDate)
+        ))
+        .all()
+        .reduce((s, r) => s + r.totalAmount, 0);
 
       const totalExpenses = db.select().from(schema.expenses)
         .where(and(eq(schema.expenses.farmId, farmId), gte(schema.expenses.expenseDate, startDate), lte(schema.expenses.expenseDate, endDate)))
@@ -2790,30 +2867,88 @@ export function registerIpcHandlers(): void {
       requireFarmAccess(farmId);
       const farm = db.select().from(schema.farms).where(eq(schema.farms.id, farmId)).get();
       const farmFlocks = db.select().from(schema.flocks).where(eq(schema.flocks.farmId, farmId)).all();
-      const flockIds = farmFlocks.map(f => f.id);
       const totalBirds = farmFlocks.reduce((s, f) => s + (f.currentCount || 0), 0);
+      const flockIds = farmFlocks.map(f => f.id);
 
       const entries = flockIds.length > 0 ? db.select().from(schema.dailyEntries)
         .where(and(gte(schema.dailyEntries.entryDate, startDate), lte(schema.dailyEntries.entryDate, endDate)))
         .all().filter(e => e.flockId && flockIds.includes(e.flockId)) : [];
+      const totalEggs = entries.reduce((s, e) => s + (e.eggsGradeA || 0) + (e.eggsGradeB || 0) + (e.eggsCracked || 0), 0);
 
-      const totalEggsA = entries.reduce((s, e) => s + (e.eggsGradeA || 0), 0);
-      const totalEggsB = entries.reduce((s, e) => s + (e.eggsGradeB || 0), 0);
-      const totalCracked = entries.reduce((s, e) => s + (e.eggsCracked || 0), 0);
-      const totalEggs = totalEggsA + totalEggsB + totalCracked;
-
-      const prices = db.select().from(schema.eggPrices)
-        .where(and(eq(schema.eggPrices.farmId, farmId), lte(schema.eggPrices.effectiveDate, endDate)))
+      const salesRows = db.select({
+        totalAmount: schema.sales.totalAmount,
+        paidAmount: schema.sales.paidAmount,
+        saleDate: schema.sales.saleDate,
+        customerId: schema.sales.customerId,
+      })
+        .from(schema.sales)
+        .where(and(
+          eq(schema.sales.farmId, farmId),
+          eq(schema.sales.isDeleted, 0),
+          gte(schema.sales.saleDate, startDate),
+          lte(schema.sales.saleDate, endDate)
+        ))
         .all();
-      const getPrice = (grade: string) => {
-        const matching = prices.filter(p => p.grade === grade).sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate));
-        return matching[0]?.pricePerEgg || 0;
-      };
 
-      const revenueA = totalEggsA * getPrice("A");
-      const revenueB = totalEggsB * getPrice("B");
-      const revenueCracked = totalCracked * getPrice("Cracked");
-      const totalRevenue = revenueA + revenueB + revenueCracked;
+      let totalRevenue = 0;
+      let totalCollected = 0;
+      const customerAmounts: Record<number, number> = {};
+      for (const r of salesRows) {
+        totalRevenue += r.totalAmount;
+        totalCollected += (r.paidAmount ?? 0);
+        customerAmounts[r.customerId] = (customerAmounts[r.customerId] ?? 0) + r.totalAmount;
+      }
+
+      const customerIds = Object.keys(customerAmounts).map(Number);
+      const customerNames: Record<number, string> = {};
+      if (customerIds.length > 0) {
+        const custRows = db.select({ id: schema.customers.id, name: schema.customers.name })
+          .from(schema.customers)
+          .where(inArray(schema.customers.id, customerIds))
+          .all();
+        for (const c of custRows) customerNames[c.id] = c.name;
+      }
+
+      const byCustomer = Object.entries(customerAmounts)
+        .map(([id, amount]) => ({ name: customerNames[Number(id)] ?? "Unknown", amount }))
+        .sort((a, b) => b.amount - a.amount)
+        .slice(0, 10);
+
+      const filteredSaleIds = salesRows.length > 0
+        ? db.select({ id: schema.sales.id })
+          .from(schema.sales)
+          .where(and(
+            eq(schema.sales.farmId, farmId),
+            eq(schema.sales.isDeleted, 0),
+            gte(schema.sales.saleDate, startDate),
+            lte(schema.sales.saleDate, endDate)
+          ))
+          .all()
+          .map(r => r.id)
+        : [];
+
+      const byProduct: Array<{ name: string; amount: number }> = [];
+      if (filteredSaleIds.length > 0) {
+        const itemRows = db.select({
+          itemType: schema.saleItems.itemType,
+          grade: schema.saleItems.grade,
+          lineTotal: schema.saleItems.lineTotal,
+        })
+          .from(schema.saleItems)
+          .where(inArray(schema.saleItems.saleId, filteredSaleIds))
+          .all();
+
+        const productAmounts: Record<string, number> = {};
+        for (const item of itemRows) {
+          const label = `${item.itemType === "tray" ? "Tray" : "Egg"} - ${item.grade}`;
+          productAmounts[label] = (productAmounts[label] ?? 0) + item.lineTotal;
+        }
+        byProduct.push(
+          ...Object.entries(productAmounts)
+            .map(([name, amount]) => ({ name, amount }))
+            .sort((a, b) => b.amount - a.amount)
+        );
+      }
 
       const exps = db.select().from(schema.expenses)
         .where(and(eq(schema.expenses.farmId, farmId), gte(schema.expenses.expenseDate, startDate), lte(schema.expenses.expenseDate, endDate)))
@@ -2821,16 +2956,16 @@ export function registerIpcHandlers(): void {
       const totalExpenses = exps.reduce((s, e) => s + (e.amount || 0), 0);
       const expByCategory = exps.reduce<Record<string, number>>((acc, e) => { acc[e.category] = (acc[e.category] || 0) + (e.amount || 0); return acc; }, {});
 
+      const dailySalesMap: Record<string, number> = {};
+      for (const s of salesRows) {
+        dailySalesMap[s.saleDate] = (dailySalesMap[s.saleDate] ?? 0) + s.totalAmount;
+      }
       const dailyFinancial: { date: string; revenue: number; expenses: number }[] = [];
       const d = new Date(startDate);
       const endD = new Date(endDate);
       while (d <= endD) {
         const ds = d.toISOString().split("T")[0];
-        const dayEntries = entries.filter(e => e.entryDate === ds);
-        const dayEggsA = dayEntries.reduce((s, e) => s + (e.eggsGradeA || 0), 0);
-        const dayEggsB = dayEntries.reduce((s, e) => s + (e.eggsGradeB || 0), 0);
-        const dayCracked = dayEntries.reduce((s, e) => s + (e.eggsCracked || 0), 0);
-        const dayRev = dayEggsA * getPrice("A") + dayEggsB * getPrice("B") + dayCracked * getPrice("Cracked");
+        const dayRev = dailySalesMap[ds] ?? 0;
         const dayExp = exps.filter(e => e.expenseDate === ds).reduce((s, e) => s + (e.amount || 0), 0);
         if (dayRev > 0 || dayExp > 0) dailyFinancial.push({ date: ds, revenue: Math.round(dayRev * 100) / 100, expenses: Math.round(dayExp * 100) / 100 });
         d.setDate(d.getDate() + 1);
@@ -2838,17 +2973,20 @@ export function registerIpcHandlers(): void {
 
       const profit = totalRevenue - totalExpenses;
       const margin = totalRevenue > 0 ? Math.round((profit / totalRevenue) * 10000) / 100 : 0;
+      const outstanding = totalRevenue - totalCollected;
+      const collectionRate = totalRevenue > 0 ? Math.round((totalCollected / totalRevenue) * 10000) / 100 : 0;
 
       return {
         startDate, endDate,
         farm: { id: farm!.id, name: farm!.name, location: farm!.location },
         revenue: {
           total: Math.round(totalRevenue * 100) / 100,
-          byGrade: [
-            { grade: "A", eggs: totalEggsA, revenue: Math.round(revenueA * 100) / 100, pricePerEgg: getPrice("A") },
-            { grade: "B", eggs: totalEggsB, revenue: Math.round(revenueB * 100) / 100, pricePerEgg: getPrice("B") },
-            { grade: "Cracked", eggs: totalCracked, revenue: Math.round(revenueCracked * 100) / 100, pricePerEgg: getPrice("Cracked") },
-          ],
+          totalCollected: Math.round(totalCollected * 100) / 100,
+          outstanding: Math.round(outstanding * 100) / 100,
+          collectionRate,
+          salesCount: salesRows.length,
+          byCustomer,
+          byProduct,
         },
         expenses: {
           total: Math.round(totalExpenses * 100) / 100,
@@ -2894,7 +3032,10 @@ export function registerIpcHandlers(): void {
     const totalDeaths = allEntries.reduce((s, e) => s + (e.deaths || 0), 0);
     const mortalityRate = initialBirds > 0 ? Math.round((totalDeaths / initialBirds) * 10000) / 100 : 0;
 
-    const totalEggsMonth = allEntries.reduce((s, e) => s + (e.eggsGradeA || 0) + (e.eggsGradeB || 0) + (e.eggsCracked || 0), 0);
+    const totalEggsA = allEntries.reduce((s, e) => s + (e.eggsGradeA || 0), 0);
+    const totalEggsB = allEntries.reduce((s, e) => s + (e.eggsGradeB || 0), 0);
+    const totalCracked = allEntries.reduce((s, e) => s + (e.eggsCracked || 0), 0);
+    const totalEggsMonth = totalEggsA + totalEggsB + totalCracked;
     const daysInMonth = allEntries.length > 0 ? new Set(allEntries.map(e => e.entryDate)).size : 1;
     const avgEggsPerDay = Math.round(totalEggsMonth / daysInMonth);
     const productionRate = totalBirds > 0 ? Math.round((avgEggsPerDay / totalBirds) * 10000) / 100 : 0;
@@ -2904,18 +3045,18 @@ export function registerIpcHandlers(): void {
       .where(and(eq(schema.expenses.farmId, farmId), gte(schema.expenses.expenseDate, monthStart), lte(schema.expenses.expenseDate, monthEnd)))
       .get();
 
-    const totalEggsA = allEntries.reduce((s, e) => s + (e.eggsGradeA || 0), 0);
-    const totalEggsB = allEntries.reduce((s, e) => s + (e.eggsGradeB || 0), 0);
-    const totalCracked = allEntries.reduce((s, e) => s + (e.eggsCracked || 0), 0);
-
-    const prices = db.select().from(schema.eggPrices)
-      .where(and(eq(schema.eggPrices.farmId, farmId), lte(schema.eggPrices.effectiveDate, monthEnd)))
-      .all();
-    const getPrice = (grade: string) => {
-      const sorted = [...prices].filter(p => p.grade === grade).sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate));
-      return sorted.length > 0 ? sorted[0].pricePerEgg : 0;
-    };
-    const revenueMonth = Math.round((totalEggsA * getPrice("A") + totalEggsB * getPrice("B") + totalCracked * getPrice("Cracked")) * 100) / 100;
+    const revenueMonth = Math.round(
+      db.select({ totalAmount: schema.sales.totalAmount })
+        .from(schema.sales)
+        .where(and(
+          eq(schema.sales.farmId, farmId),
+          eq(schema.sales.isDeleted, 0),
+          gte(schema.sales.saleDate, monthStart),
+          lte(schema.sales.saleDate, monthEnd)
+        ))
+        .all()
+        .reduce((s, r) => s + r.totalAmount, 0) * 100
+    ) / 100;
     const expensesMonth = monthExpenses?.total || 0;
     const profitMonth = Math.round((revenueMonth - expensesMonth) * 100) / 100;
     const profitMargin = revenueMonth > 0 ? Math.round((profitMonth / revenueMonth) * 10000) / 100 : 0;

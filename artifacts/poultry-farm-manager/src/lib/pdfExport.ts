@@ -308,14 +308,27 @@ export function exportFinancialReportPDF(data: FinancialReportData, farmName: st
     { label: "Margin", value: `${data.profitLoss.margin}%` },
   ]);
 
-  y = addSectionTitle(doc, y, "Revenue by Egg Grade");
-  y = addAutoTable(doc, y,
-    [["Grade", "Eggs", "Price/Egg", "Revenue", "% of Total"]],
-    data.revenue.byGrade.map(g => [
-      `Grade ${g.grade}`, g.eggs.toLocaleString(), `Rs ${g.pricePerEgg.toFixed(2)}`, fmt(g.revenue),
-      data.revenue.total > 0 ? `${Math.round((g.revenue / data.revenue.total) * 100)}%` : "0%",
-    ])
-  );
+  if (data.revenue.byCustomer.length > 0) {
+    y = addSectionTitle(doc, y, "Revenue by Customer");
+    y = addAutoTable(doc, y,
+      [["Customer", "Revenue", "% of Total"]],
+      data.revenue.byCustomer.map(c => [
+        c.name, fmt(c.amount),
+        data.revenue.total > 0 ? `${Math.round((c.amount / data.revenue.total) * 100)}%` : "0%",
+      ])
+    );
+  }
+
+  if (data.revenue.byProduct.length > 0) {
+    y = addSectionTitle(doc, y, "Revenue by Product");
+    y = addAutoTable(doc, y,
+      [["Product", "Revenue", "% of Total"]],
+      data.revenue.byProduct.map(p => [
+        p.name, fmt(p.amount),
+        data.revenue.total > 0 ? `${Math.round((p.amount / data.revenue.total) * 100)}%` : "0%",
+      ])
+    );
+  }
 
   y = addSectionTitle(doc, y, "Expenses by Category");
   y = addAutoTable(doc, y,
@@ -328,10 +341,10 @@ export function exportFinancialReportPDF(data: FinancialReportData, farmName: st
 
   y = addSectionTitle(doc, y, "Profit & Loss Statement");
   const plRows: (string | number)[][] = [
-    ["Revenue", "", fmt(data.revenue.total)],
+    ["Sales Revenue", `${data.revenue.salesCount} sales`, fmt(data.revenue.total)],
   ];
-  data.revenue.byGrade.forEach(g => {
-    plRows.push([`  Grade ${g.grade}`, `${g.eggs} eggs`, fmt(g.revenue)]);
+  data.revenue.byProduct.forEach(p => {
+    plRows.push([`  ${p.name}`, "", fmt(p.amount)]);
   });
   plRows.push(["Expenses", "", fmt(data.expenses.total)]);
   data.expenses.byCategory.forEach(ec => {
@@ -339,6 +352,17 @@ export function exportFinancialReportPDF(data: FinancialReportData, farmName: st
   });
   plRows.push(["Net Profit/Loss", "", fmt(data.profitLoss.profit)]);
   y = addAutoTable(doc, y, [["Item", "Details", "Amount"]], plRows);
+
+  y = addSectionTitle(doc, y, "Collections");
+  y = addAutoTable(doc, y,
+    [["Item", "Amount"]],
+    [
+      ["Total Billed", fmt(data.revenue.total)],
+      ["Total Collected", fmt(data.revenue.totalCollected)],
+      ["Outstanding", fmt(data.revenue.outstanding)],
+      ["Collection Rate", `${data.revenue.collectionRate}%`],
+    ]
+  );
 
   y = addSectionTitle(doc, y, "Per-Unit Metrics");
   addAutoTable(doc, y,
