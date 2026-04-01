@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { isElectron, customers as customersApi } from "@/lib/api";
@@ -7,18 +7,10 @@ import { Users } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import { CUSTOMER_CATEGORIES } from "@/components/customers/CategoryBadge";
 
-const PAYMENT_TERMS_OPTIONS = [
-  { value: 0, label: "Cash on Delivery" },
-  { value: 7, label: "7 Days Credit" },
-  { value: 14, label: "14 Days Credit" },
-  { value: 30, label: "30 Days Credit" },
-  { value: -1, label: "Custom" },
-];
-
 export default function AddCustomerPage(): React.ReactElement {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { showToast } = useToast();
+  const toast = useToast();
   const farmId = user?.farmId ?? null;
 
   const [name, setName] = useState("");
@@ -26,20 +18,9 @@ export default function AddCustomerPage(): React.ReactElement {
   const [businessName, setBusinessName] = useState("");
   const [address, setAddress] = useState("");
   const [category, setCategory] = useState("individual");
-  const [paymentTerms, setPaymentTerms] = useState(0);
-  const [customTerms, setCustomTerms] = useState("");
-  const [defaultPricePerEgg, setDefaultPricePerEgg] = useState("");
-  const [defaultPricePerTray, setDefaultPricePerTray] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    if (saved) {
-      navigate("/farm/customers", { replace: true });
-    }
-  }, [saved, navigate]);
 
   if (!isElectron()) {
     return <div className="p-6 text-center text-gray-500">This feature is only available in the desktop app.</div>;
@@ -48,42 +29,30 @@ export default function AddCustomerPage(): React.ReactElement {
   function validate(): boolean {
     const errs: Record<string, string> = {};
     if (!name.trim() || name.trim().length < 2) errs.name = "Name is required (min 2 characters)";
+    if (!phone.trim()) errs.phone = "Phone number is required";
     if (!category) errs.category = "Category is required";
-    if (defaultPricePerEgg && (isNaN(Number(defaultPricePerEgg)) || Number(defaultPricePerEgg) < 0)) {
-      errs.defaultPricePerEgg = "Must be a positive number";
-    }
-    if (defaultPricePerTray && (isNaN(Number(defaultPricePerTray)) || Number(defaultPricePerTray) < 0)) {
-      errs.defaultPricePerTray = "Must be a positive number";
-    }
-    if (paymentTerms === -1 && (!customTerms || isNaN(Number(customTerms)) || Number(customTerms) < 0)) {
-      errs.customTerms = "Enter a valid number of days";
-    }
     setErrors(errs);
     return Object.keys(errs).length === 0;
   }
 
   async function handleSave() {
-    if (!farmId || saving || saved || !validate()) return;
+    if (saving || !farmId || !validate()) return;
 
+    setSaving(true);
     try {
-      setSaving(true);
-      const terms = paymentTerms === -1 ? Number(customTerms) : paymentTerms;
-      await customersApi.create({
+      const result = await customersApi.create({
         farmId,
         name: name.trim(),
-        phone: phone.trim() || undefined,
+        phone: phone.trim(),
         businessName: businessName.trim() || undefined,
         address: address.trim() || undefined,
         category,
-        paymentTermsDays: terms,
-        defaultPricePerEgg: defaultPricePerEgg !== "" ? Number(defaultPricePerEgg) : undefined,
-        defaultPricePerTray: defaultPricePerTray !== "" ? Number(defaultPricePerTray) : undefined,
         notes: notes.trim() || undefined,
       });
-      showToast("Customer added successfully", "success");
-      setSaved(true);
+      toast.success("Customer added successfully");
+      navigate(`/farm/customers/${result.id}`);
     } catch (err) {
-      showToast(err instanceof Error ? err.message : "Failed to add customer", "error");
+      toast.error(err instanceof Error ? err.message : "Failed to add customer");
       setSaving(false);
     }
   }
@@ -112,14 +81,17 @@ export default function AddCustomerPage(): React.ReactElement {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Phone <span className="text-red-500">*</span>
+          </label>
           <input
             type="text"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             placeholder="Phone number"
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+            className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none ${errors.phone ? "border-red-300" : "border-gray-300"}`}
           />
+          {errors.phone && <p className="text-xs text-red-500 mt-1">{errors.phone}</p>}
         </div>
 
         <div>
@@ -161,61 +133,6 @@ export default function AddCustomerPage(): React.ReactElement {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Payment Terms</label>
-          <select
-            value={paymentTerms}
-            onChange={(e) => setPaymentTerms(Number(e.target.value))}
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white"
-          >
-            {PAYMENT_TERMS_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-          {paymentTerms === -1 && (
-            <div className="mt-2">
-              <input
-                type="number"
-                value={customTerms}
-                onChange={(e) => setCustomTerms(e.target.value)}
-                placeholder="Number of days"
-                min="0"
-                className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none ${errors.customTerms ? "border-red-300" : "border-gray-300"}`}
-              />
-              {errors.customTerms && <p className="text-xs text-red-500 mt-1">{errors.customTerms}</p>}
-            </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Default Price/Egg</label>
-            <input
-              type="number"
-              value={defaultPricePerEgg}
-              onChange={(e) => setDefaultPricePerEgg(e.target.value)}
-              placeholder="0.00"
-              min="0"
-              step="0.01"
-              className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none ${errors.defaultPricePerEgg ? "border-red-300" : "border-gray-300"}`}
-            />
-            {errors.defaultPricePerEgg && <p className="text-xs text-red-500 mt-1">{errors.defaultPricePerEgg}</p>}
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Default Price/Tray</label>
-            <input
-              type="number"
-              value={defaultPricePerTray}
-              onChange={(e) => setDefaultPricePerTray(e.target.value)}
-              placeholder="0.00"
-              min="0"
-              step="0.01"
-              className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none ${errors.defaultPricePerTray ? "border-red-300" : "border-gray-300"}`}
-            />
-            {errors.defaultPricePerTray && <p className="text-xs text-red-500 mt-1">{errors.defaultPricePerTray}</p>}
-          </div>
-        </div>
-
-        <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
           <textarea
             value={notes}
@@ -229,10 +146,10 @@ export default function AddCustomerPage(): React.ReactElement {
         <div className="flex items-center gap-3 pt-4 border-t border-gray-100">
           <button
             onClick={handleSave}
-            disabled={saving || saved}
+            disabled={saving}
             className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {saved ? "Saved! Redirecting..." : saving ? "Saving..." : "Save Customer"}
+            {saving ? "Saving..." : "Save Customer"}
           </button>
           <button
             onClick={() => navigate("/farm/customers")}

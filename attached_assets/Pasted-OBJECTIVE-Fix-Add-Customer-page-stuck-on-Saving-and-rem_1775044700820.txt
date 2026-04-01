@@ -1,0 +1,87 @@
+OBJECTIVE: Fix Add Customer page - stuck on "Saving..." and remove unnecessary fields
+
+PROBLEM 1 - STUCK ON SAVING:
+When creating a new customer:
+1. User fills form and clicks "Save"
+2. Button shows "Saving..."
+3. Customer is created successfully
+4. BUT page stays stuck on "Saving..." and doesn't redirect
+
+PROBLEM 2 - REMOVE FIELDS:
+Remove these fields from Add/Edit Customer forms (not needed, will be set per sale):
+- Payment Terms
+- Default Price/Egg
+- Default Price/Tray
+
+PROBLEM 3 - PHONE REQUIRED:
+Make Phone number a required field (currently optional)
+
+PLEASE FIX:
+
+1. In src/pages/farm/AddCustomerPage.tsx:
+
+   a. Fix redirect after successful creation:
+```typescript
+   const handleSubmit = async () => {
+     if (isSubmitting) return;
+     
+     // Validate required fields
+     if (!name.trim()) {
+       toast.error('Name is required');
+       return;
+     }
+     if (!phone.trim()) {
+       toast.error('Phone number is required');
+       return;
+     }
+     
+     setIsSubmitting(true);
+     
+     try {
+       const result = await window.electronAPI.customers.create(customerData);
+       toast.success('Customer created successfully!');
+       navigate(`/farm/customers/${result.id}`); // Redirect to customer detail
+       // OR: navigate('/farm/customers'); // Redirect to customers list
+     } catch (error) {
+       console.error('Failed to create customer:', error);
+       toast.error('Failed to create customer. Please try again.');
+       setIsSubmitting(false); // Reset only on error
+     }
+   };
+```
+
+   b. Remove these form fields:
+   - Payment Terms dropdown (paymentTermsDays)
+   - Default Price/Egg input (defaultPricePerEgg)
+   - Default Price/Tray input (defaultPricePerTray)
+
+   c. Make Phone field required:
+   - Add required asterisk (*) to label
+   - Add validation before submit
+
+2. In src/pages/farm/EditCustomerPage.tsx:
+   - Apply same fixes (redirect after save, remove fields, phone required)
+
+3. Update form state:
+   - Remove paymentTermsDays, defaultPricePerEgg, defaultPricePerTray from initial state
+   - Remove from customerData object sent to API
+
+4. The database columns can remain (won't break anything), just not shown in UI.
+
+5. Update validation:
+   - Name: required
+   - Phone: required
+   - Category: required
+   - Others: optional
+
+FINAL ADD CUSTOMER FORM FIELDS:
+- Name * (required)
+- Phone * (required)  
+- Business Name (optional)
+- Address (optional)
+- Category * (required) - dropdown: Individual, Retailer, Wholesaler, Restaurant, Other
+- Notes (optional)
+
+6. Commit and push.
+
+OUTPUT: Add Customer creates and redirects properly. Phone is required. Payment Terms and Default Prices fields removed from form.

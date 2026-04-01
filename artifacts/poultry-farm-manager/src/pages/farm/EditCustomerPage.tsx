@@ -8,18 +8,10 @@ import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { CUSTOMER_CATEGORIES } from "@/components/customers/CategoryBadge";
 
-const PAYMENT_TERMS_OPTIONS = [
-  { value: 0, label: "Cash on Delivery" },
-  { value: 7, label: "7 Days Credit" },
-  { value: 14, label: "14 Days Credit" },
-  { value: 30, label: "30 Days Credit" },
-  { value: -1, label: "Custom" },
-];
-
 export default function EditCustomerPage(): React.ReactElement {
   const { customerId } = useParams<{ customerId: string }>();
   const navigate = useNavigate();
-  const { showToast } = useToast();
+  const toast = useToast();
   const id = Number(customerId);
 
   const [loading, setLoading] = useState(true);
@@ -28,10 +20,6 @@ export default function EditCustomerPage(): React.ReactElement {
   const [businessName, setBusinessName] = useState("");
   const [address, setAddress] = useState("");
   const [category, setCategory] = useState("individual");
-  const [paymentTerms, setPaymentTerms] = useState(0);
-  const [customTerms, setCustomTerms] = useState("");
-  const [defaultPricePerEgg, setDefaultPricePerEgg] = useState("");
-  const [defaultPricePerTray, setDefaultPricePerTray] = useState("");
   const [notes, setNotes] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -50,19 +38,8 @@ export default function EditCustomerPage(): React.ReactElement {
         setCategory(data.category);
         setIsActive(data.isActive === 1);
         setNotes(data.notes || "");
-        setDefaultPricePerEgg(data.defaultPricePerEgg != null ? String(data.defaultPricePerEgg) : "");
-        setDefaultPricePerTray(data.defaultPricePerTray != null ? String(data.defaultPricePerTray) : "");
-
-        const terms = data.paymentTermsDays ?? 0;
-        const isStandard = [0, 7, 14, 30].includes(terms);
-        if (isStandard) {
-          setPaymentTerms(terms);
-        } else {
-          setPaymentTerms(-1);
-          setCustomTerms(String(terms));
-        }
-      } catch (err) {
-        showToast("Failed to load customer", "error");
+      } catch {
+        toast.error("Failed to load customer");
         navigate("/farm/customers");
       } finally {
         setLoading(false);
@@ -77,42 +54,29 @@ export default function EditCustomerPage(): React.ReactElement {
   function validate(): boolean {
     const errs: Record<string, string> = {};
     if (!name.trim() || name.trim().length < 2) errs.name = "Name is required (min 2 characters)";
+    if (!phone.trim()) errs.phone = "Phone number is required";
     if (!category) errs.category = "Category is required";
-    if (defaultPricePerEgg && (isNaN(Number(defaultPricePerEgg)) || Number(defaultPricePerEgg) < 0)) {
-      errs.defaultPricePerEgg = "Must be a positive number";
-    }
-    if (defaultPricePerTray && (isNaN(Number(defaultPricePerTray)) || Number(defaultPricePerTray) < 0)) {
-      errs.defaultPricePerTray = "Must be a positive number";
-    }
-    if (paymentTerms === -1 && (!customTerms || isNaN(Number(customTerms)) || Number(customTerms) < 0)) {
-      errs.customTerms = "Enter a valid number of days";
-    }
     setErrors(errs);
     return Object.keys(errs).length === 0;
   }
 
   async function handleSave() {
-    if (!validate()) return;
+    if (saving || !validate()) return;
 
+    setSaving(true);
     try {
-      setSaving(true);
-      const terms = paymentTerms === -1 ? Number(customTerms) : paymentTerms;
       await customersApi.update(id, {
         name: name.trim(),
-        phone: phone.trim() || undefined,
+        phone: phone.trim(),
         businessName: businessName.trim() || undefined,
         address: address.trim() || undefined,
         category,
-        paymentTermsDays: terms,
-        defaultPricePerEgg: defaultPricePerEgg !== "" ? Number(defaultPricePerEgg) : null,
-        defaultPricePerTray: defaultPricePerTray !== "" ? Number(defaultPricePerTray) : null,
         notes: notes.trim() || undefined,
       });
-      showToast("Customer updated successfully", "success");
+      toast.success("Customer updated successfully");
       navigate(`/farm/customers/${id}`);
     } catch (err) {
-      showToast(err instanceof Error ? err.message : "Failed to update customer", "error");
-    } finally {
+      toast.error(err instanceof Error ? err.message : "Failed to update customer");
       setSaving(false);
     }
   }
@@ -120,12 +84,13 @@ export default function EditCustomerPage(): React.ReactElement {
   async function handleToggleActive() {
     try {
       await customersApi.update(id, { isActive: isActive ? 0 : 1 });
-      showToast(isActive ? "Customer deactivated" : "Customer reactivated", "success");
+      setShowDeactivate(false);
+      toast.success(isActive ? "Customer deactivated" : "Customer reactivated");
       navigate("/farm/customers");
-    } catch (err) {
-      showToast("Failed to update customer status", "error");
+    } catch {
+      setShowDeactivate(false);
+      toast.error("Failed to update customer status");
     }
-    setShowDeactivate(false);
   }
 
   if (loading) return <LoadingSpinner size="lg" text="Loading customer..." />;
@@ -153,13 +118,16 @@ export default function EditCustomerPage(): React.ReactElement {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Phone <span className="text-red-500">*</span>
+          </label>
           <input
             type="text"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+            className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none ${errors.phone ? "border-red-300" : "border-gray-300"}`}
           />
+          {errors.phone && <p className="text-xs text-red-500 mt-1">{errors.phone}</p>}
         </div>
 
         <div>
@@ -189,65 +157,13 @@ export default function EditCustomerPage(): React.ReactElement {
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white"
+            className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white ${errors.category ? "border-red-300" : "border-gray-300"}`}
           >
             {CUSTOMER_CATEGORIES.map((cat) => (
               <option key={cat.value} value={cat.value}>{cat.label}</option>
             ))}
           </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Payment Terms</label>
-          <select
-            value={paymentTerms}
-            onChange={(e) => setPaymentTerms(Number(e.target.value))}
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white"
-          >
-            {PAYMENT_TERMS_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-          {paymentTerms === -1 && (
-            <div className="mt-2">
-              <input
-                type="number"
-                value={customTerms}
-                onChange={(e) => setCustomTerms(e.target.value)}
-                placeholder="Number of days"
-                min="0"
-                className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none ${errors.customTerms ? "border-red-300" : "border-gray-300"}`}
-              />
-              {errors.customTerms && <p className="text-xs text-red-500 mt-1">{errors.customTerms}</p>}
-            </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Default Price/Egg</label>
-            <input
-              type="number"
-              value={defaultPricePerEgg}
-              onChange={(e) => setDefaultPricePerEgg(e.target.value)}
-              placeholder="0.00"
-              min="0"
-              step="0.01"
-              className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none ${errors.defaultPricePerEgg ? "border-red-300" : "border-gray-300"}`}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Default Price/Tray</label>
-            <input
-              type="number"
-              value={defaultPricePerTray}
-              onChange={(e) => setDefaultPricePerTray(e.target.value)}
-              placeholder="0.00"
-              min="0"
-              step="0.01"
-              className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none ${errors.defaultPricePerTray ? "border-red-300" : "border-gray-300"}`}
-            />
-          </div>
+          {errors.category && <p className="text-xs text-red-500 mt-1">{errors.category}</p>}
         </div>
 
         <div>
