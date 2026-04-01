@@ -20,7 +20,7 @@ import type { Customer } from "@/types/electron";
 export default function NewSalePage(): React.ReactElement {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { showToast } = useToast();
+  const toast = useToast();
   const farmId = user?.farmId ?? null;
 
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -131,10 +131,10 @@ export default function NewSalePage(): React.ReactElement {
         paymentMethod: paid > 0 ? paymentMethod : undefined,
         notes: notes.trim() || undefined,
       });
-      showToast("Sale created successfully", "success");
+      toast.success("Sale created successfully");
       navigate(`/farm/sales/${result.id}`);
     } catch (err) {
-      showToast(err instanceof Error ? err.message : "Failed to create sale", "error");
+      toast.error(err instanceof Error ? err.message : "Failed to create sale");
       setIsSubmitting(false);
     }
   }

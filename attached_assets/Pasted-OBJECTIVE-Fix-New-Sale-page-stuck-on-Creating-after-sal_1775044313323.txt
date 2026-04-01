@@ -1,0 +1,59 @@
+OBJECTIVE: Fix New Sale page - stuck on "Creating..." after sale creation
+
+PROBLEM:
+When creating a new sale:
+1. User fills the form and clicks "Create Sale"
+2. Button shows "Creating..." 
+3. Sale is created successfully in database
+4. BUT the page stays stuck on "Creating..." and doesn't redirect
+5. User can click again and create duplicate sales
+
+PLEASE FIX in src/pages/farm/NewSalePage.tsx:
+
+1. Find the handleSubmit or form submission function
+
+2. Make sure it:
+   a. Sets isSubmitting = true at start
+   b. Creates the sale
+   c. On SUCCESS: 
+      - Shows success toast
+      - Redirects to /farm/sales OR /farm/sales/{saleId}
+      - Do NOT reset isSubmitting (page will unmount anyway)
+   d. On ERROR:
+      - Shows error toast
+      - Sets isSubmitting = false (so user can retry)
+
+3. Example fix:
+```typescript
+   const handleSubmit = async () => {
+     if (isSubmitting) return; // Prevent double-click
+     
+     setIsSubmitting(true);
+     
+     try {
+       const result = await window.electronAPI.sales.create(saleData);
+       toast.success('Sale created successfully!');
+       navigate(`/farm/sales/${result.id}`); // Redirect to sale detail
+       // OR: navigate('/farm/sales'); // Redirect to sales list
+     } catch (error) {
+       console.error('Failed to create sale:', error);
+       toast.error('Failed to create sale. Please try again.');
+       setIsSubmitting(false); // Reset only on error
+     }
+   };
+```
+
+4. Make sure the navigate function is imported and available:
+```typescript
+   import { useNavigate } from 'react-router-dom';
+   
+   const navigate = useNavigate();
+```
+
+5. Check if there's an async/await issue - the function might not be properly awaiting the API call.
+
+6. Also check "Create & Print Invoice" button if it exists - apply same fix.
+
+7. Commit and push.
+
+OUTPUT: After creating a sale, user is immediately redirected to the sale detail or sales list page. No more stuck "Creating..." button.

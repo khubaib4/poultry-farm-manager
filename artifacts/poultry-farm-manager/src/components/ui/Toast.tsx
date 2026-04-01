@@ -11,6 +11,7 @@ interface ToastItem {
 
 interface ToastContextValue {
   toast: (type: ToastType, message: string) => void;
+  showToast: (message: string, type: ToastType) => void;
   success: (message: string) => void;
   error: (message: string) => void;
   warning: (message: string) => void;
@@ -51,6 +52,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }): Reac
 
   const value: ToastContextValue = {
     toast: addToast,
+    showToast: (msg, type) => addToast(type, msg),
     success: (msg) => addToast("success", msg),
     error: (msg) => addToast("error", msg),
     warning: (msg) => addToast("warning", msg),
