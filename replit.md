@@ -42,7 +42,7 @@ The project is structured as a pnpm workspace monorepo to promote modularity and
 - **Key Features:**
     - **Flock Management**: CRUD operations, auto-vaccination scheduling, status, and performance tracking.
     - **Daily Entry**: Records mortality, egg production, feed, water, and notes.
-    - **Farm Dashboard**: Displays live stats, performance metrics, and alerts.
+    - **Farm Dashboard**: Production Today (birds, eggs, deaths, feed), Sales & Revenue (today's sales count/amount, month revenue, month profit, outstanding receivables), Performance metrics (production rate, mortality, FCR), Recent Sales widget, Entry Status, Alerts, Active Flocks, and Quick "New Sale" action.
     - **Expenses**: Full CRUD for expense tracking and reporting.
     - **Revenue**: Sales-based revenue tracking (sum of sales totals), collections vs outstanding, revenue by customer and item type.
     - **Financial Dashboard & P&L**: Comprehensive financial reporting and trend analysis.

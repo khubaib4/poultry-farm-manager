@@ -13,6 +13,15 @@ interface FlockInfo {
   hasEntryToday: boolean;
 }
 
+interface RecentSale {
+  id: number;
+  invoiceNumber: string;
+  saleDate: string;
+  totalAmount: number;
+  paymentStatus: string;
+  customerName: string;
+}
+
 interface FarmStats {
   totalBirds: number;
   totalInitialBirds: number;
@@ -23,6 +32,13 @@ interface FarmStats {
   flocksCompleted: number;
   flocksTotal: number;
   flocks: FlockInfo[];
+  todaySalesCount: number;
+  todaySalesAmount: number;
+  monthRevenue: number;
+  monthExpenses: number;
+  monthProfit: number;
+  totalOutstanding: number;
+  recentSales: RecentSale[];
 }
 
 interface WeekData {

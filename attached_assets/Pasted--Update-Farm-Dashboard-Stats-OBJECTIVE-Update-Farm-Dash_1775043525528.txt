@@ -1,0 +1,114 @@
+ Update Farm Dashboard Stats
+OBJECTIVE: Update Farm Dashboard to show sales-based financial stats
+
+REQUIREMENTS:
+- Dashboard shows revenue from sales, not calculated from eggs
+- Keep production stats (eggs collected, mortality, feed)
+- Add sales-related quick stats
+
+FILES TO MODIFY:
+
+1. UPDATE src/pages/farm/FarmDashboard.tsx:
+   - Keep production stats:
+     * Total Birds
+     * Today's Eggs (collected - production tracking)
+     * Today's Deaths
+     * Today's Feed
+   
+   - Update financial stats:
+     * Today's Sales (count and amount)
+     * This Month Revenue (from sales)
+     * This Month Profit (revenue - expenses)
+     * Outstanding Receivables
+   
+   - Keep performance cards:
+     * Production Rate
+     * Mortality Rate
+     * FCR
+
+2. UPDATE electron/ipc-handlers.ts:
+   - dashboard.getFarmStats(farmId):
+     * Keep: totalBirds, todayEggs, todayDeaths, todayFeed
+     * Update: todayRevenue → from sales on today's date
+     * Add: todaySalesCount, monthRevenue, monthProfit, outstanding
+   
+   - dashboard.getTodaysSummary(farmId):
+     * Keep egg collection stats
+     * Add sales stats for today
+
+3. UPDATE src/components/dashboard/* (if separate components):
+   - StatsCard or similar components
+   - Update labels if needed
+
+4. REMOVE from dashboard:
+   - Any "Today's Revenue" that was calculated from eggs × prices
+   - Any reference to egg_prices for dashboard stats
+
+5. ADD new dashboard widgets (optional but recommended):
+   - Recent Sales widget (last 5 sales)
+   - Payment Due Soon widget
+   - Quick "New Sale" button
+
+DASHBOARD LAYOUT UPDATE:
++--------------------------------------------------+
+|  Farm Dashboard                     [Refresh]     |
++--------------------------------------------------+
+|  PRODUCTION TODAY                                 |
+|  [Birds]      [Eggs]       [Deaths]    [Feed]    |
+|   6,986       5,660          3        150 kg     |
++--------------------------------------------------+
+|  SALES & REVENUE                                  |
+|  [Today Sales] [Month Revenue] [Profit] [Due]    |
+|   2 sales      PKR 185,000    PKR 45K  PKR 32K  |
+|   PKR 12,500                                     |
++--------------------------------------------------+
+|  PERFORMANCE                                      |
+|  [Production]   [Mortality]    [FCR]             |
+|    81.02%         0.2%         2.1               |
++--------------------------------------------------+
+|  Entry Status        |  Alerts                   |
+|  2 of 2 recorded     |  • Low stock: Feed        |
+|                      |  • Payment overdue: Haris |
++--------------------------------------------------+
+|  Recent Sales                    [View All →]    |
+|  • Haris - PKR 8,500 - Today                     |
+|  • Ali - PKR 4,000 - Today                       |
+|  • Usman - PKR 12,000 - Yesterday                |
++--------------------------------------------------+
+
+STATS DATA STRUCTURE:
+```typescript
+interface FarmDashboardStats {
+  // Production (from daily entries)
+  totalBirds: number;
+  todayEggsCollected: number;
+  todayDeaths: number;
+  todayFeedKg: number;
+  
+  // Performance
+  productionRate: number;
+  mortalityRate: number;
+  fcr: number;
+  
+  // Sales & Revenue (from sales table)
+  todaySalesCount: number;
+  todaySalesAmount: number;
+  monthRevenue: number;
+  monthExpenses: number;
+  monthProfit: number;
+  totalOutstanding: number;
+  
+  // Entry status
+  flocksRecorded: number;
+  totalFlocks: number;
+}
+```
+
+UI/UX REQUIREMENTS:
+- Clear separation: Production vs Sales sections
+- Financial stats from actual sales
+- Quick actions for common tasks
+- Alerts include payment dues
+- Mobile responsive
+
+OUTPUT: Farm Dashboard shows production stats from daily entries and financial stats from sales. Clear and accurate representation of farm performance.

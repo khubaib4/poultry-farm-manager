@@ -1,6 +1,6 @@
 import { ipcMain, dialog, shell, app } from "electron";
 import { join } from "path";
-import { eq, and, gte, lte, sql, sum, like, desc, isNotNull, inArray } from "drizzle-orm";
+import { eq, and, gte, lte, gt, sql, sum, like, desc, isNotNull, inArray } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import Store from "electron-store";
 import { getDatabase } from "./database";
@@ -2052,6 +2052,81 @@ export function registerIpcHandlers(): void {
       const flocksWithEntry = new Set(todayEntries.map(r => r.daily_entries.flockId));
       const flocksCompleted = flocksWithEntry.size;
       const flocksTotal = activeFlocks.length;
+
+      const now = new Date();
+      const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+
+      const todaySales = db.select({
+        id: schema.sales.id,
+        totalAmount: schema.sales.totalAmount,
+        paidAmount: schema.sales.paidAmount,
+        customerName: schema.customers.name,
+        invoiceNumber: schema.sales.invoiceNumber,
+        paymentStatus: schema.sales.paymentStatus,
+      })
+        .from(schema.sales)
+        .innerJoin(schema.customers, eq(schema.sales.customerId, schema.customers.id))
+        .where(and(
+          eq(schema.sales.farmId, farmId),
+          eq(schema.sales.isDeleted, 0),
+          eq(schema.sales.saleDate, today)
+        ))
+        .orderBy(desc(schema.sales.id))
+        .all();
+
+      const todaySalesCount = todaySales.length;
+      const todaySalesAmount = Math.round(todaySales.reduce((s, r) => s + r.totalAmount, 0) * 100) / 100;
+
+      const monthSalesRows = db.select({ totalAmount: schema.sales.totalAmount })
+        .from(schema.sales)
+        .where(and(
+          eq(schema.sales.farmId, farmId),
+          eq(schema.sales.isDeleted, 0),
+          gte(schema.sales.saleDate, monthStart),
+          lte(schema.sales.saleDate, today)
+        ))
+        .all();
+      const monthRevenue = Math.round(monthSalesRows.reduce((s, r) => s + r.totalAmount, 0) * 100) / 100;
+
+      const monthExpRow = db.select({ total: sql<number>`COALESCE(SUM(${schema.expenses.amount}), 0)` })
+        .from(schema.expenses)
+        .where(and(
+          eq(schema.expenses.farmId, farmId),
+          gte(schema.expenses.expenseDate, monthStart),
+          lte(schema.expenses.expenseDate, today)
+        ))
+        .get();
+      const monthExpenses = monthExpRow?.total || 0;
+      const monthProfit = Math.round((monthRevenue - monthExpenses) * 100) / 100;
+
+      const outstandingRow = db.select({ total: sql<number>`COALESCE(SUM(${schema.sales.balanceDue}), 0)` })
+        .from(schema.sales)
+        .where(and(
+          eq(schema.sales.farmId, farmId),
+          eq(schema.sales.isDeleted, 0),
+          gt(schema.sales.balanceDue, 0)
+        ))
+        .get();
+      const totalOutstanding = outstandingRow?.total || 0;
+
+      const recentSales = db.select({
+        id: schema.sales.id,
+        invoiceNumber: schema.sales.invoiceNumber,
+        saleDate: schema.sales.saleDate,
+        totalAmount: schema.sales.totalAmount,
+        paymentStatus: schema.sales.paymentStatus,
+        customerName: schema.customers.name,
+      })
+        .from(schema.sales)
+        .innerJoin(schema.customers, eq(schema.sales.customerId, schema.customers.id))
+        .where(and(
+          eq(schema.sales.farmId, farmId),
+          eq(schema.sales.isDeleted, 0)
+        ))
+        .orderBy(desc(schema.sales.saleDate), desc(schema.sales.id))
+        .limit(5)
+        .all();
+
       return {
         totalBirds,
         totalInitialBirds,
@@ -2061,6 +2136,13 @@ export function registerIpcHandlers(): void {
         todayFeed: Math.round(todayFeed * 100) / 100,
         flocksCompleted,
         flocksTotal,
+        todaySalesCount,
+        todaySalesAmount,
+        monthRevenue,
+        monthExpenses,
+        monthProfit,
+        totalOutstanding,
+        recentSales,
         flocks: activeFlocks.map(f => ({
           id: f.id,
           batchName: f.batchName,
