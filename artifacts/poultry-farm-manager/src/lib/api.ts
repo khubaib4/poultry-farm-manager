@@ -295,8 +295,14 @@ export const vaccinations = {
   getCompleted: (farmId: number) =>
     invoke<CompletedVaccination[]>(() => getApi()!.vaccinations.getCompleted(farmId)),
 
+  getAll: (farmId: number, filters?: { flockId?: number; status?: string }) =>
+    invoke<CompletedVaccination[]>(() => getApi()!.vaccinations.getAll(farmId, filters)),
+
   update: (id: number, data: Partial<VaccinationData>) =>
     invoke(() => getApi()!.vaccinations.update(id, data)),
+
+  delete: (id: number) =>
+    invoke(() => getApi()!.vaccinations.delete(id)),
 
   complete: (id: number, data: CompleteVaccinationData) =>
     invoke(() => getApi()!.vaccinations.complete(id, data)),
@@ -321,6 +327,9 @@ export const vaccinations = {
 
   exportHistory: (farmId: number, filters: { flockId?: number; startDate?: string; endDate?: string; status?: string }) =>
     invoke<VaccinationExportItem[]>(() => getApi()!.vaccinations.exportHistory(farmId, filters)),
+
+  getById: (id: number) =>
+    invoke(() => getApi()!.vaccinations.getById(id)),
 };
 
 export const vaccinationSchedule = {
@@ -340,6 +349,9 @@ export const vaccinationSchedule = {
 
   generateForFlock: (flockId: number) =>
     invoke(() => getApi()!.vaccinationSchedule.generateForFlock(flockId)),
+
+  applyToFlocks: (farmId: number, flockIds: number[]) =>
+    invoke<{ count: number }>(() => getApi()!.vaccinationSchedule.applyToFlocks(farmId, flockIds)),
 };
 
 export const dashboard = {

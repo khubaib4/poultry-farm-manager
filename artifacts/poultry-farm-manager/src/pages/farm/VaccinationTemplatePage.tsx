@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { isElectron, vaccinationSchedule as schedApi } from "@/lib/api";
-import { Syringe, Plus, ArrowLeft, RotateCcw, Pencil, Trash2 } from "lucide-react";
+import { Syringe, Plus, ArrowLeft, RotateCcw, Pencil, Trash2, Users } from "lucide-react";
 import VaccineTemplateForm from "@/components/vaccinations/VaccineTemplateForm";
+import ApplyTemplateModal from "@/components/vaccinations/ApplyTemplateModal";
 import type { VaccinationScheduleData } from "@/types/electron";
 
 interface ScheduleItem extends VaccinationScheduleData {
@@ -17,6 +18,7 @@ export default function VaccinationTemplatePage(): React.ReactElement {
   const [editing, setEditing] = useState<ScheduleItem | null>(null);
   const [resetting, setResetting] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [showApplyModal, setShowApplyModal] = useState(false);
 
   const loadSchedules = useCallback(async () => {
     try {
@@ -112,6 +114,13 @@ export default function VaccinationTemplatePage(): React.ReactElement {
             </button>
           )}
           <button
+            onClick={() => setShowApplyModal(true)}
+            className="inline-flex items-center gap-2 px-3 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700"
+          >
+            <Users className="h-4 w-4" />
+            Apply to Existing Flocks
+          </button>
+          <button
             onClick={() => { setShowForm(true); setEditing(null); }}
             className="inline-flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700"
           >
@@ -203,6 +212,12 @@ export default function VaccinationTemplatePage(): React.ReactElement {
           </div>
         </div>
       )}
+
+      <ApplyTemplateModal
+        isOpen={showApplyModal}
+        onClose={() => setShowApplyModal(false)}
+        onSuccess={() => {}}
+      />
     </div>
   );
 }

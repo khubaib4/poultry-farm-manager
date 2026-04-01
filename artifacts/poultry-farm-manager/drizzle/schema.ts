@@ -138,6 +138,8 @@ export const vaccinations = sqliteTable("vaccinations", {
   administeredDate: text("administered_date"),
   administeredBy: text("administered_by"),
   batchNumber: text("batch_number"),
+  dosage: text("dosage"),
+  route: text("route"),
   notes: text("notes"),
   status: text("status").default("pending"),
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),

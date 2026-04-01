@@ -1,0 +1,190 @@
+OBJECTIVE: Improve vaccination system with manual entry and better flock management
+
+REQUIREMENTS:
+- Keep template for auto-scheduling new flocks
+- Add manual vaccination entry for any flock
+- Add "Apply Template to Existing Flocks" feature
+- Update vaccination form fields
+
+FILES TO CREATE/MODIFY:
+
+1. UPDATE src/pages/farm/VaccinationSchedulePage.tsx:
+   - Add "Add Vaccination" button in header (next to existing buttons)
+   - Update tabs: "Upcoming" | "Completed" | "All"
+   - Add flock filter dropdown
+   - Show vaccinations grouped by flock or by date
+
+2. CREATE src/pages/farm/AddVaccinationPage.tsx:
+   - Route: /farm/vaccinations/new
+   - Header: "Add Vaccination"
+   
+   Form fields:
+   - Flock * (dropdown - list all active flocks)
+   - Vaccine Name * (combobox - allow typing or select from common vaccines)
+   - Status * (radio: "Schedule for Later" | "Mark as Completed")
+   
+   If Scheduled:
+   - Scheduled Date * (date picker)
+   
+   If Completed:
+   - Date Administered * (date picker, default today)
+   
+   Common fields:
+   - Dosage/Quantity (text, e.g., "500 doses", "2ml/bird")
+   - Route * (dropdown):
+     * Eye drop
+     * Drinking water
+     * Injection
+     * Spray
+     * Wing web
+     * Oral
+   - Notes (textarea, optional)
+   
+   Buttons: "Save" | "Cancel"
+   
+   After save: redirect to /farm/vaccinations with success toast
+
+3. CREATE src/pages/farm/EditVaccinationPage.tsx:
+   - Route: /farm/vaccinations/:vaccinationId/edit
+   - Same form as Add, pre-filled
+   - Can change status from Scheduled to Completed
+
+4. UPDATE src/pages/farm/VaccinationTemplatePage.tsx:
+   - Keep existing template functionality
+   - ADD "Apply to Existing Flocks" button
+   - When clicked:
+     * Show modal with checkbox list of active flocks
+     * User selects which flocks to apply template to
+     * Generate vaccinations for selected flocks
+     * Show success message with count
+
+5. CREATE src/components/vaccinations/ApplyTemplateModal.tsx:
+   - Modal for applying template to existing flocks
+   - List of active flocks with checkboxes
+   - "Select All" option
+   - Shows flock name, current bird count, age
+   - "Apply Template" button
+   - Generates vaccinations based on template + flock age
+
+6. UPDATE src/components/vaccinations/VaccinationList.tsx:
+   - Show: Vaccine name, Flock name, Date, Status, Route, Dosage
+   - Status badges: Upcoming (blue), Overdue (red), Completed (green)
+   - Actions: Complete, Edit, Delete
+   - Click row to expand details/notes
+
+7. CREATE src/components/vaccinations/VaccineSelector.tsx:
+   - Combobox component for vaccine selection
+   - Common vaccines dropdown:
+     * Newcastle Disease
+     * Infectious Bronchitis (IB)
+     * Gumboro (IBD)
+     * Marek's Disease
+     * Fowl Pox
+     * Infectious Coryza
+     * Avian Influenza
+     * Salmonella
+     * E. coli
+     * Mycoplasma
+     * Other (custom entry)
+   - Allow typing custom vaccine name
+
+8. UPDATE electron/ipc-handlers.ts:
+
+   - vaccinations.create(data):
+     * Create new vaccination record
+     * Fields: flockId, vaccineName, scheduledDate, administeredDate, status, dosage, route, notes
+     * Status: 'pending' or 'completed'
+   
+   - vaccinations.update(vaccinationId, data):
+     * Update vaccination
+     * Can change status, dates, etc.
+   
+   - vaccinations.delete(vaccinationId):
+     * Delete vaccination record
+   
+   - vaccinations.getByFarm(farmId, filters):
+     * Get all vaccinations for farm
+     * Filters: flockId, status, dateRange
+     * Include flock name
+   
+   - vaccinationSchedule.applyToFlocks(farmId, flockIds):
+     * Get template vaccines
+     * For each flock:
+       - Calculate due dates based on flock age
+       - Create pending vaccination records
+     * Return count of vaccinations created
+
+9. UPDATE drizzle/schema.ts (if needed):
+   - Ensure vaccinations table has all fields:
+     * id, flockId, vaccineName, scheduledDate, administeredDate
+     * status (pending/completed/skipped)
+     * dosage, route, notes
+     * createdAt
+
+10. UPDATE src/lib/api.ts:
+    - createVaccination(data)
+    - updateVaccination(id, data)
+    - deleteVaccination(id)
+    - getVaccinations(farmId, filters)
+    - applyTemplateToFlocks(farmId, flockIds)
+
+11. UPDATE src/App.tsx (add routes):
+    - /farm/vaccinations/new - AddVaccinationPage
+    - /farm/vaccinations/:vaccinationId/edit - EditVaccinationPage
+
+12. UPDATE sidebar or vaccination page navigation:
+    - Easy access to "Add Vaccination"
+
+COMMON VACCINES LIST:
+```typescript
+const commonVaccines = [
+  'Newcastle Disease',
+  'Infectious Bronchitis (IB)',
+  'Newcastle + IB',
+  'Gumboro (IBD)',
+  'Marek\'s Disease',
+  'Fowl Pox',
+  'Infectious Coryza',
+  'Avian Influenza',
+  'Salmonella',
+  'E. coli',
+  'Mycoplasma',
+  'Egg Drop Syndrome (EDS)',
+  'Laryngotracheitis (ILT)',
+  'Other'
+];
+```
+
+ROUTE OPTIONS:
+```typescript
+const routeOptions = [
+  { value: 'eye_drop', label: 'Eye Drop' },
+  { value: 'drinking_water', label: 'Drinking Water' },
+  { value: 'injection', label: 'Injection' },
+  { value: 'spray', label: 'Spray' },
+  { value: 'wing_web', label: 'Wing Web' },
+  { value: 'oral', label: 'Oral' },
+];
+```
+
+APPLY TEMPLATE LOGIC:
+```typescript
+// For each selected flock:
+const flockAgeInDays = calculateFlockAge(flock.arrivalDate, flock.ageAtArrival);
+
+// For each template vaccine:
+const dueDate = addDays(flock.arrivalDate, vaccine.ageDays - flock.ageAtArrival);
+
+// If dueDate is in the past, still create but mark as overdue
+// If dueDate is in future, create as pending
+```
+
+UI/UX REQUIREMENTS:
+- Quick to add a vaccination
+- Clear flock selection
+- Common vaccines easy to select
+- Status clearly visible
+- Overdue highlighted in red
+- Success/error feedback
+
+OUTPUT: Users can manually add vaccinations to any flock. Template can be applied to existing flocks. Vaccination list shows all scheduled and completed vaccinations with filters.

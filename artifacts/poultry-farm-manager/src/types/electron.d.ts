@@ -219,6 +219,8 @@ export interface VaccinationData {
   scheduledDate: string;
   administeredDate?: string;
   administeredBy?: string;
+  dosage?: string;
+  route?: string;
   batchNumber?: string;
   notes?: string;
   status?: string;
@@ -232,6 +234,8 @@ export interface UpcomingVaccination {
   administeredDate: string | null;
   administeredBy: string | null;
   batchNumber: string | null;
+  dosage: string | null;
+  route: string | null;
   notes: string | null;
   status: string | null;
   createdAt: string | null;
@@ -251,6 +255,8 @@ export interface CompletedVaccination {
   administeredDate: string | null;
   administeredBy: string | null;
   batchNumber: string | null;
+  dosage: string | null;
+  route: string | null;
   notes: string | null;
   status: string | null;
   createdAt: string | null;
@@ -1154,7 +1160,9 @@ export interface ElectronAPI {
     getByFlock: (flockId: number) => Promise<IpcResponse>;
     getUpcoming: (farmId: number, days?: number) => Promise<IpcResponse<UpcomingVaccination[]>>;
     getCompleted: (farmId: number) => Promise<IpcResponse<CompletedVaccination[]>>;
+    getAll: (farmId: number, filters?: { flockId?: number; status?: string }) => Promise<IpcResponse<CompletedVaccination[]>>;
     update: (id: number, data: Partial<VaccinationData>) => Promise<IpcResponse>;
+    delete: (id: number) => Promise<IpcResponse>;
     complete: (id: number, data: CompleteVaccinationData) => Promise<IpcResponse>;
     skip: (id: number, data: SkipVaccinationData) => Promise<IpcResponse>;
     reschedule: (id: number, newDate: string) => Promise<IpcResponse>;
@@ -1163,6 +1171,7 @@ export interface ElectronAPI {
     addCustom: (flockId: number, data: AddCustomVaccinationData) => Promise<IpcResponse>;
     getComplianceStats: (farmId: number) => Promise<IpcResponse<ComplianceStats>>;
     exportHistory: (farmId: number, filters: { flockId?: number; startDate?: string; endDate?: string; status?: string }) => Promise<IpcResponse<VaccinationExportItem[]>>;
+    getById: (id: number) => Promise<IpcResponse>;
   };
   backup: {
     create: () => Promise<IpcResponse<BackupInfo>>;
@@ -1221,6 +1230,7 @@ export interface ElectronAPI {
     delete: (id: number) => Promise<IpcResponse>;
     resetToDefaults: () => Promise<IpcResponse>;
     generateForFlock: (flockId: number) => Promise<IpcResponse>;
+    applyToFlocks: (farmId: number, flockIds: number[]) => Promise<IpcResponse<{ count: number }>>;
   };
   customers: {
     create: (data: CustomerData) => Promise<IpcResponse<Customer>>;

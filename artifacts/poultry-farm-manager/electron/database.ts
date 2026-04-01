@@ -147,6 +147,8 @@ function createTablesManually(): void {
   safeAlter("ALTER TABLE flocks ADD COLUMN status_notes TEXT");
   safeAlter("ALTER TABLE flocks ADD COLUMN notes TEXT");
   safeAlter("ALTER TABLE expenses ADD COLUMN notes TEXT");
+  safeAlter("ALTER TABLE vaccinations ADD COLUMN dosage TEXT");
+  safeAlter("ALTER TABLE vaccinations ADD COLUMN route TEXT");
 
   sqlite.exec(`
 
@@ -170,6 +172,8 @@ function createTablesManually(): void {
       administered_date TEXT,
       administered_by TEXT,
       batch_number TEXT,
+      dosage TEXT,
+      route TEXT,
       notes TEXT,
       status TEXT DEFAULT 'pending',
       created_at TEXT DEFAULT CURRENT_TIMESTAMP

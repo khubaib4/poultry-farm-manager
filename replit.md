@@ -47,7 +47,7 @@ The project is structured as a pnpm workspace monorepo to promote modularity and
     - **Revenue**: Sales-based revenue tracking (sum of sales totals), collections vs outstanding, revenue by customer and item type.
     - **Financial Dashboard & P&L**: Comprehensive financial reporting and trend analysis.
     - **Inventory Management**: Tracks feed, medicine, and equipment with stock alerts.
-    - **Vaccination Management**: Automated scheduling and history tracking.
+    - **Vaccination Management**: Automated scheduling via templates, manual vaccination entry (Add/Edit pages), Apply Template to Existing Flocks, flock-level tracking, compliance stats, history/export. Schema: `vaccinations` table has `dosage` and `route` columns. Routes: `/farm/vaccinations`, `/farm/vaccinations/new`, `/farm/vaccinations/:vaccinationId/edit`, `/farm/vaccinations/template`, `/farm/vaccinations/history`.
     - **Report Generation**: Multiple report types (PDF, Excel, Print export).
     - **Alerts System**: Centralized system for low stock, expiring items, and overdue tasks.
     - **Customer Management**: CRUD for tracking egg buyers, including contact details and payment terms.

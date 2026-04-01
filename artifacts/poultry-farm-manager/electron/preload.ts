@@ -158,6 +158,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("vaccinations:getComplianceStats", farmId),
     exportHistory: (farmId: number, filters: unknown) =>
       ipcRenderer.invoke("vaccinations:exportHistory", farmId, filters),
+    getAll: (farmId: number, filters?: unknown) =>
+      ipcRenderer.invoke("vaccinations:getAll", farmId, filters),
+    delete: (id: number) =>
+      ipcRenderer.invoke("vaccinations:delete", id),
+    getById: (id: number) =>
+      ipcRenderer.invoke("vaccinations:getById", id),
   },
   owner: {
     getDashboardStats: (ownerId: number) =>
@@ -239,6 +245,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("vaccinationSchedule:resetToDefaults"),
     generateForFlock: (flockId: number) =>
       ipcRenderer.invoke("vaccinationSchedule:generateForFlock", flockId),
+    applyToFlocks: (farmId: number, flockIds: number[]) =>
+      ipcRenderer.invoke("vaccinationSchedule:applyToFlocks", farmId, flockIds),
   },
   customers: {
     create: (data: unknown) => ipcRenderer.invoke("customers:create", data),
