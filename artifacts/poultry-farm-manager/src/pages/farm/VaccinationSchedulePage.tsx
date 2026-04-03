@@ -4,12 +4,13 @@ import { isElectron, vaccinations as vaccApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useVaccinations } from "@/hooks/useVaccinations";
 import { useToast } from "@/components/ui/Toast";
-import { Syringe, RefreshCw, Settings, Filter, Plus, Pencil, Trash2 } from "lucide-react";
+import { Syringe, RefreshCw, Settings, Filter, Plus, Pencil, Trash2, Eye } from "lucide-react";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import EmptyState from "@/components/ui/EmptyState";
 import VaccinationList from "@/components/vaccinations/VaccinationList";
 import CompleteVaccinationModal from "@/components/vaccinations/CompleteVaccinationModal";
 import SkipVaccinationModal from "@/components/vaccinations/SkipVaccinationModal";
+import VaccinationDetailsModal from "@/components/vaccinations/VaccinationDetailsModal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import type { UpcomingVaccination, CompletedVaccination } from "@/types/electron";
 
@@ -47,6 +48,7 @@ export default function VaccinationSchedulePage(): React.ReactElement {
   const [allVaccinations, setAllVaccinations] = useState<CompletedVaccination[]>([]);
   const [allLoading, setAllLoading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+  const [detailsVaccination, setDetailsVaccination] = useState<CompletedVaccination | null>(null);
 
   const flockOptions = useMemo(() => {
     const map = new Map<number, string>();
@@ -245,6 +247,7 @@ export default function VaccinationSchedulePage(): React.ReactElement {
           <CompletedTable
             vaccinations={completed}
             filterFlockId={filterFlockId}
+            onView={v => setDetailsVaccination(v)}
             onEdit={id => navigate(`/farm/vaccinations/${id}/edit`)}
             onDelete={id => setDeleteTarget(id)}
           />
@@ -256,6 +259,7 @@ export default function VaccinationSchedulePage(): React.ReactElement {
           ) : (
             <AllTable
               vaccinations={allFiltered}
+              onView={v => setDetailsVaccination(v)}
               onEdit={id => navigate(`/farm/vaccinations/${id}/edit`)}
               onDelete={id => setDeleteTarget(id)}
             />
@@ -277,6 +281,13 @@ export default function VaccinationSchedulePage(): React.ReactElement {
           onClose={() => setSkipModal(null)}
         />
       )}
+      {detailsVaccination && (
+        <VaccinationDetailsModal
+          vaccination={detailsVaccination}
+          onClose={() => setDetailsVaccination(null)}
+          onEdit={id => navigate(`/farm/vaccinations/${id}/edit`)}
+        />
+      )}
       <ConfirmDialog
         isOpen={!!deleteTarget}
         title="Delete Vaccination"
@@ -293,11 +304,13 @@ export default function VaccinationSchedulePage(): React.ReactElement {
 function CompletedTable({
   vaccinations,
   filterFlockId,
+  onView,
   onEdit,
   onDelete,
 }: {
   vaccinations: CompletedVaccination[];
   filterFlockId: number | null;
+  onView: (v: CompletedVaccination) => void;
   onEdit: (id: number) => void;
   onDelete: (id: number) => void;
 }): React.ReactElement {
@@ -364,6 +377,13 @@ function CompletedTable({
                 <td className="py-3 text-right">
                   <div className="flex items-center justify-end gap-1">
                     <button
+                      onClick={() => onView(v)}
+                      className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-purple-600"
+                      title="View Details"
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                    </button>
+                    <button
                       onClick={() => onEdit(v.id)}
                       className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-blue-600"
                       title="Edit"
@@ -390,10 +410,12 @@ function CompletedTable({
 
 function AllTable({
   vaccinations,
+  onView,
   onEdit,
   onDelete,
 }: {
   vaccinations: CompletedVaccination[];
+  onView: (v: CompletedVaccination) => void;
   onEdit: (id: number) => void;
   onDelete: (id: number) => void;
 }): React.ReactElement {
@@ -473,6 +495,13 @@ function AllTable({
                   </td>
                   <td className="py-3 text-right">
                     <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => onView(v)}
+                        className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-purple-600"
+                        title="View Details"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                      </button>
                       <button
                         onClick={() => onEdit(v.id)}
                         className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-blue-600"

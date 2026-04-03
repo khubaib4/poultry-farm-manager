@@ -1,0 +1,90 @@
+OBJECTIVE: Add view details option for completed vaccinations
+
+PROBLEM:
+On the Vaccination Management page, completed vaccinations show in a table but:
+- No way to view full details (who administered, notes, batch number, etc.)
+- Only Edit and Delete icons shown
+- Need an "Eye" icon to view details
+
+PLEASE FIX:
+
+1. UPDATE the Completed vaccinations table (in VaccinationSchedulePage.tsx or VaccinationHistoryTable.tsx):
+   
+   Add View icon before Edit/Delete:
+```typescript
+   <button onClick={() => openDetailsModal(vaccination)} title="View Details">
+     <Eye className="h-4 w-4 text-gray-500 hover:text-blue-600" />
+   </button>
+```
+
+2. CREATE src/components/vaccinations/VaccinationDetailsModal.tsx:
+   - Modal to show full vaccination details
+   
+   Display:
+   - Vaccine Name (large, header)
+   - Status badge (Completed/Skipped)
+   - Flock Name
+   - Scheduled Date
+   - Administered Date
+   - Administered By (who did it)
+   - Route (Eye drop, Injection, etc.)
+   - Dosage
+   - Batch Number (if recorded)
+   - Notes
+   - Created/Updated timestamps
+   
+   Layout example:
+┌─────────────────────────────────────────────────────┐
+│  E. coli Vaccination               [Completed ✓]   │
+│                                              [X]   │
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│  Flock:              Batch-2026-001                │
+│  Scheduled Date:     April 2, 2026                 │
+│  Administered Date:  April 3, 2026                 │
+│  Administered By:    Dr. Ahmed                     │
+│                                                     │
+│  ─────────────────────────────────────────────     │
+│                                                     │
+│  Route:              Injection                     │
+│  Dosage:             2ml                           │
+│  Batch Number:       VAC-2026-042                  │
+│                                                     │
+│  ─────────────────────────────────────────────     │
+│                                                     │
+│  Notes:                                            │
+│  All birds vaccinated successfully. No adverse     │
+│  reactions observed.                               │
+│                                                     │
+├─────────────────────────────────────────────────────┤
+│                              [Edit]  [Close]       │
+└─────────────────────────────────────────────────────┘
+
+3. UPDATE state management in VaccinationSchedulePage.tsx:
+```typescript
+   const [selectedVaccination, setSelectedVaccination] = useState<Vaccination | null>(null);
+   const [showDetailsModal, setShowDetailsModal] = useState(false);
+   
+   const openDetailsModal = (vaccination: Vaccination) => {
+     setSelectedVaccination(vaccination);
+     setShowDetailsModal(true);
+   };
+```
+
+4. Make sure the IPC handler returns all fields:
+   - Check vaccinations.getByFarm or vaccinations.getCompleted
+   - Ensure it returns: administeredBy, batchNumber, notes, dosage, route, etc.
+
+5. If administeredBy field doesn't exist in schema, ADD it:
+   - In drizzle/schema.ts, add to vaccinations table:
+```typescript
+     administeredBy: text('administered_by'),
+     batchNumber: text('batch_number'),
+```
+   - Update CompleteVaccinationModal to capture these fields
+
+6. Also add View icon to the "All" tab table if it shows completed vaccinations.
+
+7. Commit and push.
+
+OUTPUT: Completed vaccinations have an Eye icon to view full details including who administered, route, dosage, notes, etc.
