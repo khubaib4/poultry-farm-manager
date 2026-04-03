@@ -1,0 +1,128 @@
+OBJECTIVE: Make dashboard stat cards clickable to show historical graphs
+
+PROBLEM:
+Dashboard cards (Total Live Birds, Today's Eggs, Today's Deaths, Today's Feed, etc.) are static. 
+Users want to click them and see historical trends with selectable date ranges.
+
+PLEASE IMPLEMENT:
+
+1. CREATE src/components/dashboard/StatDetailModal.tsx:
+   - Modal that opens when clicking a stat card
+   - Shows historical graph for that metric
+   - Date range selector: 7 days, 14 days, 30 days, 3 months, 6 months
+   
+   Layout:
+┌─────────────────────────────────────────────────────────────┐
+│  Total Live Birds                                    [X]   │
+│  Current: 9,186 birds                                      │
+├─────────────────────────────────────────────────────────────┤
+│  [7 Days] [14 Days] [30 Days] [3 Months] [6 Months]       │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│     📈 Line/Area Chart showing trend over time              │
+│                                                             │
+│     9,500 |        ___                                      │
+│     9,400 |    /   _                                  │
+│     9,300 |   /           __                              │
+│     9,200 |/                __                           │
+│     9,100 |                      _                       │
+│           |___________________________|                     │
+│           Mar 28  Mar 29  Mar 30  Apr 1  Apr 2  Apr 3      │
+│                                                             │
+├─────────────────────────────────────────────────────────────┤
+│  Summary:                                                   │
+│  • Highest: 9,450 (Mar 30)                                 │
+│  • Lowest: 9,100 (Mar 28)                                  │
+│  • Average: 9,280                                          │
+│  • Change: -50 birds (-0.5%)                               │
+└─────────────────────────────────────────────────────────────┘
+
+2. UPDATE dashboard stat cards to be clickable:
+   
+   In FarmDashboard.tsx, wrap each card:
+```typescript
+   <div 
+     className="cursor-pointer hover:shadow-lg transition-shadow"
+     onClick={() => openStatDetail('birds')}
+   >
+     {/* existing card content */}
+   </div>
+```
+
+3. CREATE src/components/dashboard/StatTrendChart.tsx:
+   - Reusable chart component using recharts
+   - Props: data, metric type, date range
+   - Line or Area chart
+   - Tooltip on hover
+   - Responsive
+
+4. ADD state management in FarmDashboard.tsx:
+```typescript
+   const [selectedStat, setSelectedStat] = useState<string | null>(null);
+   const [showStatModal, setShowStatModal] = useState(false);
+   
+   const openStatDetail = (statType: string) => {
+     setSelectedStat(statType);
+     setShowStatModal(true);
+   };
+```
+
+5. ADD electron/ipc-handlers.ts - New handler:
+   
+   - dashboard.getStatHistory(farmId, statType, days):
+     * statType: 'birds' | 'eggs' | 'deaths' | 'feed' | 'sales' | 'revenue' | 'profit'
+     * days: 7 | 14 | 30 | 90 | 180
+     * Returns: Array of { date, value }
+     
+     For each stat type:
+     - birds: Daily bird count from daily_entries (running total after deaths)
+     - eggs: Daily eggs collected from daily_entries
+     - deaths: Daily deaths from daily_entries
+     - feed: Daily feed consumption from daily_entries
+     - sales: Daily sales count and amount from sales table
+     - revenue: Daily revenue from sales table
+     - profit: Daily revenue - expenses
+
+6. ADD to src/lib/api.ts:
+```typescript
+   getStatHistory(farmId: number, statType: string, days: number)
+```
+
+7. STAT TYPES AND THEIR DATA:
+
+   | Stat | Source | Query |
+   |------|--------|-------|
+   | Total Birds | daily_entries | Sum current_count per day |
+   | Today's Eggs | daily_entries | Sum eggs_collected per day |
+   | Today's Deaths | daily_entries | Sum deaths per day |
+   | Today's Feed | daily_entries | Sum feed_kg per day |
+   | Today's Sales | sales | Count and sum per day |
+   | Month Revenue | sales | Sum totalAmount per day |
+   | Month Profit | sales - expenses | Revenue - Expenses per day |
+   | Outstanding | sales | Balance due trend |
+
+8. SUMMARY STATS to show:
+   - Highest value and date
+   - Lowest value and date
+   - Average
+   - Total change (start to end)
+   - Percentage change
+
+9. Make cards visually indicate they're clickable:
+   - Add subtle hover effect
+   - Maybe a small chart icon in corner
+   - Cursor pointer
+
+10. UPDATE preload.ts with new IPC binding.
+
+11. Commit and push.
+
+UI/UX REQUIREMENTS:
+- Smooth modal animation
+- Loading state while fetching data
+- Clear date range buttons
+- Chart is readable and informative
+- Mobile responsive
+- Quick to load
+
+OUTPUT: Clicking any dashboard stat card opens a modal with historical trend chart. User can select date range (7d, 14d, 30d, 3m, 6m) to view trends. Summary stats shown below chart.

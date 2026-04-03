@@ -184,6 +184,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("dashboard:getWeeklyTrends", farmId),
     getAlerts: (farmId: number) =>
       ipcRenderer.invoke("dashboard:getAlerts", farmId),
+    getStatHistory: (farmId: number, statType: string, days: number) =>
+      ipcRenderer.invoke("dashboard:getStatHistory", farmId, statType, days),
   },
   reports: {
     getDailySummary: (farmId: number, date: string) =>

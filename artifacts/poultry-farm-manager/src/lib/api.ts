@@ -25,6 +25,7 @@ import type {
   VaccinationScheduleData,
   Vaccine,
   VaccineData,
+  StatHistoryPoint,
   UpcomingVaccination,
   CompletedVaccination,
   CompleteVaccinationData,
@@ -382,6 +383,9 @@ export const dashboard = {
 
   getAlerts: (farmId: number) =>
     invoke(() => getApi()!.dashboard.getAlerts(farmId)),
+
+  getStatHistory: (farmId: number, statType: string, days: number) =>
+    invoke<StatHistoryPoint[]>(() => getApi()!.dashboard.getStatHistory(farmId, statType, days)),
 };
 
 export const reports = {

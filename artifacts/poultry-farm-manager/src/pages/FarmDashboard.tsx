@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { isElectron } from "@/lib/api";
@@ -19,6 +19,9 @@ import EntryStatusWidget from "@/components/dashboard/EntryStatusWidget";
 import FlockMiniCard from "@/components/dashboard/FlockMiniCard";
 import AlertsPanel from "@/components/dashboard/AlertsPanel";
 import PaymentAlerts from "@/components/alerts/PaymentAlerts";
+import StatDetailModal from "@/components/dashboard/StatDetailModal";
+
+type StatType = "birds" | "eggs" | "deaths" | "feed" | "sales" | "revenue" | "profit" | "outstanding";
 
 export default function FarmDashboard(): React.ReactElement {
   const { user } = useAuth();
@@ -26,6 +29,7 @@ export default function FarmDashboard(): React.ReactElement {
   const { stats, trends, alerts, isLoading, lastUpdated, refetch } = useDashboardData();
   const farmId = user?.farmId ?? null;
   const { alerts: paymentAlerts } = usePaymentAlerts(farmId);
+  const [selectedStat, setSelectedStat] = useState<{ type: StatType; currentValue: string } | null>(null);
 
   if (!isElectron()) {
     return (
@@ -105,6 +109,7 @@ export default function FarmDashboard(): React.ReactElement {
                 value={stats ? stats.totalBirds.toLocaleString() : "0"}
                 icon={<Bird className="h-5 w-5" />}
                 iconColor="text-blue-600 bg-blue-50"
+                onClick={() => setSelectedStat({ type: "birds", currentValue: `${stats?.totalBirds.toLocaleString() ?? "0"} birds` })}
               />
               <StatCard
                 title="Today's Eggs"
@@ -113,6 +118,7 @@ export default function FarmDashboard(): React.ReactElement {
                 iconColor="text-green-600 bg-green-50"
                 trend={eggTrend}
                 trendLabel={trends ? `avg ${trends.avgEggsThisWeek}/day this week` : undefined}
+                onClick={() => setSelectedStat({ type: "eggs", currentValue: `${stats?.todayEggs.toLocaleString() ?? "0"} eggs` })}
               />
               <StatCard
                 title="Today's Deaths"
@@ -122,6 +128,7 @@ export default function FarmDashboard(): React.ReactElement {
                 trend={deathTrendFlipped}
                 trendLabel={deathTrend === "up" ? "More than last week" : deathTrend === "down" ? "Less than last week" : undefined}
                 status={stats && stats.todayDeaths > 0 && stats.totalBirds > 0 && (stats.todayDeaths / stats.totalBirds) * 100 > 0.3 ? "critical" : undefined}
+                onClick={() => setSelectedStat({ type: "deaths", currentValue: `${stats?.todayDeaths ?? "0"} deaths` })}
               />
               <StatCard
                 title="Today's Feed"
@@ -129,6 +136,7 @@ export default function FarmDashboard(): React.ReactElement {
                 unit="kg"
                 icon={<Wheat className="h-5 w-5" />}
                 iconColor="text-amber-600 bg-amber-50"
+                onClick={() => setSelectedStat({ type: "feed", currentValue: `${stats?.todayFeed.toLocaleString() ?? "0"} kg` })}
               />
             </div>
           </div>
@@ -136,7 +144,10 @@ export default function FarmDashboard(): React.ReactElement {
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Sales & Revenue</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white rounded-xl border p-5">
+              <div
+                className="bg-white rounded-xl border p-5 cursor-pointer hover:shadow-md hover:border-gray-300 transition-all"
+                onClick={() => setSelectedStat({ type: "sales", currentValue: `${stats?.todaySalesCount ?? 0} sales` })}
+              >
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-sm text-gray-500">Today's Sales</p>
                   <div className="rounded-lg p-2 text-emerald-600 bg-emerald-50">
@@ -157,9 +168,13 @@ export default function FarmDashboard(): React.ReactElement {
                 value={stats ? formatCurrency(stats.monthRevenue) : "Rs 0"}
                 icon={<DollarSign className="h-5 w-5" />}
                 iconColor="text-green-600 bg-green-50"
+                onClick={() => setSelectedStat({ type: "revenue", currentValue: stats ? formatCurrency(stats.monthRevenue) : "Rs 0" })}
               />
 
-              <div className="bg-white rounded-xl border p-5">
+              <div
+                className="bg-white rounded-xl border p-5 cursor-pointer hover:shadow-md hover:border-gray-300 transition-all"
+                onClick={() => setSelectedStat({ type: "profit", currentValue: stats ? formatCurrency(stats.monthProfit) : "Rs 0" })}
+              >
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-sm text-gray-500">Month Profit</p>
                   <div className="rounded-lg p-2 text-indigo-600 bg-indigo-50">
@@ -178,7 +193,10 @@ export default function FarmDashboard(): React.ReactElement {
                 )}
               </div>
 
-              <div className={`bg-white rounded-xl border p-5 ${stats && stats.totalOutstanding > 0 ? "border-l-4 border-l-amber-500" : ""}`}>
+              <div
+                className={`bg-white rounded-xl border p-5 cursor-pointer hover:shadow-md hover:border-gray-300 transition-all ${stats && stats.totalOutstanding > 0 ? "border-l-4 border-l-amber-500" : ""}`}
+                onClick={() => setSelectedStat({ type: "outstanding", currentValue: stats ? formatCurrency(stats.totalOutstanding) : "Rs 0" })}
+              >
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-sm text-gray-500">Outstanding</p>
                   <div className="rounded-lg p-2 text-amber-600 bg-amber-50">
@@ -192,7 +210,7 @@ export default function FarmDashboard(): React.ReactElement {
                 </div>
                 {stats && stats.totalOutstanding > 0 && (
                   <button
-                    onClick={() => navigate("/farm/receivables")}
+                    onClick={(e) => { e.stopPropagation(); navigate("/farm/receivables"); }}
                     className="text-xs text-amber-600 hover:text-amber-700 mt-1 font-medium"
                   >
                     View receivables
@@ -323,6 +341,14 @@ export default function FarmDashboard(): React.ReactElement {
             </div>
           )}
         </>
+      )}
+
+      {selectedStat && (
+        <StatDetailModal
+          statType={selectedStat.type}
+          currentValue={selectedStat.currentValue}
+          onClose={() => setSelectedStat(null)}
+        />
       )}
     </div>
   );

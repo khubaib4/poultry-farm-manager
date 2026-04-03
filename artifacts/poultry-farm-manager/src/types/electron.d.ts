@@ -572,6 +572,11 @@ export interface FinancialReportData {
   }[];
 }
 
+export interface StatHistoryPoint {
+  date: string;
+  value: number;
+}
+
 export interface OwnerDashboardStats {
   totalBirds: number;
   totalEggsToday: number;
@@ -1232,6 +1237,7 @@ export interface ElectronAPI {
     getFarmStats: (farmId: number) => Promise<IpcResponse>;
     getWeeklyTrends: (farmId: number) => Promise<IpcResponse>;
     getAlerts: (farmId: number) => Promise<IpcResponse>;
+    getStatHistory: (farmId: number, statType: string, days: number) => Promise<IpcResponse<StatHistoryPoint[]>>;
   };
   reports: {
     getDailySummary: (farmId: number, date: string) => Promise<IpcResponse<DailyReportData>>;

@@ -11,6 +11,7 @@ interface StatCardProps {
   trend?: Trend;
   trendLabel?: string;
   status?: PerformanceStatus;
+  onClick?: () => void;
 }
 
 const trendIcons: Record<Trend, React.ReactNode> = {
@@ -25,11 +26,14 @@ const statusBorder: Record<PerformanceStatus, string> = {
   critical: "border-l-red-500",
 };
 
-export default function StatCard({ title, value, unit, icon, iconColor, trend, trendLabel, status }: StatCardProps): React.ReactElement {
+export default function StatCard({ title, value, unit, icon, iconColor, trend, trendLabel, status, onClick }: StatCardProps): React.ReactElement {
   const trendColor = trend === "up" ? "text-green-600" : trend === "down" ? "text-red-600" : "text-gray-400";
 
   return (
-    <div className={`bg-white rounded-xl border p-5 ${status ? `border-l-4 ${statusBorder[status]}` : ""}`}>
+    <div
+      className={`bg-white rounded-xl border p-5 ${status ? `border-l-4 ${statusBorder[status]}` : ""} ${onClick ? "cursor-pointer hover:shadow-md hover:border-gray-300 transition-all" : ""}`}
+      onClick={onClick}
+    >
       <div className="flex items-center justify-between mb-3">
         <p className="text-sm text-gray-500">{title}</p>
         <div className={`rounded-lg p-2 ${iconColor}`}>{icon}</div>

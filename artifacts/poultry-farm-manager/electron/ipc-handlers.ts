@@ -2592,6 +2592,275 @@ export function registerIpcHandlers(): void {
   );
 
   ipcMain.handle(
+    "dashboard:getStatHistory",
+    wrapHandler((_e: unknown, farmId: number, statType: string, days: number) => {
+      requireFarmAccess(farmId);
+      const allowedDays = [7, 14, 30, 90, 180];
+      const safeDays = allowedDays.includes(days) ? days : 30;
+      const today = new Date();
+      const startDate = new Date(today);
+      startDate.setDate(startDate.getDate() - (safeDays - 1));
+      const startStr = startDate.toISOString().split("T")[0];
+      const todayStr = today.toISOString().split("T")[0];
+
+      if (statType === "birds") {
+        const flocks = db.select().from(schema.flocks)
+          .where(and(
+            eq(schema.flocks.farmId, farmId),
+            eq(schema.flocks.status, "active")
+          ))
+          .all();
+
+        const deathEntries = db.select({
+          date: schema.dailyEntries.entryDate,
+          deaths: schema.dailyEntries.deaths,
+          flockId: schema.dailyEntries.flockId,
+        })
+          .from(schema.dailyEntries)
+          .innerJoin(schema.flocks, eq(schema.dailyEntries.flockId, schema.flocks.id))
+          .where(and(
+            eq(schema.flocks.farmId, farmId),
+            eq(schema.flocks.status, "active")
+          ))
+          .all();
+
+        const deathsByFlockAndDate: Record<string, Record<string, number>> = {};
+        for (const e of deathEntries) {
+          if (!deathsByFlockAndDate[e.flockId]) deathsByFlockAndDate[e.flockId] = {};
+          deathsByFlockAndDate[e.flockId][e.date] = (deathsByFlockAndDate[e.flockId][e.date] || 0) + (e.deaths || 0);
+        }
+
+        const result: { date: string; value: number }[] = [];
+        const d = new Date(startDate);
+        while (d <= today) {
+          const ds = d.toISOString().split("T")[0];
+          let totalBirds = 0;
+          for (const flock of flocks) {
+            const arrivalDate = flock.arrivalDate || flock.createdAt?.split("T")[0] || "";
+            if (arrivalDate > ds) continue;
+            let flockDeathsUpToDate = 0;
+            const flockDeaths = deathsByFlockAndDate[flock.id] || {};
+            for (const [deathDate, count] of Object.entries(flockDeaths)) {
+              if (deathDate <= ds) flockDeathsUpToDate += count;
+            }
+            totalBirds += Math.max(0, (flock.initialCount || 0) - flockDeathsUpToDate);
+          }
+          result.push({ date: ds, value: totalBirds });
+          d.setDate(d.getDate() + 1);
+        }
+        return result;
+      }
+
+      if (statType === "eggs") {
+        const rows = db.select({
+          date: schema.dailyEntries.entryDate,
+          gradeA: schema.dailyEntries.eggsGradeA,
+          gradeB: schema.dailyEntries.eggsGradeB,
+          cracked: schema.dailyEntries.eggsCracked,
+        })
+          .from(schema.dailyEntries)
+          .innerJoin(schema.flocks, eq(schema.dailyEntries.flockId, schema.flocks.id))
+          .where(and(
+            eq(schema.flocks.farmId, farmId),
+            gte(schema.dailyEntries.entryDate, startStr),
+            lte(schema.dailyEntries.entryDate, todayStr)
+          ))
+          .all();
+        const byDate: Record<string, number> = {};
+        for (const r of rows) {
+          byDate[r.date] = (byDate[r.date] || 0) + (r.gradeA || 0) + (r.gradeB || 0) + (r.cracked || 0);
+        }
+        const result: { date: string; value: number }[] = [];
+        const d = new Date(startDate);
+        while (d <= today) {
+          const ds = d.toISOString().split("T")[0];
+          result.push({ date: ds, value: byDate[ds] || 0 });
+          d.setDate(d.getDate() + 1);
+        }
+        return result;
+      }
+
+      if (statType === "deaths") {
+        const rows = db.select({
+          date: schema.dailyEntries.entryDate,
+          deaths: schema.dailyEntries.deaths,
+        })
+          .from(schema.dailyEntries)
+          .innerJoin(schema.flocks, eq(schema.dailyEntries.flockId, schema.flocks.id))
+          .where(and(
+            eq(schema.flocks.farmId, farmId),
+            gte(schema.dailyEntries.entryDate, startStr),
+            lte(schema.dailyEntries.entryDate, todayStr)
+          ))
+          .all();
+        const byDate: Record<string, number> = {};
+        for (const r of rows) {
+          byDate[r.date] = (byDate[r.date] || 0) + (r.deaths || 0);
+        }
+        const result: { date: string; value: number }[] = [];
+        const d = new Date(startDate);
+        while (d <= today) {
+          const ds = d.toISOString().split("T")[0];
+          result.push({ date: ds, value: byDate[ds] || 0 });
+          d.setDate(d.getDate() + 1);
+        }
+        return result;
+      }
+
+      if (statType === "feed") {
+        const rows = db.select({
+          date: schema.dailyEntries.entryDate,
+          feed: schema.dailyEntries.feedConsumedKg,
+        })
+          .from(schema.dailyEntries)
+          .innerJoin(schema.flocks, eq(schema.dailyEntries.flockId, schema.flocks.id))
+          .where(and(
+            eq(schema.flocks.farmId, farmId),
+            gte(schema.dailyEntries.entryDate, startStr),
+            lte(schema.dailyEntries.entryDate, todayStr)
+          ))
+          .all();
+        const byDate: Record<string, number> = {};
+        for (const r of rows) {
+          byDate[r.date] = (byDate[r.date] || 0) + (r.feed || 0);
+        }
+        const result: { date: string; value: number }[] = [];
+        const d = new Date(startDate);
+        while (d <= today) {
+          const ds = d.toISOString().split("T")[0];
+          result.push({ date: ds, value: Math.round((byDate[ds] || 0) * 100) / 100 });
+          d.setDate(d.getDate() + 1);
+        }
+        return result;
+      }
+
+      if (statType === "sales") {
+        const rows = db.select({
+          date: schema.sales.saleDate,
+        })
+          .from(schema.sales)
+          .where(and(
+            eq(schema.sales.farmId, farmId),
+            eq(schema.sales.isDeleted, 0),
+            gte(schema.sales.saleDate, startStr),
+            lte(schema.sales.saleDate, todayStr)
+          ))
+          .all();
+        const byDate: Record<string, number> = {};
+        for (const r of rows) {
+          byDate[r.date] = (byDate[r.date] || 0) + 1;
+        }
+        const result: { date: string; value: number }[] = [];
+        const d = new Date(startDate);
+        while (d <= today) {
+          const ds = d.toISOString().split("T")[0];
+          result.push({ date: ds, value: byDate[ds] || 0 });
+          d.setDate(d.getDate() + 1);
+        }
+        return result;
+      }
+
+      if (statType === "revenue") {
+        const rows = db.select({
+          date: schema.sales.saleDate,
+          amount: schema.sales.totalAmount,
+        })
+          .from(schema.sales)
+          .where(and(
+            eq(schema.sales.farmId, farmId),
+            eq(schema.sales.isDeleted, 0),
+            gte(schema.sales.saleDate, startStr),
+            lte(schema.sales.saleDate, todayStr)
+          ))
+          .all();
+        const byDate: Record<string, number> = {};
+        for (const r of rows) {
+          byDate[r.date] = (byDate[r.date] || 0) + (r.amount || 0);
+        }
+        const result: { date: string; value: number }[] = [];
+        const d = new Date(startDate);
+        while (d <= today) {
+          const ds = d.toISOString().split("T")[0];
+          result.push({ date: ds, value: Math.round(byDate[ds] || 0) });
+          d.setDate(d.getDate() + 1);
+        }
+        return result;
+      }
+
+      if (statType === "profit") {
+        const salesRows = db.select({
+          date: schema.sales.saleDate,
+          amount: schema.sales.totalAmount,
+        })
+          .from(schema.sales)
+          .where(and(
+            eq(schema.sales.farmId, farmId),
+            eq(schema.sales.isDeleted, 0),
+            gte(schema.sales.saleDate, startStr),
+            lte(schema.sales.saleDate, todayStr)
+          ))
+          .all();
+        const expenseRows = db.select({
+          date: schema.expenses.expenseDate,
+          amount: schema.expenses.amount,
+        })
+          .from(schema.expenses)
+          .where(and(
+            eq(schema.expenses.farmId, farmId),
+            gte(schema.expenses.expenseDate, startStr),
+            lte(schema.expenses.expenseDate, todayStr)
+          ))
+          .all();
+        const revByDate: Record<string, number> = {};
+        for (const r of salesRows) {
+          revByDate[r.date] = (revByDate[r.date] || 0) + (r.amount || 0);
+        }
+        const expByDate: Record<string, number> = {};
+        for (const r of expenseRows) {
+          expByDate[r.date] = (expByDate[r.date] || 0) + (r.amount || 0);
+        }
+        const result: { date: string; value: number }[] = [];
+        const d = new Date(startDate);
+        while (d <= today) {
+          const ds = d.toISOString().split("T")[0];
+          result.push({ date: ds, value: Math.round((revByDate[ds] || 0) - (expByDate[ds] || 0)) });
+          d.setDate(d.getDate() + 1);
+        }
+        return result;
+      }
+
+      if (statType === "outstanding") {
+        const rows = db.select({
+          date: schema.sales.saleDate,
+          balance: schema.sales.balanceDue,
+        })
+          .from(schema.sales)
+          .where(and(
+            eq(schema.sales.farmId, farmId),
+            eq(schema.sales.isDeleted, 0),
+            gte(schema.sales.saleDate, startStr),
+            lte(schema.sales.saleDate, todayStr)
+          ))
+          .all();
+        const byDate: Record<string, number> = {};
+        for (const r of rows) {
+          byDate[r.date] = (byDate[r.date] || 0) + (r.balance || 0);
+        }
+        const result: { date: string; value: number }[] = [];
+        const d = new Date(startDate);
+        while (d <= today) {
+          const ds = d.toISOString().split("T")[0];
+          result.push({ date: ds, value: Math.round(byDate[ds] || 0) });
+          d.setDate(d.getDate() + 1);
+        }
+        return result;
+      }
+
+      return [];
+    })
+  );
+
+  ipcMain.handle(
     "alerts:getAll",
     wrapHandler((_e: unknown, farmId: number) => {
       requireFarmAccess(farmId);
