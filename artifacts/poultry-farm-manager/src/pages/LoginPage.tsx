@@ -2,12 +2,15 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import LoginForm from "@/components/auth/LoginForm";
+import SetupWithCode from "@/components/auth/SetupWithCode";
 import { isElectron } from "@/lib/api";
+import { QrCode } from "lucide-react";
 
 type LoginMode = "owner" | "farm";
 
 export default function LoginPage(): React.ReactElement {
   const [mode, setMode] = useState<LoginMode>("owner");
+  const [showSetup, setShowSetup] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { login, isAuthenticated } = useAuth();
@@ -66,6 +69,12 @@ export default function LoginPage(): React.ReactElement {
     setMode(newMode);
     setError(null);
   };
+
+  if (isElectron() && showSetup) {
+    return (
+      <SetupWithCode onBack={() => setShowSetup(false)} onSuccess={() => setShowSetup(false)} />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -128,6 +137,20 @@ export default function LoginPage(): React.ReactElement {
             isLoading={isLoading}
             error={error}
           />
+
+          {isElectron() && (
+            <div className="mt-4 text-center border-t pt-4">
+              <p className="text-gray-500 text-sm mb-2">First time on this device?</p>
+              <button
+                type="button"
+                onClick={() => setShowSetup(true)}
+                className="text-purple-600 hover:text-purple-700 font-medium flex items-center justify-center gap-2 mx-auto"
+              >
+                <QrCode className="w-4 h-4" />
+                Setup with Code
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="text-center">

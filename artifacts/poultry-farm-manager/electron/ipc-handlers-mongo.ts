@@ -9,6 +9,7 @@ import { getSyncConfig, saveSyncConfig, isSyncEnabled } from "./sync-config";
 import {
   syncToCloud,
   syncFromCloud,
+  pullFarmForDeviceSetup,
   getSyncStatus,
   checkOnlineStatus,
   connectToCloud,
@@ -16,6 +17,7 @@ import {
   startBackgroundSync,
   stopBackgroundSync,
 } from "./sync-service";
+import { generateSetupCode, parseSetupCode } from "./setup-code";
 
 import {
   OwnerModel,
@@ -72,6 +74,7 @@ import {
   saveAutoBackupSettings,
   runAutoBackup,
 } from "./autoBackup";
+import { generateOwnerReportMongo, type OwnerReportParams } from "./ownerReportMongo";
 import { getAllSettings, updateSettings, resetSettings } from "./settings";
 import type { AppSettings } from "./settings";
 import { getDatabasePath } from "./database";
@@ -101,10 +104,19 @@ function requireOwner(): SessionData {
   return session;
 }
 
-function requireFarmAccess(farmId: number): SessionData {
+async function requireFarmAccess(farmId: number): Promise<SessionData> {
   const session = requireAuth();
-  if (session.type === "owner") return session;
   if (session.type === "farm" && session.farmId === farmId) return session;
+  if (session.type === "user" && session.farmId === farmId) return session;
+  if (session.type === "owner") {
+    const farm = await FarmModel.findOne({
+      id: farmId,
+      ownerId: session.id,
+      isActive: { $ne: 0 },
+    }).lean();
+    if (!farm) throw new Error("You do not have access to this farm");
+    return session;
+  }
   throw new Error("You do not have access to this farm");
 }
 
@@ -137,6 +149,322 @@ function toPlain<T extends { toObject?: () => unknown }>(doc: any): T {
   if (!doc) return doc;
   if (typeof doc.toObject === "function") return doc.toObject() as T;
   return doc as T;
+}
+
+/** Local calendar YYYY-MM-DD (matches stored saleDate / expenseDate / entryDate strings). */
+function ymdLocal(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Per-farm stats for owner views. Mirrors legacy SQLite getFarmStats:
+ * - dayStr: which calendar day to use for "eggs today" / flock entry counts
+ * - periodStart / periodEnd: inclusive string range for sales, expenses, daily-entry rollups
+ */
+async function getOwnerFarmStatsMongo(
+  farmId: number,
+  dayStr: string,
+  periodStart: string,
+  periodEnd: string
+): Promise<{
+  totalBirds: number;
+  totalFlocks: number;
+  eggsToday: number;
+  flocksWithEntriesToday: number;
+  productionRate: number;
+  mortalityRate: number;
+  profitMargin: number;
+  revenueMonth: number;
+  expensesMonth: number;
+  profitMonth: number;
+  performance: "good" | "warning" | "critical";
+  avgEggsPerDay: number;
+  initialBirds: number;
+}> {
+  const activeFlocks = await FlockModel.find({ farmId, status: "active" }).lean();
+  const flockIds = activeFlocks.map((f: any) => f.id).filter((id: unknown) => typeof id === "number");
+  const totalBirds = activeFlocks.reduce((s: number, f: any) => s + Number(f.currentCount ?? 0), 0);
+  const totalFlocks = activeFlocks.length;
+  const initialBirds = activeFlocks.reduce((s: number, f: any) => s + Number(f.initialCount ?? 0), 0);
+
+  let todayEntries: any[] = [];
+  if (flockIds.length > 0) {
+    todayEntries = await DailyEntryModel.find({
+      flockId: { $in: flockIds },
+      entryDate: dayStr,
+    }).lean();
+  }
+
+  const eggsToday = todayEntries.reduce(
+    (s: number, e: any) =>
+      s + Number(e.eggsGradeA ?? 0) + Number(e.eggsGradeB ?? 0) + Number(e.eggsCracked ?? 0),
+    0
+  );
+  const flocksWithEntriesToday = new Set(todayEntries.map((e: any) => e.flockId)).size;
+
+  let allEntries: any[] = [];
+  if (flockIds.length > 0) {
+    allEntries = await DailyEntryModel.find({
+      flockId: { $in: flockIds },
+      entryDate: { $gte: periodStart, $lte: periodEnd },
+    }).lean();
+  }
+
+  const totalDeaths = allEntries.reduce((s: number, e: any) => s + Number(e.deaths ?? 0), 0);
+  const mortalityRate =
+    initialBirds > 0 ? Math.round((totalDeaths / initialBirds) * 10000) / 100 : 0;
+
+  const totalEggsMonth = allEntries.reduce(
+    (s: number, e: any) =>
+      s +
+      Number(e.eggsGradeA ?? 0) +
+      Number(e.eggsGradeB ?? 0) +
+      Number(e.eggsCracked ?? 0),
+    0
+  );
+  const distinctDays = new Set(allEntries.map((e: any) => e.entryDate)).size;
+  const avgEggsPerDay = distinctDays > 0 ? Math.round(totalEggsMonth / distinctDays) : 0;
+  const productionRate =
+    totalBirds > 0 ? Math.round((avgEggsPerDay / totalBirds) * 10000) / 100 : 0;
+
+  const expensesAgg = await ExpenseModel.aggregate([
+    {
+      $match: {
+        farmId,
+        expenseDate: { $gte: periodStart, $lte: periodEnd },
+      },
+    },
+    { $group: { _id: null, total: { $sum: "$amount" } } },
+  ]);
+  const expensesMonth = Math.round(Number(expensesAgg[0]?.total ?? 0) * 100) / 100;
+
+  const salesAgg = await SaleModel.aggregate([
+    {
+      $match: {
+        farmId,
+        isDeleted: { $ne: 1 },
+        saleDate: { $gte: periodStart, $lte: periodEnd },
+      },
+    },
+    { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+  ]);
+  const revenueMonth = Math.round(Number(salesAgg[0]?.total ?? 0) * 100) / 100;
+
+  const profitMonth = Math.round((revenueMonth - expensesMonth) * 100) / 100;
+  const profitMargin =
+    revenueMonth > 0 ? Math.round((profitMonth / revenueMonth) * 10000) / 100 : 0;
+
+  let performance: "good" | "warning" | "critical" = "good";
+  if (productionRate < 70 || mortalityRate > 1 || profitMargin < 10) performance = "critical";
+  else if (productionRate < 85 || mortalityRate > 0.5 || profitMargin < 20) performance = "warning";
+
+  return {
+    totalBirds,
+    totalFlocks,
+    eggsToday,
+    flocksWithEntriesToday,
+    productionRate,
+    mortalityRate,
+    profitMargin,
+    revenueMonth,
+    expensesMonth,
+    profitMonth,
+    performance,
+    avgEggsPerDay,
+    initialBirds,
+  };
+}
+
+async function sumEggsForFlockIdsInDateRange(
+  flockIds: number[],
+  startStr: string,
+  endStr: string
+): Promise<number> {
+  if (flockIds.length === 0) return 0;
+  const agg = await DailyEntryModel.aggregate([
+    {
+      $match: {
+        flockId: { $in: flockIds },
+        entryDate: { $gte: startStr, $lte: endStr },
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        total: {
+          $sum: {
+            $add: [
+              { $ifNull: ["$eggsGradeA", 0] },
+              { $ifNull: ["$eggsGradeB", 0] },
+              { $ifNull: ["$eggsCracked", 0] },
+            ],
+          },
+        },
+      },
+    },
+  ]);
+  return Math.round(Number(agg[0]?.total ?? 0));
+}
+
+/** Daily stat series for owner (all active farms). Same stat keys as dashboard:getStatHistory. */
+async function aggregateOwnerStatHistory(
+  ownerId: number,
+  statType: string,
+  safeDays: number
+): Promise<{ date: string; value: number }[]> {
+  const allowedDays = [7, 14, 30, 90, 180];
+  const days = allowedDays.includes(safeDays) ? safeDays : 30;
+  const today = new Date();
+  const startDate = new Date(today);
+  startDate.setDate(startDate.getDate() - (days - 1));
+  const startStr = ymdLocal(startDate);
+  const todayStr = ymdLocal(today);
+
+  const farms = await FarmModel.find({ ownerId, isActive: { $ne: 0 } }).lean();
+  const farmIds = farms.map((f: any) => f.id);
+
+  const fillDates = (getVal: (ds: string) => number): { date: string; value: number }[] => {
+    const out: { date: string; value: number }[] = [];
+    const d = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+    const end = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    while (d <= end) {
+      const ds = ymdLocal(d);
+      out.push({ date: ds, value: getVal(ds) });
+      d.setDate(d.getDate() + 1);
+    }
+    return out;
+  };
+
+  if (farmIds.length === 0) {
+    return fillDates(() => 0);
+  }
+
+  const activeFlocks = await FlockModel.find({ farmId: { $in: farmIds }, status: "active" }).lean();
+  const flockIds = activeFlocks.map((f: any) => f.id);
+
+  if (statType === "birds") {
+    const deathEntries = flockIds.length
+      ? await DailyEntryModel.find({ flockId: { $in: flockIds } })
+          .select({ entryDate: 1, deaths: 1, flockId: 1 })
+          .lean()
+      : [];
+
+    const deathsByFlockAndDate: Record<string, Record<string, number>> = {};
+    for (const e of deathEntries) {
+      const fid = String((e as any).flockId);
+      const date = String((e as any).entryDate);
+      if (!deathsByFlockAndDate[fid]) deathsByFlockAndDate[fid] = {};
+      deathsByFlockAndDate[fid][date] =
+        (deathsByFlockAndDate[fid][date] || 0) + Number((e as any).deaths ?? 0);
+    }
+
+    const result: { date: string; value: number }[] = [];
+    const d = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+    const end = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    while (d <= end) {
+      const ds = ymdLocal(d);
+      let totalBirds = 0;
+      for (const flock of activeFlocks) {
+        const arrivalDate = String(
+          (flock as any).arrivalDate ?? (flock as any).createdAt?.toString?.().split("T")[0] ?? ""
+        );
+        if (arrivalDate && arrivalDate > ds) continue;
+        let deathsUpToDate = 0;
+        const flockDeaths = deathsByFlockAndDate[String((flock as any).id)] || {};
+        for (const [deathDate, count] of Object.entries(flockDeaths)) {
+          if (deathDate <= ds) deathsUpToDate += count;
+        }
+        totalBirds += Math.max(0, Number((flock as any).initialCount ?? 0) - deathsUpToDate);
+      }
+      result.push({ date: ds, value: totalBirds });
+      d.setDate(d.getDate() + 1);
+    }
+    return result;
+  }
+
+  if (statType === "eggs" || statType === "deaths" || statType === "feed") {
+    const entries = flockIds.length
+      ? await DailyEntryModel.find({
+          flockId: { $in: flockIds },
+          entryDate: { $gte: startStr, $lte: todayStr },
+        }).lean()
+      : [];
+
+    const byDate: Record<string, number> = {};
+    for (const e of entries) {
+      const ds = String((e as any).entryDate);
+      if (!byDate[ds]) byDate[ds] = 0;
+      if (statType === "eggs") {
+        byDate[ds] +=
+          Number((e as any).eggsGradeA ?? 0) +
+          Number((e as any).eggsGradeB ?? 0) +
+          Number((e as any).eggsCracked ?? 0);
+      } else if (statType === "deaths") {
+        byDate[ds] += Number((e as any).deaths ?? 0);
+      } else if (statType === "feed") {
+        byDate[ds] += Number((e as any).feedConsumedKg ?? 0);
+      }
+    }
+
+    const result: { date: string; value: number }[] = [];
+    const d = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+    const end = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    while (d <= end) {
+      const ds = ymdLocal(d);
+      result.push({ date: ds, value: Number(byDate[ds] ?? 0) });
+      d.setDate(d.getDate() + 1);
+    }
+    return result;
+  }
+
+  if (statType === "revenue" || statType === "profit") {
+    const sales = await SaleModel.find({
+      farmId: { $in: farmIds },
+      isDeleted: { $ne: 1 },
+      saleDate: { $gte: startStr, $lte: todayStr },
+    })
+      .select({ saleDate: 1, totalAmount: 1 })
+      .lean();
+
+    const revBy: Record<string, number> = {};
+    for (const s of sales) {
+      const ds = String((s as any).saleDate);
+      revBy[ds] = (revBy[ds] || 0) + Number((s as any).totalAmount ?? 0);
+    }
+
+    const expBy: Record<string, number> = {};
+    if (statType === "profit") {
+      const exps = await ExpenseModel.find({
+        farmId: { $in: farmIds },
+        expenseDate: { $gte: startStr, $lte: todayStr },
+      })
+        .select({ expenseDate: 1, amount: 1 })
+        .lean();
+      for (const e of exps) {
+        const ds = String((e as any).expenseDate);
+        expBy[ds] = (expBy[ds] || 0) + Number((e as any).amount ?? 0);
+      }
+    }
+
+    const result: { date: string; value: number }[] = [];
+    const d = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+    const end = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    while (d <= end) {
+      const ds = ymdLocal(d);
+      const rev = revBy[ds] ?? 0;
+      const exp = expBy[ds] ?? 0;
+      const value = statType === "revenue" ? rev : rev - exp;
+      result.push({ date: ds, value });
+      d.setDate(d.getDate() + 1);
+    }
+    return result;
+  }
+
+  // sales / outstanding: optional; owner cards don't use — return zeros
+  return fillDates(() => 0);
 }
 
 export function registerIpcHandlers(): void {
@@ -382,7 +710,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "farms:getById",
     wrapHandler(async (_e: unknown, id: number) => {
-      requireFarmAccess(id);
+      await requireFarmAccess(id);
       const farm = await FarmModel.findOne({ id }).lean();
       if (!farm) throw new Error("Farm not found");
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -405,7 +733,7 @@ export function registerIpcHandlers(): void {
           isActive: number;
         }>
       ) => {
-        requireFarmAccess(id);
+        await requireFarmAccess(id);
         const updates: Record<string, unknown> = {};
         if (data.name !== undefined) updates.name = data.name;
         if (data.location !== undefined) updates.location = data.location;
@@ -427,7 +755,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "farms:delete",
     wrapHandler(async (_e: unknown, id: number) => {
-      requireFarmAccess(id);
+      await requireFarmAccess(id);
       await FarmModel.deleteOne({ id });
       return { deleted: true };
     })
@@ -436,7 +764,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "farms:resetPassword",
     wrapHandler(async (_e: unknown, id: number, newPassword: string) => {
-      requireFarmAccess(id);
+      await requireFarmAccess(id);
       const hash = bcrypt.hashSync(newPassword, 10);
       const updated = await FarmModel.findOneAndUpdate(
         { id },
@@ -463,7 +791,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "users:create",
     wrapHandler(async (_e: unknown, data: { farmId: number; name: string; role: string; password: string }) => {
-      requireFarmAccess(data.farmId);
+      await requireFarmAccess(data.farmId);
       const parsed = userSchema
         .omit({ id: true })
         .safeParse({
@@ -492,7 +820,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "users:getByFarm",
     wrapHandler(async (_e: unknown, farmId: number) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const users = await UserModel.find({ farmId }).lean();
       return users.map((u: any) => {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -563,7 +891,7 @@ export function registerIpcHandlers(): void {
           notes?: string;
         }
       ) => {
-        requireFarmAccess(data.farmId);
+        await requireFarmAccess(data.farmId);
         const parsed = flockSchema
           .omit({ id: true })
           .safeParse({
@@ -597,7 +925,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "flocks:getByFarm",
     wrapHandler(async (_e: unknown, farmId: number) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       return await FlockModel.find({ farmId }).sort({ id: -1 }).lean();
     })
   );
@@ -607,7 +935,7 @@ export function registerIpcHandlers(): void {
     wrapHandler(async (_e: unknown, id: number) => {
       const flock = await FlockModel.findOne({ id }).lean();
       if (!flock) throw new Error("Flock not found");
-      requireFarmAccess(flock.farmId!);
+      await requireFarmAccess(flock.farmId!);
 
       // Aggregate lifetime stats from daily entries for this flock.
       // Note: `DailyEntry.entryDate` is stored as an ISO date string (YYYY-MM-DD).
@@ -706,7 +1034,7 @@ export function registerIpcHandlers(): void {
     wrapHandler(async (_e: unknown, id: number, data: Partial<{ batchName: string; breed: string; notes: string }>) => {
       const flock = await FlockModel.findOne({ id }).lean();
       if (!flock) throw new Error("Flock not found");
-      requireFarmAccess(flock.farmId!);
+      await requireFarmAccess(flock.farmId!);
       const updates: Record<string, unknown> = {};
       if (data.batchName !== undefined) updates.batchName = data.batchName;
       if (data.breed !== undefined) updates.breed = data.breed;
@@ -721,7 +1049,7 @@ export function registerIpcHandlers(): void {
     wrapHandler(async (_e: unknown, id: number, status: string, date: string, notes?: string) => {
       const flock = await FlockModel.findOne({ id }).lean();
       if (!flock) throw new Error("Flock not found");
-      requireFarmAccess(flock.farmId!);
+      await requireFarmAccess(flock.farmId!);
       const updated = await FlockModel.findOneAndUpdate(
         { id },
         { status, statusChangedDate: date, statusNotes: notes ?? null },
@@ -736,7 +1064,7 @@ export function registerIpcHandlers(): void {
     wrapHandler(async (_e: unknown, id: number) => {
       const flock = await FlockModel.findOne({ id }).lean();
       if (!flock) throw new Error("Flock not found");
-      requireFarmAccess(flock.farmId!);
+      await requireFarmAccess(flock.farmId!);
       await DailyEntryModel.deleteMany({ flockId: id });
       await VaccinationModel.deleteMany({ flockId: id });
       await FlockModel.deleteOne({ id });
@@ -749,7 +1077,7 @@ export function registerIpcHandlers(): void {
     wrapHandler(async (_e: unknown, id: number) => {
       const flock = await FlockModel.findOne({ id }).lean();
       if (!flock) throw new Error("Flock not found");
-      requireFarmAccess(flock.farmId!);
+      await requireFarmAccess(flock.farmId!);
 
       const agg = await DailyEntryModel.aggregate([
         { $match: { flockId: id } },
@@ -792,7 +1120,7 @@ export function registerIpcHandlers(): void {
 
       const flock = await FlockModel.findOne({ id: data.flockId }).lean();
       if (!flock) throw new Error("Flock not found");
-      requireFarmAccess(flock.farmId!);
+      await requireFarmAccess(flock.farmId!);
 
       const existing = await DailyEntryModel.findOne({
         flockId: data.flockId,
@@ -829,7 +1157,7 @@ export function registerIpcHandlers(): void {
       if (!existing) throw new Error("Daily entry not found");
       const flock = await FlockModel.findOne({ id: existing.flockId }).lean();
       if (!flock) throw new Error("Flock not found");
-      requireFarmAccess(flock.farmId!);
+      await requireFarmAccess(flock.farmId!);
       const updated = await DailyEntryModel.findOneAndUpdate({ id }, data, {
         new: true,
       }).lean();
@@ -844,7 +1172,7 @@ export function registerIpcHandlers(): void {
       if (!existing) throw new Error("Daily entry not found");
       const flock = await FlockModel.findOne({ id: existing.flockId }).lean();
       if (!flock) throw new Error("Flock not found");
-      requireFarmAccess(flock.farmId!);
+      await requireFarmAccess(flock.farmId!);
       await DailyEntryModel.deleteOne({ id });
       return { deleted: true };
     })
@@ -855,7 +1183,7 @@ export function registerIpcHandlers(): void {
     wrapHandler(async (_e: unknown, flockId: number, date: string) => {
       const flock = await FlockModel.findOne({ id: flockId }).lean();
       if (!flock) throw new Error("Flock not found");
-      requireFarmAccess(flock.farmId!);
+      await requireFarmAccess(flock.farmId!);
       return await DailyEntryModel.findOne({ flockId, entryDate: date }).lean();
     })
   );
@@ -865,7 +1193,7 @@ export function registerIpcHandlers(): void {
     wrapHandler(async (_e: unknown, flockId: number, startDate?: string, endDate?: string) => {
       const flock = await FlockModel.findOne({ id: flockId }).lean();
       if (!flock) throw new Error("Flock not found");
-      requireFarmAccess(flock.farmId!);
+      await requireFarmAccess(flock.farmId!);
       const query: any = { flockId };
       if (startDate || endDate) {
         query.entryDate = {};
@@ -879,7 +1207,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "dailyEntries:getByFarm",
     wrapHandler(async (_e: unknown, farmId: number, date: string) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const flocks = await FlockModel.find({ farmId }).lean();
       const flockIds = flocks.map((f: any) => f.id);
       return await DailyEntryModel.find({ flockId: { $in: flockIds }, entryDate: date }).lean();
@@ -891,7 +1219,7 @@ export function registerIpcHandlers(): void {
     wrapHandler(async (_e: unknown, flockId: number, date: string) => {
       const flock = await FlockModel.findOne({ id: flockId }).lean();
       if (!flock) throw new Error("Flock not found");
-      requireFarmAccess(flock.farmId!);
+      await requireFarmAccess(flock.farmId!);
       const prev = await DailyEntryModel.find({ flockId, entryDate: { $lt: date } })
         .sort({ entryDate: -1 })
         .limit(1)
@@ -906,7 +1234,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "eggPrices:createBatch",
     wrapHandler(async (_e: unknown, farmId: number, prices: any[], effectiveDate: string) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       for (const p of prices) {
         const parsed = eggPriceSchema.omit({ id: true }).safeParse({
           farmId,
@@ -925,7 +1253,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "eggPrices:getCurrentPrices",
     wrapHandler(async (_e: unknown, farmId: number) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       // For each grade, pick latest by effectiveDate
       const docs = await EggPriceModel.aggregate([
         { $match: { farmId } },
@@ -940,7 +1268,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "eggPrices:getHistory",
     wrapHandler(async (_e: unknown, farmId: number, limit?: number) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       return await EggPriceModel.find({ farmId }).sort({ effectiveDate: -1, id: -1 }).limit(limit ?? 50).lean();
     })
   );
@@ -948,7 +1276,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "eggPrices:getPriceOnDate",
     wrapHandler(async (_e: unknown, farmId: number, date: string) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const docs = await EggPriceModel.find({ farmId, effectiveDate: { $lte: date } })
         .sort({ effectiveDate: -1 })
         .lean();
@@ -964,7 +1292,7 @@ export function registerIpcHandlers(): void {
     wrapHandler(async (_e: unknown, data: any) => {
       const parsed = expenseSchema.omit({ id: true }).safeParse(data);
       if (!parsed.success) throw new Error(parsed.error.message);
-      requireFarmAccess(parsed.data.farmId!);
+      await requireFarmAccess(parsed.data.farmId!);
       const created = await createWithId("expenses", ExpenseModel as any, parsed.data as any);
       return toPlain<any>(created);
     })
@@ -973,7 +1301,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "expenses:getByFarm",
     wrapHandler(async (_e: unknown, farmId: number, filters?: any) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const q: any = { farmId };
       if (filters?.startDate || filters?.endDate) {
         q.expenseDate = {};
@@ -1024,7 +1352,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "expenses:getSummary",
     wrapHandler(async (_e: unknown, farmId: number, startDate: string, endDate: string) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const rows = await ExpenseModel.aggregate([
         { $match: { farmId, expenseDate: { $gte: startDate, $lte: endDate } } },
         {
@@ -1053,7 +1381,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "expenses:getSuppliers",
     wrapHandler(async (_e: unknown, farmId: number) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const suppliers = await ExpenseModel.distinct("supplier", { farmId });
       return suppliers.filter(Boolean).sort();
     })
@@ -1067,7 +1395,7 @@ export function registerIpcHandlers(): void {
     wrapHandler(async (_e: unknown, data: any) => {
       const parsed = inventorySchema.omit({ id: true }).safeParse(data);
       if (!parsed.success) throw new Error(parsed.error.message);
-      requireFarmAccess(parsed.data.farmId!);
+      await requireFarmAccess(parsed.data.farmId!);
       const created = await createWithId("inventory", InventoryModel as any, parsed.data as any);
       return toPlain<any>(created);
     })
@@ -1076,7 +1404,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "inventory:getByFarm",
     wrapHandler(async (_e: unknown, farmId: number, itemType?: string) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const q: any = { farmId };
       if (itemType) q.itemType = itemType;
       return await InventoryModel.find(q).sort({ itemName: 1 }).lean();
@@ -1089,7 +1417,7 @@ export function registerIpcHandlers(): void {
       requireAuth();
       const item = await InventoryModel.findOne({ id }).lean();
       if (!item) throw new Error("Inventory item not found");
-      requireFarmAccess(item.farmId!);
+      await requireFarmAccess(item.farmId!);
       const transactions = await InventoryTransactionModel.find({ inventoryId: id })
         .sort({ date: -1, id: -1 })
         .lean();
@@ -1103,7 +1431,7 @@ export function registerIpcHandlers(): void {
       requireAuth();
       const item = await InventoryModel.findOne({ id }).lean();
       if (!item) throw new Error("Inventory item not found");
-      requireFarmAccess(item.farmId!);
+      await requireFarmAccess(item.farmId!);
       const updated = await InventoryModel.findOneAndUpdate({ id }, data, { new: true }).lean();
       return updated;
     })
@@ -1115,7 +1443,7 @@ export function registerIpcHandlers(): void {
       requireAuth();
       const item = await InventoryModel.findOne({ id }).lean();
       if (!item) throw new Error("Inventory item not found");
-      requireFarmAccess(item.farmId!);
+      await requireFarmAccess(item.farmId!);
       await InventoryTransactionModel.deleteMany({ inventoryId: id });
       await InventoryModel.deleteOne({ id });
       return { deleted: true };
@@ -1128,7 +1456,7 @@ export function registerIpcHandlers(): void {
       requireAuth();
       const item = await InventoryModel.findOne({ id: itemId }).lean();
       if (!item) throw new Error("Inventory item not found");
-      requireFarmAccess(item.farmId!);
+      await requireFarmAccess(item.farmId!);
 
       const txParsed = inventoryTransactionSchema.omit({ id: true }).safeParse({
         inventoryId: itemId,
@@ -1159,7 +1487,7 @@ export function registerIpcHandlers(): void {
       requireAuth();
       const item = await InventoryModel.findOne({ id: itemId }).lean();
       if (!item) throw new Error("Inventory item not found");
-      requireFarmAccess(item.farmId!);
+      await requireFarmAccess(item.farmId!);
 
       const txParsed = inventoryTransactionSchema.omit({ id: true }).safeParse({
         inventoryId: itemId,
@@ -1183,7 +1511,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "inventory:getLowStockItems",
     wrapHandler(async (_e: unknown, farmId: number) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       return await InventoryModel.find({
         farmId,
         minThreshold: { $ne: null },
@@ -1195,7 +1523,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "inventory:getExpiringItems",
     wrapHandler(async (_e: unknown, farmId: number, days: number) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const now = new Date();
       const cutoff = new Date(now);
       cutoff.setDate(cutoff.getDate() + Number(days ?? 0));
@@ -1217,7 +1545,7 @@ export function registerIpcHandlers(): void {
       if (!parsed.success) throw new Error(parsed.error.message);
       const flock = await FlockModel.findOne({ id: parsed.data.flockId }).lean();
       if (!flock) throw new Error("Flock not found");
-      requireFarmAccess(flock.farmId!);
+      await requireFarmAccess(flock.farmId!);
       const created = await createWithId("vaccinations", VaccinationModel as any, parsed.data as any);
       return toPlain<any>(created);
     })
@@ -1228,7 +1556,7 @@ export function registerIpcHandlers(): void {
     wrapHandler(async (_e: unknown, flockId: number) => {
       const flock = await FlockModel.findOne({ id: flockId }).lean();
       if (!flock) throw new Error("Flock not found");
-      requireFarmAccess(flock.farmId!);
+      await requireFarmAccess(flock.farmId!);
       return await VaccinationModel.find({ flockId }).sort({ scheduledDate: -1, id: -1 }).lean();
     })
   );
@@ -1236,7 +1564,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "vaccinations:getUpcoming",
     wrapHandler(async (_e: unknown, farmId: number, days: number = 30) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const flocks = await FlockModel.find({ farmId }).lean();
       const flockIds = flocks.map((f: any) => f.id);
       const now = new Date();
@@ -1270,7 +1598,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "vaccinations:getCompleted",
     wrapHandler(async (_e: unknown, farmId: number) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const flocks = await FlockModel.find({ farmId }).lean();
       const flockIds = flocks.map((f: any) => f.id);
       const vaccs = await VaccinationModel.find({
@@ -1285,7 +1613,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "vaccinations:getAll",
     wrapHandler(async (_e: unknown, farmId: number, filters?: any) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const flocks = await FlockModel.find({ farmId }).lean();
       const flockIds = flocks.map((f: any) => f.id);
       const q: any = { flockId: { $in: flockIds } };
@@ -1303,7 +1631,7 @@ export function registerIpcHandlers(): void {
       if (!v) throw new Error("Vaccination not found");
       const flock = await FlockModel.findOne({ id: v.flockId }).lean();
       if (!flock) throw new Error("Flock not found");
-      requireFarmAccess(flock.farmId!);
+      await requireFarmAccess(flock.farmId!);
       const updated = await VaccinationModel.findOneAndUpdate({ id }, data, { new: true }).lean();
       return updated;
     })
@@ -1317,7 +1645,7 @@ export function registerIpcHandlers(): void {
       if (!v) throw new Error("Vaccination not found");
       const flock = await FlockModel.findOne({ id: v.flockId }).lean();
       if (!flock) throw new Error("Flock not found");
-      requireFarmAccess(flock.farmId!);
+      await requireFarmAccess(flock.farmId!);
       await VaccinationModel.deleteOne({ id });
       return { deleted: true };
     })
@@ -1368,7 +1696,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "vaccinations:getHistory",
     wrapHandler(async (_e: unknown, farmId: number, filters: any) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const flocks = await FlockModel.find({ farmId }).lean();
       const flockIds = flocks.map((f: any) => f.id);
       const q: any = { flockId: { $in: flockIds } };
@@ -1405,7 +1733,7 @@ export function registerIpcHandlers(): void {
     wrapHandler(async (_e: unknown, flockId: number) => {
       const flock = await FlockModel.findOne({ id: flockId }).lean();
       if (!flock) throw new Error("Flock not found");
-      requireFarmAccess(flock.farmId!);
+      await requireFarmAccess(flock.farmId!);
       const vaccs = await VaccinationModel.find({ flockId }).sort({ scheduledDate: -1 }).lean();
       const total = vaccs.length;
       const completed = vaccs.filter((v: any) => v.status === "completed").length;
@@ -1437,7 +1765,7 @@ export function registerIpcHandlers(): void {
     wrapHandler(async (_e: unknown, flockId: number, data: any) => {
       const flock = await FlockModel.findOne({ id: flockId }).lean();
       if (!flock) throw new Error("Flock not found");
-      requireFarmAccess(flock.farmId!);
+      await requireFarmAccess(flock.farmId!);
       const created = await createWithId("vaccinations", VaccinationModel as any, {
         flockId,
         vaccineName: data.vaccineName,
@@ -1456,7 +1784,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "vaccinations:getComplianceStats",
     wrapHandler(async (_e: unknown, farmId: number) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const flocks = await FlockModel.find({ farmId }).lean();
       const flockIds = flocks.map((f: any) => f.id);
       const vaccs = await VaccinationModel.find({ flockId: { $in: flockIds } }).lean();
@@ -1485,7 +1813,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "vaccinations:exportHistory",
     wrapHandler(async (_e: unknown, farmId: number, filters: any) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const hist = await (ipcMain as any)._invokeHandlers?.get("vaccinations:getHistory")?.(null, farmId, { ...filters, page: 1, pageSize: 100000 });
       // Fallback: query directly
       const res = await VaccinationModel.find({}).limit(0).lean(); // placeholder to keep structure
@@ -1581,7 +1909,7 @@ export function registerIpcHandlers(): void {
     wrapHandler(async (_e: unknown, flockId: number) => {
       const flock = await FlockModel.findOne({ id: flockId }).lean();
       if (!flock) throw new Error("Flock not found");
-      requireFarmAccess(flock.farmId!);
+      await requireFarmAccess(flock.farmId!);
       const schedule = await VaccinationScheduleModel.find({}).lean();
       let count = 0;
       for (const s of schedule) {
@@ -1603,7 +1931,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "vaccinationSchedule:applyToFlocks",
     wrapHandler(async (_e: unknown, farmId: number, flockIds: number[]) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const flocks = await FlockModel.find({ farmId, id: { $in: flockIds } }).lean();
       const schedule = await VaccinationScheduleModel.find({}).lean();
       let count = 0;
@@ -1630,7 +1958,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "vaccines:getByFarm",
     wrapHandler(async (_e: unknown, farmId: number) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       return await VaccineModel.find({ farmId }).sort({ name: 1 }).lean();
     })
   );
@@ -1638,7 +1966,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "vaccines:create",
     wrapHandler(async (_e: unknown, farmId: number, data: any) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const parsed = vaccineSchema.omit({ id: true }).safeParse({ farmId, ...data });
       if (!parsed.success) throw new Error(parsed.error.message);
       const created = await createWithId("vaccines", VaccineModel as any, parsed.data as any);
@@ -1668,7 +1996,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "vaccines:resetToDefaults",
     wrapHandler(async (_e: unknown, farmId: number) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       await VaccineModel.deleteMany({ farmId });
       return await VaccineModel.find({ farmId }).lean();
     })
@@ -1682,7 +2010,7 @@ export function registerIpcHandlers(): void {
     wrapHandler(async (_e: unknown, data: any) => {
       const parsed = customerSchema.omit({ id: true }).safeParse(data);
       if (!parsed.success) throw new Error(parsed.error.message);
-      requireFarmAccess(parsed.data.farmId!);
+      await requireFarmAccess(parsed.data.farmId!);
       const created = await createWithId("customers", CustomerModel as any, parsed.data as any);
       return toPlain<any>(created);
     })
@@ -1691,7 +2019,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "customers:getByFarm",
     wrapHandler(async (_e: unknown, farmId: number, filters?: any) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const q: any = { farmId };
       if (filters?.category) q.category = filters.category;
       if (filters?.status === "active") q.isActive = 1;
@@ -1710,7 +2038,7 @@ export function registerIpcHandlers(): void {
       requireAuth();
       const customer = await CustomerModel.findOne({ id }).lean();
       if (!customer) throw new Error("Customer not found");
-      requireFarmAccess(customer.farmId!);
+      await requireFarmAccess(customer.farmId!);
       const statsAgg = await SaleModel.aggregate([
         { $match: { customerId: id, isDeleted: { $ne: 1 } } },
         {
@@ -1741,7 +2069,7 @@ export function registerIpcHandlers(): void {
       requireAuth();
       const cust = await CustomerModel.findOne({ id }).lean();
       if (!cust) throw new Error("Customer not found");
-      requireFarmAccess(cust.farmId!);
+      await requireFarmAccess(cust.farmId!);
       const updated = await CustomerModel.findOneAndUpdate({ id }, data, { new: true }).lean();
       return updated;
     })
@@ -1768,7 +2096,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "customers:search",
     wrapHandler(async (_e: unknown, farmId: number, query: string) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const re = new RegExp(query, "i");
       return await CustomerModel.find({ farmId, $or: [{ name: re }, { phone: re }, { businessName: re }] })
         .limit(20)
@@ -1825,7 +2153,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "sales:getNextInvoiceNumber",
     wrapHandler(async (_e: unknown, farmId: number) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const last = await SaleModel.find({ farmId }).sort({ id: -1 }).limit(1).lean();
       const lastInvoice = last[0]?.invoiceNumber ?? "INV-0000";
       const match = /(\d+)$/.exec(lastInvoice);
@@ -1861,7 +2189,7 @@ export function registerIpcHandlers(): void {
         isDeleted: 0,
       });
       if (!parsed.success) throw new Error(parsed.error.message);
-      requireFarmAccess(parsed.data.farmId!);
+      await requireFarmAccess(parsed.data.farmId!);
 
       const createdSale = await createWithId("sales", SaleModel as any, parsed.data as any);
       const sale = toPlain<any>(createdSale);
@@ -1904,7 +2232,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "sales:getByFarm",
     wrapHandler(async (_e: unknown, farmId: number, filters?: any) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const q: any = { farmId, isDeleted: { $ne: 1 } };
       if (filters?.startDate || filters?.endDate) {
         q.saleDate = {};
@@ -1939,7 +2267,7 @@ export function registerIpcHandlers(): void {
       requireAuth();
       const sale = await SaleModel.findOne({ id }).lean();
       if (!sale) throw new Error("Sale not found");
-      requireFarmAccess(sale.farmId!);
+      await requireFarmAccess(sale.farmId!);
       const customer = await CustomerModel.findOne({ id: sale.customerId }).lean();
       const items = await SaleItemModel.find({ saleId: id }).lean();
       const payments = await SalePaymentModel.find({ saleId: id }).sort({ paymentDate: -1 }).lean();
@@ -1986,7 +2314,7 @@ export function registerIpcHandlers(): void {
       requireAuth();
       const sale = await SaleModel.findOne({ id }).lean();
       if (!sale) throw new Error("Sale not found");
-      requireFarmAccess(sale.farmId!);
+      await requireFarmAccess(sale.farmId!);
       const updated = await SaleModel.findOneAndUpdate({ id }, data, { new: true }).lean();
       return updated;
     })
@@ -1998,7 +2326,7 @@ export function registerIpcHandlers(): void {
       requireAuth();
       const sale = await SaleModel.findOne({ id }).lean();
       if (!sale) throw new Error("Sale not found");
-      requireFarmAccess(sale.farmId!);
+      await requireFarmAccess(sale.farmId!);
       await SaleModel.updateOne({ id }, { isDeleted: 1 });
       return { deleted: true };
     })
@@ -2007,7 +2335,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "sales:getSummary",
     wrapHandler(async (_e: unknown, farmId: number, startDate: string, endDate: string) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const agg = await SaleModel.aggregate([
         {
           $match: {
@@ -2042,7 +2370,7 @@ export function registerIpcHandlers(): void {
       requireAuth();
       const sale = await SaleModel.findOne({ id: data.saleId }).lean();
       if (!sale) throw new Error("Sale not found");
-      requireFarmAccess(sale.farmId!);
+      await requireFarmAccess(sale.farmId!);
 
       const payParsed = salePaymentSchema.omit({ id: true }).safeParse({
         saleId: data.saleId,
@@ -2071,7 +2399,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "payments:getByFarm",
     wrapHandler(async (_e: unknown, farmId: number, filters?: any) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       // Join payments -> sale -> customer
       const q: any = {};
       if (filters?.startDate || filters?.endDate) {
@@ -2127,7 +2455,7 @@ export function registerIpcHandlers(): void {
       if (!payment) throw new Error("Payment not found");
       const sale = await SaleModel.findOne({ id: payment.saleId }).lean();
       if (!sale) throw new Error("Sale not found");
-      requireFarmAccess(sale.farmId!);
+      await requireFarmAccess(sale.farmId!);
       await SalePaymentModel.deleteOne({ id: paymentId });
       const newPaid = Math.max(0, Number(sale.paidAmount ?? 0) - Number(payment.amount ?? 0));
       const balanceDue = Math.max(0, Number(sale.totalAmount ?? 0) - newPaid);
@@ -2140,7 +2468,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "payments:getSummary",
     wrapHandler(async (_e: unknown, farmId: number) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const today = new Date().toISOString().slice(0, 10);
       const now = new Date();
       const week = new Date(now);
@@ -2169,7 +2497,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "receivables:getByFarm",
     wrapHandler(async (_e: unknown, farmId: number, filter?: string) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const today = new Date().toISOString().slice(0, 10);
       let sales = await SaleModel.find({ farmId, isDeleted: { $ne: 1 }, balanceDue: { $gt: 0 } })
         .sort({ dueDate: 1, saleDate: -1 })
@@ -2216,7 +2544,7 @@ export function registerIpcHandlers(): void {
       requireAuth();
       const customer = await CustomerModel.findOne({ id: customerId }).lean();
       if (!customer) throw new Error("Customer not found");
-      requireFarmAccess(customer.farmId!);
+      await requireFarmAccess(customer.farmId!);
       return await SaleModel.find({ customerId, isDeleted: { $ne: 1 }, balanceDue: { $gt: 0 } })
         .sort({ dueDate: 1 })
         .lean();
@@ -2230,7 +2558,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "revenue:getDailySummary",
     wrapHandler(async (_e: unknown, farmId: number, startDate: string, endDate: string) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const agg = await SaleModel.aggregate([
         { $match: { farmId, isDeleted: { $ne: 1 }, saleDate: { $gte: startDate, $lte: endDate } } },
         {
@@ -2259,7 +2587,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "revenue:getTotalRevenue",
     wrapHandler(async (_e: unknown, farmId: number, startDate: string, endDate: string) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const sales = await SaleModel.find({ farmId, isDeleted: { $ne: 1 }, saleDate: { $gte: startDate, $lte: endDate } }).lean();
       const totalRevenue = sales.reduce((s: number, x: any) => s + Number(x.totalAmount ?? 0), 0);
       const totalCollected = sales.reduce((s: number, x: any) => s + Number(x.paidAmount ?? 0), 0);
@@ -2297,7 +2625,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "revenue:getRevenueVsExpenses",
     wrapHandler(async (_e: unknown, farmId: number, startDate: string, endDate: string) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const salesAgg = await SaleModel.aggregate([
         { $match: { farmId, isDeleted: { $ne: 1 }, saleDate: { $gte: startDate, $lte: endDate } } },
         { $group: { _id: null, revenue: { $sum: "$totalAmount" } } },
@@ -2317,7 +2645,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "financial:getProfitLoss",
     wrapHandler(async (_e: unknown, farmId: number, startDate: string, endDate: string) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const revenueAgg = await SaleModel.aggregate([
         { $match: { farmId, isDeleted: { $ne: 1 }, saleDate: { $gte: startDate, $lte: endDate } } },
         {
@@ -2372,7 +2700,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "financial:getFinancialTrends",
     wrapHandler(async (_e: unknown, farmId: number, startDate: string, endDate: string, groupBy: string) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const groupField = groupBy === "month" ? { $substr: ["$saleDate", 0, 7] } : "$saleDate";
       const revAgg = await SaleModel.aggregate([
         { $match: { farmId, isDeleted: { $ne: 1 }, saleDate: { $gte: startDate, $lte: endDate } } },
@@ -2400,7 +2728,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "financial:getPerBirdMetrics",
     wrapHandler(async (_e: unknown, farmId: number, startDate: string, endDate: string) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const flocks = await FlockModel.find({ farmId, status: "active" }).lean();
       const avgBirds = flocks.reduce((s: number, f: any) => s + Number(f.currentCount ?? 0), 0);
       const revAgg = await SaleModel.aggregate([
@@ -2428,7 +2756,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "financial:getPerEggMetrics",
     wrapHandler(async (_e: unknown, farmId: number, startDate: string, endDate: string) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const flocks = await FlockModel.find({ farmId }).lean();
       const flockIds = flocks.map((f: any) => f.id);
       const entries = await DailyEntryModel.find({ flockId: { $in: flockIds }, entryDate: { $gte: startDate, $lte: endDate } }).lean();
@@ -2458,7 +2786,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "alerts:getAll",
     wrapHandler(async (_e: unknown, farmId: number) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       // Low stock + expiring + vaccination due + payment alerts
       const alerts: any[] = [];
       const lowStock = await InventoryModel.find({
@@ -2492,7 +2820,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "alerts:getPaymentAlerts",
     wrapHandler(async (_e: unknown, farmId: number) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const today = new Date().toISOString().slice(0, 10);
       const soon = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
       const sales = await SaleModel.find({ farmId, isDeleted: { $ne: 1 }, balanceDue: { $gt: 0 } }).lean();
@@ -2551,7 +2879,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "alerts:dismiss",
     wrapHandler(async (_e: unknown, farmId: number, alertType: string, referenceId: number) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const parsed = dismissedAlertSchema.omit({ id: true }).safeParse({ farmId, alertType, referenceId, dismissedAt: new Date().toISOString() });
       if (!parsed.success) throw new Error(parsed.error.message);
       await DismissedAlertModel.updateOne(
@@ -2566,7 +2894,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "alerts:undismiss",
     wrapHandler(async (_e: unknown, farmId: number, alertType: string, referenceId: number) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       await DismissedAlertModel.deleteOne({ farmId, alertType, referenceId });
       return { success: true };
     })
@@ -2575,7 +2903,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "alerts:clearDismissed",
     wrapHandler(async (_e: unknown, farmId: number) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       await DismissedAlertModel.deleteMany({ farmId });
       return { success: true };
     })
@@ -2584,7 +2912,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "dashboard:getFarmStats",
     wrapHandler(async (_e: unknown, farmId: number) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const activeFlocks = await FlockModel.find({ farmId, status: "active" }).lean();
       const totalBirds = activeFlocks.reduce((s: number, f: any) => s + Number(f.currentCount ?? 0), 0);
       const totalInitialBirds = activeFlocks.reduce((s: number, f: any) => s + Number(f.initialCount ?? 0), 0);
@@ -2695,7 +3023,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "dashboard:getWeeklyTrends",
     wrapHandler(async (_e: unknown, farmId: number) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const today = new Date();
       const todayStr = today.toISOString().split("T")[0];
       const dateOffset = (d: Date, offset: number) => {
@@ -2764,7 +3092,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "dashboard:getAlerts",
     wrapHandler(async (_e: unknown, farmId: number) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const alerts: { type: "critical" | "warning" | "info"; message: string; link?: string }[] = [];
 
       const inventoryItems = await InventoryModel.find({ farmId }).lean();
@@ -2887,7 +3215,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "dashboard:getStatHistory",
     wrapHandler(async (_e: unknown, farmId: number, statType: string, days: number) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const allowedDays = [7, 14, 30, 90, 180];
       const safeDays = allowedDays.includes(days) ? days : 30;
       const today = new Date();
@@ -2973,7 +3301,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "reports:getDailySummary",
     wrapHandler(async (_e: unknown, farmId: number, date: string) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const farm = await FarmModel.findOne({ id: farmId }).lean();
       const flocks = await FlockModel.find({ farmId }).lean();
       const flockIds = flocks.map((f: any) => f.id);
@@ -3016,7 +3344,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "reports:getWeeklySummary",
     wrapHandler(async (_e: unknown, farmId: number, startDate: string, endDate: string) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const farm = await FarmModel.findOne({ id: farmId }).lean();
       const flocks = await FlockModel.find({ farmId }).lean();
       const flockIds = flocks.map((f: any) => f.id);
@@ -3056,7 +3384,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "reports:getMonthlySummary",
     wrapHandler(async (_e: unknown, farmId: number, month: number, year: number) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
       const endDate = `${year}-${String(month).padStart(2, "0")}-31`;
       const farm = await FarmModel.findOne({ id: farmId }).lean();
@@ -3081,7 +3409,7 @@ export function registerIpcHandlers(): void {
     wrapHandler(async (_e: unknown, flockId: number) => {
       const flock = await FlockModel.findOne({ id: flockId }).lean();
       if (!flock) throw new Error("Flock not found");
-      requireFarmAccess(flock.farmId!);
+      await requireFarmAccess(flock.farmId!);
       const farm = await FarmModel.findOne({ id: flock.farmId }).lean();
       const entries = await DailyEntryModel.find({ flockId }).sort({ entryDate: 1 }).lean();
       const stats = entries.reduce((a: any, e: any) => {
@@ -3132,7 +3460,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "reports:getFinancialReport",
     wrapHandler(async (_e: unknown, farmId: number, startDate: string, endDate: string) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const farm = await FarmModel.findOne({ id: farmId }).lean();
       const revenue = await (async () => {
         const res = await SaleModel.aggregate([
@@ -3182,24 +3510,148 @@ export function registerIpcHandlers(): void {
     wrapHandler(async (_e: unknown, ownerId: number) => {
       const session = requireOwner();
       if (session.id !== ownerId) throw new Error("Access denied");
-      const farms = await FarmModel.find({ ownerId }).lean();
+
+      const farms = await FarmModel.find({ ownerId, isActive: { $ne: 0 } }).lean();
+      if (farms.length === 0) {
+        return {
+          totalBirds: 0,
+          totalEggsMonth: 0,
+          totalEggsToday: 0,
+          revenueMonth: 0,
+          profitMonth: 0,
+          totalFarms: 0,
+          totalBirdsChange: 0,
+          totalEggsTrend: 0,
+          revenueTrend: 0,
+          profitTrend: 0,
+        };
+      }
+
+      const now = new Date();
+      const today = ymdLocal(now);
+      const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+      const monthEnd = today;
+
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = ymdLocal(yesterday);
+
+      const prevMonthLast = new Date(now.getFullYear(), now.getMonth(), 0);
+      const prevMonthStart = `${prevMonthLast.getFullYear()}-${String(prevMonthLast.getMonth() + 1).padStart(2, "0")}-01`;
+      const prevMonthEndStr = ymdLocal(prevMonthLast);
+
       const farmIds = farms.map((f: any) => f.id);
-      const flocks = await FlockModel.find({ farmId: { $in: farmIds }, status: "active" }).lean();
-      const totalBirds = flocks.reduce((s: number, f: any) => s + Number(f.currentCount ?? 0), 0);
-      const today = new Date().toISOString().slice(0, 10);
-      const entries = await DailyEntryModel.find({ entryDate: today, flockId: { $in: flocks.map((f: any) => f.id) } }).lean();
-      const totalEggsToday = entries.reduce((s: number, e: any) => s + Number(e.eggsGradeA ?? 0) + Number(e.eggsGradeB ?? 0) + Number(e.eggsCracked ?? 0), 0);
+      const ownerFlocks = await FlockModel.find({ farmId: { $in: farmIds } }).lean();
+      const ownerFlockIds = ownerFlocks
+        .map((f: any) => f.id)
+        .filter((id: unknown): id is number => typeof id === "number");
+
+      const [totalEggsMonth, totalEggsToday, eggsPrevMonthSamePeriod] = await Promise.all([
+        sumEggsForFlockIdsInDateRange(ownerFlockIds, monthStart, today),
+        sumEggsForFlockIdsInDateRange(ownerFlockIds, today, today),
+        (async () => {
+          const py = prevMonthLast.getFullYear();
+          const pm = prevMonthLast.getMonth();
+          const dom = now.getDate();
+          const daysInPrev = prevMonthLast.getDate();
+          const endDom = Math.min(dom, daysInPrev);
+          const pStart = ymdLocal(new Date(py, pm, 1));
+          const pEnd = ymdLocal(new Date(py, pm, endDom));
+          return sumEggsForFlockIdsInDateRange(ownerFlockIds, pStart, pEnd);
+        })(),
+      ]);
+
+      const rows = await Promise.all(
+        farms.map(async (farm: any) => {
+          const stats = await getOwnerFarmStatsMongo(farm.id, today, monthStart, monthEnd);
+          const prevMonthStats = await getOwnerFarmStatsMongo(
+            farm.id,
+            yesterdayStr,
+            prevMonthStart,
+            prevMonthEndStr
+          );
+          return { stats, prevMonthStats };
+        })
+      );
+
+      let totalBirds = 0;
+      let revenueMonth = 0;
+      let profitMonth = 0;
+      let prevRevenueMonth = 0;
+      let prevProfitMonth = 0;
+      let totalInitialBirds = 0;
+
+      for (const row of rows) {
+        totalBirds += row.stats.totalBirds;
+        revenueMonth += row.stats.revenueMonth;
+        profitMonth += row.stats.profitMonth;
+        totalInitialBirds += row.stats.initialBirds;
+        prevRevenueMonth += row.prevMonthStats.revenueMonth;
+        prevProfitMonth += row.prevMonthStats.profitMonth;
+      }
+
+      const totalBirdsChange =
+        totalInitialBirds > 0
+          ? Math.round(((totalBirds - totalInitialBirds) / totalInitialBirds) * 10000) / 100
+          : 0;
+
+      const totalEggsTrend =
+        eggsPrevMonthSamePeriod > 0
+          ? Math.round(
+              ((totalEggsMonth - eggsPrevMonthSamePeriod) / eggsPrevMonthSamePeriod) * 10000
+            ) / 100
+          : totalEggsMonth > 0
+            ? 100
+            : 0;
+
       return {
         totalBirds,
+        totalEggsMonth,
         totalEggsToday,
-        revenueMonth: 0,
-        profitMonth: 0,
+        revenueMonth: Math.round(revenueMonth * 100) / 100,
+        profitMonth: Math.round(profitMonth * 100) / 100,
         totalFarms: farms.length,
-        totalBirdsChange: 0,
-        totalEggsTrend: 0,
-        revenueTrend: 0,
-        profitTrend: 0,
+        totalBirdsChange,
+        totalEggsTrend,
+        revenueTrend:
+          prevRevenueMonth > 0
+            ? Math.round(((revenueMonth - prevRevenueMonth) / prevRevenueMonth) * 10000) / 100
+            : 0,
+        profitTrend:
+          prevProfitMonth > 0
+            ? Math.round(((profitMonth - prevProfitMonth) / prevProfitMonth) * 10000) / 100
+            : 0,
       };
+    })
+  );
+
+  ipcMain.handle(
+    "owner:getReport",
+    wrapHandler(async (_e: unknown, ownerId: number, raw: unknown) => {
+      const session = requireOwner();
+      if (session.id !== ownerId) throw new Error("Access denied");
+
+      const p = raw as Partial<OwnerReportParams> & Record<string, unknown>;
+      const type = p?.type as OwnerReportParams["type"] | undefined;
+      const startDate = typeof p?.startDate === "string" ? p.startDate : "";
+      const endDate = typeof p?.endDate === "string" ? p.endDate : "";
+      const farmIdRaw = p?.farmId;
+      const farmId =
+        farmIdRaw != null && farmIdRaw !== "" && !Number.isNaN(Number(farmIdRaw))
+          ? Number(farmIdRaw)
+          : undefined;
+
+      if (!startDate || !endDate) throw new Error("startDate and endDate are required");
+      if (!type || !["summary", "financial", "production", "sales"].includes(type)) {
+        throw new Error("Invalid report type");
+      }
+
+      return generateOwnerReportMongo(ownerId, {
+        type,
+        startDate,
+        endDate,
+        farmId,
+      });
     })
   );
 
@@ -3208,30 +3660,35 @@ export function registerIpcHandlers(): void {
     wrapHandler(async (_e: unknown, ownerId: number) => {
       const session = requireOwner();
       if (session.id !== ownerId) throw new Error("Access denied");
-      const farms = await FarmModel.find({ ownerId }).lean();
-      const out: any[] = [];
-      for (const farm of farms) {
-        const flocks = await FlockModel.find({ farmId: farm.id, status: "active" }).lean();
-        const totalBirds = flocks.reduce((s: number, f: any) => s + Number(f.currentCount ?? 0), 0);
-        out.push({
-          id: farm.id,
-          name: farm.name,
-          location: farm.location ?? null,
-          capacity: farm.capacity ?? null,
-          isActive: farm.isActive ?? 1,
-          totalBirds,
-          totalFlocks: flocks.length,
-          eggsToday: 0,
-          flocksWithEntriesToday: 0,
-          productionRate: 0,
-          mortalityRate: 0,
-          profitMargin: 0,
-          revenueMonth: 0,
-          expensesMonth: 0,
-          profitMonth: 0,
-          performance: "good",
-        });
-      }
+
+      const now = new Date();
+      const today = ymdLocal(now);
+      const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+
+      const farms = await FarmModel.find({ ownerId, isActive: { $ne: 0 } }).lean();
+      const out = await Promise.all(
+        farms.map(async (farm: any) => {
+          const stats = await getOwnerFarmStatsMongo(farm.id, today, monthStart, today);
+          return {
+            id: farm.id,
+            name: farm.name,
+            location: farm.location ?? null,
+            capacity: farm.capacity ?? null,
+            isActive: farm.isActive ?? 1,
+            totalBirds: stats.totalBirds,
+            totalFlocks: stats.totalFlocks,
+            eggsToday: stats.eggsToday,
+            flocksWithEntriesToday: stats.flocksWithEntriesToday,
+            productionRate: stats.productionRate,
+            mortalityRate: stats.mortalityRate,
+            profitMargin: stats.profitMargin,
+            revenueMonth: stats.revenueMonth,
+            expensesMonth: stats.expensesMonth,
+            profitMonth: stats.profitMonth,
+            performance: stats.performance,
+          };
+        })
+      );
       return out;
     })
   );
@@ -3241,19 +3698,33 @@ export function registerIpcHandlers(): void {
     wrapHandler(async (_e: unknown, ownerId: number, farmIds: number[], startDate: string, endDate: string) => {
       const session = requireOwner();
       if (session.id !== ownerId) throw new Error("Access denied");
-      const farms = await FarmModel.find({ ownerId, id: { $in: farmIds } }).lean();
-      return farms.map((f: any) => ({
-        farmId: f.id,
-        farmName: f.name,
-        totalBirds: 0,
-        avgEggsPerDay: 0,
-        productionRate: 0,
-        mortalityRate: 0,
-        revenue: 0,
-        expenses: 0,
-        profit: 0,
-        profitMargin: 0,
-      }));
+
+      const ownerFarms = await FarmModel.find({ ownerId, isActive: { $ne: 0 } }).lean();
+      const validIds =
+        Array.isArray(farmIds) && farmIds.length > 0
+          ? farmIds.filter((id) => ownerFarms.some((f: any) => f.id === id))
+          : ownerFarms.map((f: any) => f.id);
+
+      const farms = ownerFarms.filter((f: any) => validIds.includes(f.id));
+
+      const rows = await Promise.all(
+        farms.map(async (f: any) => {
+          const stats = await getOwnerFarmStatsMongo(f.id, endDate, startDate, endDate);
+          return {
+            farmId: f.id,
+            farmName: f.name,
+            totalBirds: stats.totalBirds,
+            avgEggsPerDay: stats.avgEggsPerDay,
+            productionRate: stats.productionRate,
+            mortalityRate: stats.mortalityRate,
+            revenue: stats.revenueMonth,
+            expenses: stats.expensesMonth,
+            profit: stats.profitMonth,
+            profitMargin: stats.profitMargin,
+          };
+        })
+      );
+      return rows;
     })
   );
 
@@ -3272,6 +3743,15 @@ export function registerIpcHandlers(): void {
       const session = requireOwner();
       if (session.id !== ownerId) throw new Error("Access denied");
       return [];
+    })
+  );
+
+  ipcMain.handle(
+    "owner:getStatHistory",
+    wrapHandler(async (_e: unknown, ownerId: number, statType: string, days: number) => {
+      const session = requireOwner();
+      if (session.id !== ownerId) throw new Error("Access denied");
+      return await aggregateOwnerStatHistory(ownerId, statType, days);
     })
   );
 
@@ -3451,7 +3931,8 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "sync:pullFromCloud",
     wrapHandler(async (_e: unknown, ownerId: number) => {
-      requireAuth();
+      const session = requireOwner();
+      if (session.id !== ownerId) throw new Error("Access denied");
       return await syncFromCloud(ownerId);
     })
   );
@@ -3469,6 +3950,83 @@ export function registerIpcHandlers(): void {
       } catch (error) {
         return { success: false, message: error instanceof Error ? error.message : String(error) };
       }
+    })
+  );
+
+  ipcMain.handle(
+    "setup:generateCode",
+    wrapHandler(async (_e: unknown, farmId: number, expiryDays?: number) => {
+      const session = requireOwner();
+      const syncConfig = getSyncConfig();
+      if (!syncConfig.atlasUri?.trim()) {
+        throw new Error(
+          "Cloud sync must be configured first. Please set up your Atlas URI in Cloud Sync settings."
+        );
+      }
+      const farm = await FarmModel.findOne({ id: farmId, ownerId: session.id }).lean();
+      if (!farm) throw new Error("Farm not found or access denied");
+      return generateSetupCode(
+        syncConfig.atlasUri,
+        farmId,
+        session.id,
+        farm.name,
+        expiryDays ?? 7
+      );
+    })
+  );
+
+  ipcMain.handle(
+    "setup:validateCode",
+    wrapHandler(async (_e: unknown, code: string) => {
+      const result = parseSetupCode(String(code).trim());
+      if (!result.valid) {
+        return { valid: false as const, error: result.error };
+      }
+      return {
+        valid: true as const,
+        farmName: result.data?.farmName,
+        expiresAt: result.data?.expiresAt,
+      };
+    })
+  );
+
+  ipcMain.handle(
+    "setup:applyCode",
+    wrapHandler(async (_e: unknown, code: string) => {
+      const parsed = parseSetupCode(String(code).trim());
+      if (!parsed.valid || !parsed.data) {
+        throw new Error(parsed.error || "Invalid setup code");
+      }
+      const { atlasUri, farmId, ownerId, farmName } = parsed.data;
+
+      saveSyncConfig({
+        atlasUri,
+        syncEnabled: true,
+        syncIntervalMinutes: 15,
+      });
+
+      stopBackgroundSync();
+      await disconnectFromCloud();
+
+      const connected = await connectToCloud();
+      if (!connected) {
+        throw new Error("Failed to connect to cloud. Please check your internet connection.");
+      }
+
+      const pull = await pullFarmForDeviceSetup(ownerId, farmId);
+      if (!pull.success) {
+        throw new Error(pull.error || "Failed to pull farm data");
+      }
+
+      startBackgroundSync();
+
+      return {
+        success: true,
+        farmName,
+        farmId,
+        recordsPulled: pull.stats?.merged ?? 0,
+        message: `Successfully set up "${farmName}". You can now login with your farm credentials.`,
+      };
     })
   );
 
@@ -3570,7 +4128,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "data:exportAllData",
     wrapHandler(async (_e: unknown, farmId: number, options: any) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const out: Record<string, unknown[]> = {};
       if (options?.includeFlocks) out.flocks = await FlockModel.find({ farmId }).lean();
       if (options?.includeEntries) {
@@ -3590,7 +4148,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "data:clearDismissedAlerts",
     wrapHandler(async (_e: unknown, farmId: number) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       await DismissedAlertModel.deleteMany({ farmId });
       return { success: true };
     })
@@ -3599,7 +4157,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "data:resetFarmData",
     wrapHandler(async (_e: unknown, farmId: number) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       await FlockModel.deleteMany({ farmId });
       await ExpenseModel.deleteMany({ farmId });
       await InventoryModel.deleteMany({ farmId });
@@ -3631,7 +4189,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "salesReports:getSummary",
     wrapHandler(async (_e: unknown, farmId: number, startDate: string, endDate: string) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const sales = await SaleModel.find({ farmId, isDeleted: { $ne: 1 }, saleDate: { $gte: startDate, $lte: endDate } }).lean();
       const totals = {
         salesCount: sales.length,
@@ -3650,7 +4208,7 @@ export function registerIpcHandlers(): void {
       requireAuth();
       const customer = await CustomerModel.findOne({ id: customerId }).lean();
       if (!customer) throw new Error("Customer not found");
-      requireFarmAccess(customer.farmId!);
+      await requireFarmAccess(customer.farmId!);
       const sales = await SaleModel.find({ customerId, isDeleted: { $ne: 1 }, saleDate: { $gte: startDate, $lte: endDate } }).lean();
       const saleIds = sales.map((s: any) => s.id);
       const items = await SaleItemModel.find({ saleId: { $in: saleIds } }).lean();
@@ -3705,7 +4263,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "salesReports:getTopCustomers",
     wrapHandler(async (_e: unknown, farmId: number, limit: number, startDate: string, endDate: string) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const agg = await SaleModel.aggregate([
         { $match: { farmId, isDeleted: { $ne: 1 }, saleDate: { $gte: startDate, $lte: endDate } } },
         { $group: { _id: "$customerId", totalPurchases: { $sum: "$totalAmount" }, totalPaid: { $sum: "$paidAmount" }, balanceDue: { $sum: "$balanceDue" }, salesCount: { $sum: 1 }, lastPurchase: { $max: "$saleDate" } } },
@@ -3733,7 +4291,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "salesReports:getSalesTrend",
     wrapHandler(async (_e: unknown, farmId: number, period: string, startDate: string, endDate: string) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const groupField = period === "month" ? { $substr: ["$saleDate", 0, 7] } : "$saleDate";
       const agg = await SaleModel.aggregate([
         { $match: { farmId, isDeleted: { $ne: 1 }, saleDate: { $gte: startDate, $lte: endDate } } },
@@ -3754,7 +4312,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "salesReports:getGradeBreakdown",
     wrapHandler(async (_e: unknown, farmId: number, startDate: string, endDate: string) => {
-      requireFarmAccess(farmId);
+      await requireFarmAccess(farmId);
       const sales = await SaleModel.find({ farmId, isDeleted: { $ne: 1 }, saleDate: { $gte: startDate, $lte: endDate } }).lean();
       const saleIds = sales.map((s: any) => s.id);
       const agg = await SaleItemModel.aggregate([

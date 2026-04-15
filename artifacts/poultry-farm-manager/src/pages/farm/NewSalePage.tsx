@@ -16,12 +16,13 @@ import {
   calculateDueDate,
 } from "@/lib/salesCalculations";
 import type { Customer } from "@/types/electron";
+import { useFarmId } from "@/hooks/useFarmId";
 
 export default function NewSalePage(): React.ReactElement {
   const { user } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
-  const farmId = user?.farmId ?? null;
+  const farmId = useFarmId();
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerId, setCustomerId] = useState<number | "">("");

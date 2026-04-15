@@ -2,6 +2,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Bird, AlertTriangle } from "lucide-react";
 import { formatAge } from "@/lib/utils";
+import { useFarmPath } from "@/hooks/useFarmPath";
 
 interface FlockCardProps {
   flock: {
@@ -20,6 +21,7 @@ interface FlockCardProps {
 
 export default function FlockCard({ flock }: FlockCardProps): React.ReactElement {
   const navigate = useNavigate();
+  const farmPath = useFarmPath();
   const safeCurrentCount = Number(flock.currentCount ?? 0);
   const safeInitialCount = Number(flock.initialCount ?? 0);
   const safeEggsLast7Days = Number(flock.eggsLast7Days ?? 0);
@@ -37,7 +39,7 @@ export default function FlockCard({ flock }: FlockCardProps): React.ReactElement
   return (
     <div
       className="bg-white rounded-xl border hover:shadow-md transition-shadow cursor-pointer"
-      onClick={() => navigate(`/farm/flocks/${flock.id}`)}
+      onClick={() => navigate(farmPath(`flocks/${flock.id}`))}
     >
       <div className="p-5">
         <div className="flex items-start justify-between mb-3">

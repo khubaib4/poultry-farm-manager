@@ -26,6 +26,8 @@ import {
 } from "./settings";
 import type { AppSettings } from "./settings";
 import { getDatabasePath } from "./database";
+import { generateOwnerReportSqlite } from "./ownerReportSqlite";
+import type { OwnerReportParams } from "./ownerReportMongo";
 import { statSync } from "fs";
 
 interface SessionData {
@@ -55,8 +57,23 @@ function requireOwner(): SessionData {
 
 function requireFarmAccess(farmId: number): SessionData {
   const session = requireAuth();
-  if (session.type === "owner") return session;
   if (session.type === "farm" && session.farmId === farmId) return session;
+  if (session.type === "user" && session.farmId === farmId) return session;
+  if (session.type === "owner") {
+    const farm = db
+      .select()
+      .from(schema.farms)
+      .where(
+        and(
+          eq(schema.farms.id, farmId),
+          eq(schema.farms.ownerId, session.id),
+          eq(schema.farms.isActive, 1)
+        )
+      )
+      .get();
+    if (!farm) throw new Error("You do not have access to this farm");
+    return session;
+  }
   throw new Error("You do not have access to this farm");
 }
 
@@ -3602,6 +3619,20 @@ export function registerIpcHandlers(): void {
     return db.select().from(schema.farms).where(and(eq(schema.farms.ownerId, ownerId), eq(schema.farms.isActive, 1))).all();
   }
 
+  function sumEggsForFlocksInDateRange(flockIds: number[], startStr: string, endStr: string): number {
+    if (flockIds.length === 0) return 0;
+    const flockSet = new Set(flockIds);
+    const entries = db
+      .select()
+      .from(schema.dailyEntries)
+      .where(and(gte(schema.dailyEntries.entryDate, startStr), lte(schema.dailyEntries.entryDate, endStr)))
+      .all()
+      .filter((e) => flockSet.has(e.flockId));
+    return Math.round(
+      entries.reduce((s, e) => s + (e.eggsGradeA || 0) + (e.eggsGradeB || 0) + (e.eggsCracked || 0), 0)
+    );
+  }
+
   function getFarmStats(farmId: number, today: string, monthStart: string, monthEnd: string) {
     const activeFlocks = db.select().from(schema.flocks).where(and(eq(schema.flocks.farmId, farmId), eq(schema.flocks.status, "active"))).all();
     const totalBirds = activeFlocks.reduce((s, f) => s + (f.currentCount || 0), 0);
@@ -3683,15 +3714,35 @@ export function registerIpcHandlers(): void {
       const yesterdayStr = yesterday.toISOString().split("T")[0];
 
       const ownerFarms = getOwnerFarms(ownerId);
+      const farmIds = ownerFarms.map((f) => f.id);
+      const ownerFlocks =
+        farmIds.length === 0
+          ? []
+          : db
+              .select()
+              .from(schema.flocks)
+              .where(inArray(schema.flocks.farmId, farmIds))
+              .all();
+      const flockIds = ownerFlocks.map((f) => f.id);
 
-      let totalBirds = 0, totalEggsToday = 0, revenueMonth = 0, profitMonth = 0;
-      let prevRevenueMonth = 0, prevProfitMonth = 0, totalEggsYesterday = 0;
+      const dom = now.getDate();
+      const daysInPrev = prevMonthEnd.getDate();
+      const endDom = Math.min(dom, daysInPrev);
+      const py = prevMonthEnd.getFullYear();
+      const pm = prevMonthEnd.getMonth();
+      const prevPeriodEnd = `${py}-${String(pm + 1).padStart(2, "0")}-${String(endDom).padStart(2, "0")}`;
+
+      const totalEggsMonth = sumEggsForFlocksInDateRange(flockIds, monthStart, today);
+      const totalEggsToday = sumEggsForFlocksInDateRange(flockIds, today, today);
+      const eggsPrevMonthSamePeriod = sumEggsForFlocksInDateRange(flockIds, prevMonthStart, prevPeriodEnd);
+
+      let totalBirds = 0, revenueMonth = 0, profitMonth = 0;
+      let prevRevenueMonth = 0, prevProfitMonth = 0;
       let totalInitialBirds = 0;
 
       for (const farm of ownerFarms) {
         const stats = getFarmStats(farm.id, today, monthStart, monthEnd);
         totalBirds += stats.totalBirds;
-        totalEggsToday += stats.eggsToday;
         revenueMonth += stats.revenueMonth;
         profitMonth += stats.profitMonth;
         totalInitialBirds += stats.initialBirds;
@@ -3699,22 +3750,58 @@ export function registerIpcHandlers(): void {
         const prevStats = getFarmStats(farm.id, yesterdayStr, prevMonthStart, prevMonthEndStr);
         prevRevenueMonth += prevStats.revenueMonth;
         prevProfitMonth += prevStats.profitMonth;
-        totalEggsYesterday += prevStats.eggsToday;
       }
 
       const totalBirdsChange = totalInitialBirds > 0 ? Math.round(((totalBirds - totalInitialBirds) / totalInitialBirds) * 10000) / 100 : 0;
 
+      const totalEggsTrend =
+        eggsPrevMonthSamePeriod > 0
+          ? Math.round(((totalEggsMonth - eggsPrevMonthSamePeriod) / eggsPrevMonthSamePeriod) * 10000) / 100
+          : totalEggsMonth > 0
+            ? 100
+            : 0;
+
       return {
         totalBirds,
+        totalEggsMonth,
         totalEggsToday,
         revenueMonth: Math.round(revenueMonth * 100) / 100,
         profitMonth: Math.round(profitMonth * 100) / 100,
         totalFarms: ownerFarms.length,
         totalBirdsChange,
-        totalEggsTrend: totalEggsYesterday > 0 ? Math.round(((totalEggsToday - totalEggsYesterday) / totalEggsYesterday) * 10000) / 100 : 0,
+        totalEggsTrend,
         revenueTrend: prevRevenueMonth > 0 ? Math.round(((revenueMonth - prevRevenueMonth) / prevRevenueMonth) * 10000) / 100 : 0,
         profitTrend: prevProfitMonth > 0 ? Math.round(((profitMonth - prevProfitMonth) / prevProfitMonth) * 10000) / 100 : 0,
       };
+    })
+  );
+
+  ipcMain.handle("owner:getReport",
+    wrapHandler((_e: unknown, ownerId: number, raw: unknown) => {
+      const session = requireOwner();
+      if (session.id !== ownerId) throw new Error("Access denied");
+
+      const p = raw as Partial<OwnerReportParams> & Record<string, unknown>;
+      const type = p?.type as OwnerReportParams["type"] | undefined;
+      const startDate = typeof p?.startDate === "string" ? p.startDate : "";
+      const endDate = typeof p?.endDate === "string" ? p.endDate : "";
+      const farmIdRaw = p?.farmId;
+      const farmId =
+        farmIdRaw != null && farmIdRaw !== "" && !Number.isNaN(Number(farmIdRaw))
+          ? Number(farmIdRaw)
+          : undefined;
+
+      if (!startDate || !endDate) throw new Error("startDate and endDate are required");
+      if (!type || !["summary", "financial", "production", "sales"].includes(type)) {
+        throw new Error("Invalid report type");
+      }
+
+      return generateOwnerReportSqlite(db, ownerId, getOwnerFarms, {
+        type,
+        startDate,
+        endDate,
+        farmId,
+      });
     })
   );
 

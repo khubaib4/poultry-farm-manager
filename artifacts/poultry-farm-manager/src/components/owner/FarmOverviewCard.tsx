@@ -10,7 +10,9 @@ import {
   ArrowRight,
   CheckCircle2,
   AlertCircle,
+  QrCode,
 } from "lucide-react";
+import GenerateSetupCodeDialog from "@/components/owner/GenerateSetupCodeDialog";
 
 interface FarmOverviewCardProps {
   farm: {
@@ -41,9 +43,11 @@ const performanceConfig = {
 export default function FarmOverviewCard({ farm, onSelectFarm }: FarmOverviewCardProps): React.ReactElement {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [setupDialogOpen, setSetupDialogOpen] = useState(false);
   const config = performanceConfig[farm.performance];
 
   return (
+    <>
     <div
       className={`bg-white rounded-xl border border-l-4 ${config.border} hover:shadow-md transition-all cursor-pointer relative`}
       onClick={() => onSelectFarm(farm.id)}
@@ -82,6 +86,16 @@ export default function FarmOverviewCard({ farm, onSelectFarm }: FarmOverviewCar
                     </button>
                     <button onClick={(e) => { e.stopPropagation(); setMenuOpen(false); navigate("/owner/reports"); }} className="w-full px-3 py-2 text-sm text-left text-slate-700 hover:bg-slate-50 flex items-center gap-2">
                       <FileText className="h-4 w-4" /> Reports
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMenuOpen(false);
+                        setSetupDialogOpen(true);
+                      }}
+                      className="w-full px-3 py-2 text-sm text-left text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                    >
+                      <QrCode className="h-4 w-4" /> Setup code
                     </button>
                   </div>
                 </>
@@ -140,5 +154,12 @@ export default function FarmOverviewCard({ farm, onSelectFarm }: FarmOverviewCar
         </div>
       </div>
     </div>
+    <GenerateSetupCodeDialog
+      farmId={farm.id}
+      farmName={farm.name}
+      isOpen={setupDialogOpen}
+      onClose={() => setSetupDialogOpen(false)}
+    />
+    </>
   );
 }

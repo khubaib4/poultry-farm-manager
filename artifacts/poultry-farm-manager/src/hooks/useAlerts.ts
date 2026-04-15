@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { alerts as alertsApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFarmId } from "@/hooks/useFarmId";
 import type { FarmAlert } from "@/types/electron";
 
 interface UseAlertsReturn {
@@ -23,7 +24,7 @@ const REFRESH_INTERVAL = 5 * 60 * 1000;
 
 export function useAlerts(): UseAlertsReturn {
   const { user } = useAuth();
-  const farmId = user?.farmId ?? null;
+  const farmId = useFarmId();
   const [alerts, setAlerts] = useState<FarmAlert[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);

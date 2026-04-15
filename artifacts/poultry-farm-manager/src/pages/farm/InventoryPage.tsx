@@ -12,13 +12,14 @@ import AddStockModal from "@/components/inventory/AddStockModal";
 import ReduceStockModal from "@/components/inventory/ReduceStockModal";
 import { getStockStatus } from "@/components/inventory/StockStatusBadge";
 import type { InventoryItem } from "@/types/electron";
+import { useFarmId } from "@/hooks/useFarmId";
 
 type TabType = "all" | "feed" | "medicine" | "equipment";
 
 export default function InventoryPage(): React.ReactElement {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const farmId = user?.farmId ?? null;
+  const farmId = useFarmId();
 
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [tab, setTab] = useState<TabType>("all");

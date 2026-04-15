@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/Toast";
 import { flocks as flocksApi, vaccinations as vaccApi } from "@/lib/api";
 import VaccineSelector from "@/components/vaccinations/VaccineSelector";
+import { useFarmId } from "@/hooks/useFarmId";
 
 const routeOptions = [
   { value: "eye_drop", label: "Eye Drop" },
@@ -25,7 +26,7 @@ export default function AddVaccinationPage(): React.ReactElement {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
-  const farmId = user?.farmId ?? null;
+  const farmId = useFarmId();
 
   const [flockList, setFlockList] = useState<FlockOption[]>([]);
   const [flockId, setFlockId] = useState<string>("");

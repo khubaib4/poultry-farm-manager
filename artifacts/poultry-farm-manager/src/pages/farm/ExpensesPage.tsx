@@ -10,6 +10,7 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import ExpenseTable from "@/components/expenses/ExpenseTable";
 import ExpenseSummaryCard from "@/components/expenses/ExpenseSummaryCard";
 import { EXPENSE_CATEGORIES } from "@/components/expenses/CategoryIcon";
+import { useFarmId } from "@/hooks/useFarmId";
 
 interface Expense {
   id: number;
@@ -43,7 +44,7 @@ function getMonthEnd(): string {
 export default function ExpensesPage(): React.ReactElement {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const farmId = user?.farmId ?? null;
+  const farmId = useFarmId();
 
   const [expensesList, setExpensesList] = useState<Expense[]>([]);
   const [summary, setSummary] = useState<Summary>({ total: 0, byCategory: {}, count: 0 });

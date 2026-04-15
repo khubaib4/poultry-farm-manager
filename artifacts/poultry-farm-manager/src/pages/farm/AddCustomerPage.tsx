@@ -6,12 +6,13 @@ import { useToast } from "@/components/ui/Toast";
 import { Users } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import { CUSTOMER_CATEGORIES } from "@/components/customers/CategoryBadge";
+import { useFarmId } from "@/hooks/useFarmId";
 
 export default function AddCustomerPage(): React.ReactElement {
   const { user } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
-  const farmId = user?.farmId ?? null;
+  const farmId = useFarmId();
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");

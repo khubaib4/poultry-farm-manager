@@ -126,9 +126,9 @@ export default function OwnerDashboard(): React.ReactElement {
             <FarmCard
               key={farm.id}
               farm={farm}
-              onClick={() => navigate("/owner/farms")}
+              onClick={() => navigate(`/owner/farms/${farm.id}/dashboard`)}
               onEdit={() => navigate("/owner/farms")}
-              onViewDashboard={() => navigate("/owner/farms")}
+              onViewDashboard={() => navigate(`/owner/farms/${farm.id}/dashboard`)}
               onDelete={async () => {
                 if (!isElectron()) return;
                 try {

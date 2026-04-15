@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { vaccinations as vaccApi, vaccinationSchedule as schedApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFarmId } from "@/hooks/useFarmId";
 import type { UpcomingVaccination, CompletedVaccination, CompleteVaccinationData, SkipVaccinationData } from "@/types/electron";
 
 interface UseVaccinationsReturn {
@@ -16,7 +17,7 @@ interface UseVaccinationsReturn {
 
 export function useVaccinations(): UseVaccinationsReturn {
   const { user } = useAuth();
-  const farmId = user?.farmId ?? null;
+  const farmId = useFarmId();
   const [upcoming, setUpcoming] = useState<UpcomingVaccination[]>([]);
   const [completed, setCompleted] = useState<CompletedVaccination[]>([]);
   const [isLoading, setIsLoading] = useState(true);

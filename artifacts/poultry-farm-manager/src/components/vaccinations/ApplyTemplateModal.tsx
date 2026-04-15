@@ -3,6 +3,7 @@ import { X, Users } from "lucide-react";
 import { flocks as flocksApi, vaccinationSchedule as schedApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/Toast";
+import { useFarmId } from "@/hooks/useFarmId";
 
 interface Flock {
   id: number;
@@ -22,7 +23,7 @@ interface ApplyTemplateModalProps {
 export default function ApplyTemplateModal({ isOpen, onClose, onSuccess }: ApplyTemplateModalProps): React.ReactElement | null {
   const { user } = useAuth();
   const { toast } = useToast();
-  const farmId = user?.farmId ?? null;
+  const farmId = useFarmId();
   const [flockList, setFlockList] = useState<Flock[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);

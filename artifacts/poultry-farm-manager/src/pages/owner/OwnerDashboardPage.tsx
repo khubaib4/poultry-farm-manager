@@ -1,10 +1,11 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { isElectron } from "@/lib/api";
+import { isElectron, sync } from "@/lib/api";
 import { formatCurrency } from "@/lib/utils";
 import { useOwnerDashboard } from "@/hooks/useOwnerDashboard";
 import GlobalStatsCard from "@/components/owner/GlobalStatsCard";
+import StatDetailModal from "@/components/dashboard/StatDetailModal";
 import FarmOverviewCard from "@/components/owner/FarmOverviewCard";
 import FarmComparisonChart from "@/components/owner/FarmComparisonChart";
 import ConsolidatedAlerts from "@/components/owner/ConsolidatedAlerts";
@@ -18,15 +19,38 @@ import {
   RefreshCw,
   BarChart3,
   Calendar,
+  Download,
+  Loader2,
 } from "lucide-react";
 import { SkeletonDashboard } from "@/components/ui/Skeleton";
 import ErrorState from "@/components/ui/ErrorState";
 import EmptyState from "@/components/ui/EmptyState";
 
+type OwnerDashboardStatType = "birds" | "eggs" | "revenue" | "profit";
+
 export default function OwnerDashboardPage(): React.ReactElement {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { stats, farms, alerts, activity, isLoading, error, refresh } = useOwnerDashboard(user?.id);
+  const [isPulling, setIsPulling] = useState(false);
+  const [pullNote, setPullNote] = useState<string | null>(null);
+  const [syncOnline, setSyncOnline] = useState<boolean | null>(null);
+  const [detailStat, setDetailStat] = useState<{
+    type: OwnerDashboardStatType;
+    currentValue: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!isElectron()) return;
+    void (async () => {
+      try {
+        const online = await sync.checkOnline();
+        setSyncOnline(online);
+      } catch {
+        setSyncOnline(false);
+      }
+    })();
+  }, []);
 
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -34,6 +58,34 @@ export default function OwnerDashboardPage(): React.ReactElement {
     month: "long",
     day: "numeric",
   });
+
+  async function handlePullFromCloud() {
+    if (user?.type !== "owner" || user.id == null) {
+      setPullNote("Sign in as an owner to pull from the cloud.");
+      return;
+    }
+    setIsPulling(true);
+    setPullNote(null);
+    try {
+      const result = await sync.pullFromCloud(user.id);
+      if (result.success && result.stats) {
+        const s = result.stats;
+        setPullNote(
+          `Pulled from cloud: ${s.farms} farms, ${s.flocks} flocks, ${s.entries} entries, ${s.merged} docs updated.`
+        );
+        await refresh();
+      } else if (result.success) {
+        setPullNote("Pull from cloud completed.");
+        await refresh();
+      } else {
+        setPullNote(result.error || "Pull failed. Check Cloud Sync settings and Atlas connection.");
+      }
+    } catch (e) {
+      setPullNote(String(e));
+    } finally {
+      setIsPulling(false);
+    }
+  }
 
   if (!isElectron()) {
     return (
@@ -76,7 +128,25 @@ export default function OwnerDashboardPage(): React.ReactElement {
             <p className="text-gray-500 text-sm">{today}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handlePullFromCloud}
+            disabled={isPulling || syncOnline === false}
+            title={
+              syncOnline === false
+                ? "Cloud sync is offline. Open Cloud Sync settings and check your Atlas connection."
+                : "Download the latest farm data from MongoDB Atlas"
+            }
+            className="inline-flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-2 text-sm font-medium text-white hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:pointer-events-none"
+          >
+            {isPulling ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4" />
+            )}
+            Pull from Cloud
+          </button>
           <button
             onClick={refresh}
             className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
@@ -91,8 +161,21 @@ export default function OwnerDashboardPage(): React.ReactElement {
             <BarChart3 className="h-4 w-4" />
             Compare Farms
           </button>
+          <button
+            type="button"
+            onClick={() => navigate("/sync-settings")}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Cloud Sync
+          </button>
         </div>
       </div>
+
+      {pullNote && (
+        <div className="rounded-lg bg-purple-50 border border-purple-200 px-4 py-3 text-sm text-purple-900">
+          {pullNote}
+        </div>
+      )}
 
       {error && (
         <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
@@ -108,14 +191,28 @@ export default function OwnerDashboardPage(): React.ReactElement {
           trendLabel="vs last month"
           icon={<Bird className="h-6 w-6 text-blue-600" />}
           color="text-blue-700"
+          onClick={() => {
+            if (user?.id == null) return;
+            setDetailStat({
+              type: "birds",
+              currentValue: `${Number(stats?.totalBirds ?? 0).toLocaleString()} birds`,
+            });
+          }}
         />
         <GlobalStatsCard
-          title="Today's Eggs"
-          value={stats?.totalEggsToday.toLocaleString() || "0"}
+          title="Eggs (Month)"
+          value={stats?.totalEggsMonth.toLocaleString() || "0"}
           trend={stats?.totalEggsTrend}
-          trendLabel="vs yesterday"
+          trendLabel="vs last month"
           icon={<Egg className="h-6 w-6 text-amber-600" />}
           color="text-amber-700"
+          onClick={() => {
+            if (user?.id == null) return;
+            setDetailStat({
+              type: "eggs",
+              currentValue: `${Number(stats?.totalEggsMonth ?? 0).toLocaleString()} eggs (month to date)`,
+            });
+          }}
         />
         <GlobalStatsCard
           title="Revenue (Month)"
@@ -124,6 +221,14 @@ export default function OwnerDashboardPage(): React.ReactElement {
           trendLabel="vs last month"
           icon={<DollarSign className="h-6 w-6 text-green-600" />}
           color="text-green-700"
+          compactValue
+          onClick={() => {
+            if (user?.id == null) return;
+            setDetailStat({
+              type: "revenue",
+              currentValue: formatCurrency(stats?.revenueMonth || 0),
+            });
+          }}
         />
         <GlobalStatsCard
           title="Profit (Month)"
@@ -132,6 +237,14 @@ export default function OwnerDashboardPage(): React.ReactElement {
           trendLabel="vs last month"
           icon={<TrendingUp className="h-6 w-6 text-purple-600" />}
           color="text-purple-700"
+          compactValue
+          onClick={() => {
+            if (user?.id == null) return;
+            setDetailStat({
+              type: "profit",
+              currentValue: formatCurrency(stats?.profitMonth || 0),
+            });
+          }}
         />
       </div>
 
@@ -162,7 +275,7 @@ export default function OwnerDashboardPage(): React.ReactElement {
               <FarmOverviewCard
                 key={farm.id}
                 farm={farm}
-                onSelectFarm={(id) => navigate(`/owner/farms`)}
+                onSelectFarm={(id) => navigate(`/owner/farms/${id}/dashboard`)}
               />
             ))}
             <div
@@ -188,6 +301,15 @@ export default function OwnerDashboardPage(): React.ReactElement {
         <ConsolidatedAlerts alerts={alerts} />
         <RecentActivityFeed activities={activity} />
       </div>
+
+      {detailStat && user?.type === "owner" && user.id != null && (
+        <StatDetailModal
+          statType={detailStat.type}
+          currentValue={detailStat.currentValue}
+          ownerId={user.id}
+          onClose={() => setDetailStat(null)}
+        />
+      )}
     </div>
   );
 }

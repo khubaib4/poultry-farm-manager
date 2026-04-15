@@ -5,11 +5,12 @@ import { isElectron, expenses as expensesApi } from "@/lib/api";
 import { ArrowLeft } from "lucide-react";
 import ExpenseForm from "@/components/expenses/ExpenseForm";
 import { getTodayString } from "@/lib/utils";
+import { useFarmId } from "@/hooks/useFarmId";
 
 export default function AddExpensePage(): React.ReactElement {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const farmId = user?.farmId ?? null;
+  const farmId = useFarmId();
 
   const [suppliers, setSuppliers] = useState<string[]>([]);
   const [toast, setToast] = useState<{ type: string; message: string } | null>(null);

@@ -8,6 +8,7 @@ import RevenueBreakdownCard from "@/components/revenue/RevenueByGradeCard";
 import RevenueChart from "@/components/revenue/RevenueChart";
 import DailyRevenueTable from "@/components/revenue/DailyRevenueTable";
 import type { DailyRevenueEntry, TotalRevenue, RevenueVsExpenses } from "@/types/electron";
+import { useFarmId } from "@/hooks/useFarmId";
 
 function getMonthStart(): string {
   const d = new Date();
@@ -44,7 +45,7 @@ type DatePreset = "today" | "week" | "month" | "lastMonth" | "custom";
 
 export default function RevenuePage(): React.ReactElement {
   const { user } = useAuth();
-  const farmId = user?.farmId ?? null;
+  const farmId = useFarmId();
 
   const [startDate, setStartDate] = useState(getMonthStart());
   const [endDate, setEndDate] = useState(getMonthEnd());

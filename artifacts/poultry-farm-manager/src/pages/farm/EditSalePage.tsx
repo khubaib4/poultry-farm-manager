@@ -16,13 +16,14 @@ import {
   calculateTotal,
 } from "@/lib/salesCalculations";
 import type { Customer, SaleDetail } from "@/types/electron";
+import { useFarmId } from "@/hooks/useFarmId";
 
 export default function EditSalePage(): React.ReactElement {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const farmId = user?.farmId ?? null;
+  const farmId = useFarmId();
 
   const [sale, setSale] = useState<SaleDetail | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);

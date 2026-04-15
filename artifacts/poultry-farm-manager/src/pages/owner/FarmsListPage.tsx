@@ -113,9 +113,9 @@ export default function FarmsListPage(): React.ReactElement {
             <FarmCard
               key={farm.id}
               farm={farm}
-              onClick={() => navigate(`/owner/farms`)}
-              onEdit={() => navigate(`/owner/farms`)}
-              onViewDashboard={() => navigate(`/owner/farms`)}
+              onClick={() => navigate(`/owner/farms/${farm.id}/dashboard`)}
+              onEdit={() => navigate("/owner/farms")}
+              onViewDashboard={() => navigate(`/owner/farms/${farm.id}/dashboard`)}
               onDelete={() => handleDelete(farm.id)}
             />
           ))}

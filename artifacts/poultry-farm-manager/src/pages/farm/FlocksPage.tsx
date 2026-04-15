@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
 import { isElectron } from "@/lib/api";
 import FlockCard from "@/components/flocks/FlockCard";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import EmptyState from "@/components/ui/EmptyState";
 import ErrorState from "@/components/ui/ErrorState";
 import { Plus, Bird, Search, ArrowUpDown } from "lucide-react";
+import { useFarmId, useOwnerFarmReadOnly } from "@/hooks/useFarmId";
+import { useFarmPath } from "@/hooks/useFarmPath";
 
 interface Flock {
   id: number;
@@ -27,7 +28,9 @@ interface Flock {
 type SortKey = "arrivalDate" | "currentCount" | "ageDays";
 
 export default function FlocksPage(): React.ReactElement {
-  const { user } = useAuth();
+  const farmId = useFarmId();
+  const farmPath = useFarmPath();
+  const readOnly = useOwnerFarmReadOnly();
   const navigate = useNavigate();
   const [flocks, setFlocks] = useState<Flock[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -39,12 +42,12 @@ export default function FlocksPage(): React.ReactElement {
 
   useEffect(() => {
     const loadFlocks = async () => {
-      if (!isElectron() || !user?.farmId) {
+      if (!isElectron() || !farmId) {
         setIsLoading(false);
         return;
       }
       try {
-        const result = await window.electronAPI.flocks.getByFarm(user.farmId);
+        const result = await window.electronAPI.flocks.getByFarm(farmId);
         if (result.success && result.data) {
           setFlocks(result.data as Flock[]);
         } else {
@@ -57,7 +60,7 @@ export default function FlocksPage(): React.ReactElement {
       }
     };
     loadFlocks();
-  }, [user]);
+  }, [farmId]);
 
   const filtered = flocks
     .filter((f) => {
@@ -104,13 +107,16 @@ export default function FlocksPage(): React.ReactElement {
             Manage your bird batches and flock records.
           </p>
         </div>
-        <button
-          onClick={() => navigate("/farm/flocks/new")}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-          Add Flock
-        </button>
+        {!readOnly && (
+          <button
+            type="button"
+            onClick={() => navigate(farmPath("flocks/new"))}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            Add Flock
+          </button>
+        )}
       </div>
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4">
@@ -171,9 +177,15 @@ export default function FlocksPage(): React.ReactElement {
           <EmptyState
             icon={<Bird className="h-8 w-8" />}
             title={tab === "active" ? "No active flocks" : "No archived flocks"}
-            description={tab === "active" ? "No flocks in this farm. Add a flock to start tracking." : "Archived flocks (culled or sold) will appear here."}
-            actionLabel={tab === "active" ? "Add First Flock" : undefined}
-            onAction={tab === "active" ? () => navigate("/farm/flocks/new") : undefined}
+            description={
+              tab === "active"
+                ? readOnly
+                  ? "No active flocks in this farm."
+                  : "No flocks in this farm. Add a flock to start tracking."
+                : "Archived flocks (culled or sold) will appear here."
+            }
+            actionLabel={tab === "active" && !readOnly ? "Add First Flock" : undefined}
+            onAction={tab === "active" && !readOnly ? () => navigate(farmPath("flocks/new")) : undefined}
           />
         </div>
       ) : (

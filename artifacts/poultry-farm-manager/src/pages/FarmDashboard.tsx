@@ -20,14 +20,18 @@ import FlockMiniCard from "@/components/dashboard/FlockMiniCard";
 import AlertsPanel from "@/components/dashboard/AlertsPanel";
 import PaymentAlerts from "@/components/alerts/PaymentAlerts";
 import StatDetailModal from "@/components/dashboard/StatDetailModal";
+import { useFarmId, useOwnerFarmReadOnly } from "@/hooks/useFarmId";
+import { useFarmPath } from "@/hooks/useFarmPath";
 
 type StatType = "birds" | "eggs" | "deaths" | "feed" | "sales" | "revenue" | "profit" | "outstanding";
 
 export default function FarmDashboard(): React.ReactElement {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const farmPath = useFarmPath();
+  const readOnly = useOwnerFarmReadOnly();
   const { stats, trends, alerts, isLoading, lastUpdated, refetch } = useDashboardData();
-  const farmId = user?.farmId ?? null;
+  const farmId = useFarmId();
   const { alerts: paymentAlerts } = usePaymentAlerts(farmId);
   const [selectedStat, setSelectedStat] = useState<{ type: StatType; currentValue: string } | null>(null);
 
@@ -74,13 +78,16 @@ export default function FarmDashboard(): React.ReactElement {
           <p className="text-gray-500 mt-0.5">{dateStr}</p>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate("/farm/sales/new")}
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            New Sale
-          </button>
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={() => navigate(farmPath("sales/new"))}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              New Sale
+            </button>
+          )}
           {lastUpdated && (
             <span className="text-xs text-gray-400">
               Updated {lastUpdated.toLocaleTimeString()}
@@ -210,7 +217,7 @@ export default function FarmDashboard(): React.ReactElement {
                 </div>
                 {stats && stats.totalOutstanding > 0 && (
                   <button
-                    onClick={(e) => { e.stopPropagation(); navigate("/farm/receivables"); }}
+                    onClick={(e) => { e.stopPropagation(); navigate(farmPath("receivables")); }}
                     className="text-xs text-amber-600 hover:text-amber-700 mt-1 font-medium"
                   >
                     View receivables
@@ -273,7 +280,7 @@ export default function FarmDashboard(): React.ReactElement {
                   <h3 className="text-base font-semibold text-gray-900">Recent Sales</h3>
                 </div>
                 <button
-                  onClick={() => navigate("/farm/sales")}
+                  onClick={() => navigate(farmPath("sales"))}
                   className="inline-flex items-center gap-1 text-sm text-green-600 hover:text-green-700 font-medium"
                 >
                   View All <ArrowRight className="h-4 w-4" />
@@ -283,7 +290,7 @@ export default function FarmDashboard(): React.ReactElement {
                 {stats.recentSales.map(sale => (
                   <button
                     key={sale.id}
-                    onClick={() => navigate(`/farm/sales/${sale.id}`)}
+                    onClick={() => navigate(farmPath(`sales/${sale.id}`))}
                     className="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors text-left"
                   >
                     <div className="flex items-center gap-3 min-w-0">
@@ -334,9 +341,13 @@ export default function FarmDashboard(): React.ReactElement {
               <EmptyState
                 icon={<Bird className="h-8 w-8" />}
                 title="No Active Flocks"
-                description="Add your first flock to start tracking production."
-                actionLabel="Add Flock"
-                onAction={() => navigate("/farm/flocks/new")}
+                description={
+                  readOnly
+                    ? "This farm has no active flocks yet."
+                    : "Add your first flock to start tracking production."
+                }
+                actionLabel={readOnly ? undefined : "Add Flock"}
+                onAction={readOnly ? undefined : () => navigate(farmPath("flocks/new"))}
               />
             </div>
           )}

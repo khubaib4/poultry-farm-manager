@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("electronAPI", {
+  /** Generic IPC (avoids relying on nested API objects if preload is partially updated). */
+  ipcInvoke: (channel: string, ...args: unknown[]) => ipcRenderer.invoke(channel, ...args),
   auth: {
     loginOwner: (email: string, password: string) =>
       ipcRenderer.invoke("auth:loginOwner", email, password),
@@ -176,6 +178,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("owner:getConsolidatedAlerts", ownerId),
     getRecentActivity: (ownerId: number, limit: number) =>
       ipcRenderer.invoke("owner:getRecentActivity", ownerId, limit),
+    getStatHistory: (ownerId: number, statType: string, days: number) =>
+      ipcRenderer.invoke("owner:getStatHistory", ownerId, statType, days),
+    getReport: (ownerId: number, params: unknown) =>
+      ipcRenderer.invoke("owner:getReport", ownerId, params),
   },
   dashboard: {
     getFarmStats: (farmId: number) =>
@@ -326,5 +332,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
     syncNow: () => ipcRenderer.invoke("sync:syncNow"),
     pullFromCloud: (ownerId: number) => ipcRenderer.invoke("sync:pullFromCloud", ownerId),
     testConnection: (atlasUri: string) => ipcRenderer.invoke("sync:testConnection", atlasUri),
+  },
+  setup: {
+    generateCode: (farmId: number, expiryDays?: number) =>
+      ipcRenderer.invoke("setup:generateCode", farmId, expiryDays),
+    validateCode: (code: string) => ipcRenderer.invoke("setup:validateCode", code),
+    applyCode: (code: string) => ipcRenderer.invoke("setup:applyCode", code),
   },
 });

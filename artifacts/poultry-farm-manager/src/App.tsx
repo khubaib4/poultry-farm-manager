@@ -21,6 +21,7 @@ const FarmComparisonPage = lazy(() => import("@/pages/owner/FarmComparisonPage")
 const FarmDashboard = lazy(() => import("@/pages/FarmDashboard"));
 const AddFarmPage = lazy(() => import("@/pages/owner/AddFarmPage"));
 const FarmsListPage = lazy(() => import("@/pages/owner/FarmsListPage"));
+const OwnerFarmViewShell = lazy(() => import("@/pages/owner/OwnerFarmViewShell"));
 const FlocksPage = lazy(() => import("@/pages/farm/FlocksPage"));
 const AddFlockPage = lazy(() => import("@/pages/farm/AddFlockPage"));
 const FlockDetailPage = lazy(() => import("@/pages/farm/FlockDetailPage"));
@@ -59,6 +60,7 @@ const EditSalePage = lazy(() => import("@/pages/farm/EditSalePage"));
 const PaymentsPage = lazy(() => import("@/pages/farm/PaymentsPage"));
 const ReceivablesPage = lazy(() => import("@/pages/farm/ReceivablesPage"));
 const PlaceholderPage = lazy(() => import("@/pages/PlaceholderPage"));
+const OwnerReportsPage = lazy(() => import("@/pages/owner/OwnerReportsPage"));
 const SyncSettingsPage = lazy(() => import("@/pages/SyncSettingsPage"));
 
 function PageLoader(): React.ReactElement {
@@ -103,9 +105,53 @@ export default function App(): React.ReactElement {
 
                 <Route path="/owner/dashboard" element={<OwnerLayout><OwnerDashboardPage /></OwnerLayout>} />
                 <Route path="/owner/farms" element={<OwnerLayout><FarmsListPage /></OwnerLayout>} />
+                <Route
+                  path="/owner/farms/:farmId"
+                  element={<OwnerLayout><OwnerFarmViewShell /></OwnerLayout>}
+                >
+                  <Route index element={<Navigate to="dashboard" replace />} />
+                  <Route path="dashboard" element={<FarmDashboard />} />
+                  <Route path="daily-entry" element={<DailyEntryPage />} />
+                  <Route path="daily-entry/history" element={<DailyEntryHistoryPage />} />
+                  <Route path="flocks" element={<FlocksPage />} />
+                  <Route path="flocks/new" element={<AddFlockPage />} />
+                  <Route path="flocks/:flockId" element={<FlockDetailPage />} />
+                  <Route path="flocks/:flockId/edit" element={<EditFlockPage />} />
+                  <Route path="inventory" element={<InventoryPage />} />
+                  <Route path="inventory/new" element={<AddInventoryItemPage />} />
+                  <Route path="inventory/:itemId/edit" element={<EditInventoryItemPage />} />
+                  <Route path="vaccinations" element={<VaccinationSchedulePage />} />
+                  <Route path="vaccinations/new" element={<AddVaccinationPage />} />
+                  <Route path="settings/vaccines" element={<VaccineSettingsPage />} />
+                  <Route path="vaccinations/template" element={<VaccinationTemplatePage />} />
+                  <Route path="vaccinations/history" element={<VaccinationHistoryPage />} />
+                  <Route path="vaccinations/:vaccinationId/edit" element={<EditVaccinationPage />} />
+                  <Route path="flocks/:flockId/vaccinations" element={<FlockVaccinationPage />} />
+                  <Route path="customers" element={<CustomersPage />} />
+                  <Route path="customers/new" element={<AddCustomerPage />} />
+                  <Route path="customers/:customerId" element={<CustomerDetailPage />} />
+                  <Route path="customers/:customerId/edit" element={<EditCustomerPage />} />
+                  <Route path="sales" element={<SalesPage />} />
+                  <Route path="sales/new" element={<NewSalePage />} />
+                  <Route path="sales/:id" element={<SaleDetailPage />} />
+                  <Route path="sales/:id/edit" element={<EditSalePage />} />
+                  <Route path="payments" element={<PaymentsPage />} />
+                  <Route path="receivables" element={<ReceivablesPage />} />
+                  <Route path="expenses" element={<ExpensesPage />} />
+                  <Route path="expenses/new" element={<AddExpensePage />} />
+                  <Route path="expenses/:expenseId/edit" element={<EditExpensePage />} />
+                  <Route path="revenue" element={<RevenuePage />} />
+                  <Route path="finances" element={<FinancialDashboard />} />
+                  <Route path="finances/report" element={<ProfitLossReport />} />
+                  <Route path="alerts" element={<AlertsPage />} />
+                  <Route path="reports" element={<ReportsPage />} />
+                  <Route path="reports/sales" element={<SalesReportPage />} />
+                  <Route path="backup" element={<BackupRestorePage />} />
+                  <Route path="settings" element={<SettingsPage />} />
+                </Route>
                 <Route path="/owner/add-farm" element={<OwnerLayout><AddFarmPage /></OwnerLayout>} />
                 <Route path="/owner/compare" element={<OwnerLayout><FarmComparisonPage /></OwnerLayout>} />
-                <Route path="/owner/reports" element={<OwnerLayout><PlaceholderPage title="Reports" description="View analytics and reports across all farms." /></OwnerLayout>} />
+                <Route path="/owner/reports" element={<OwnerLayout><OwnerReportsPage /></OwnerLayout>} />
                 <Route path="/owner/backup" element={<OwnerLayout><BackupRestorePage /></OwnerLayout>} />
                 <Route path="/owner/settings" element={<OwnerLayout><SettingsPage /></OwnerLayout>} />
                 <Route path="/sync-settings" element={<OwnerLayout><SyncSettingsPage /></OwnerLayout>} />

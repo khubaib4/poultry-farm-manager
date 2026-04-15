@@ -7,10 +7,11 @@ import VaccinationHistoryTable from "@/components/vaccinations/VaccinationHistor
 import VaccinationComplianceCard from "@/components/vaccinations/VaccinationComplianceCard";
 import ExportVaccinationModal from "@/components/vaccinations/ExportVaccinationModal";
 import type { VaccinationHistoryItem } from "@/types/electron";
+import { useFarmId } from "@/hooks/useFarmId";
 
 export default function VaccinationHistoryPage() {
   const { user } = useAuth();
-  const farmId = user?.farmId ?? null;
+  const farmId = useFarmId();
   const { items, total, page, totalPages, stats, isLoading, filters, setFilters, refetch } = useVaccinationHistory(farmId);
 
   const [flocksList, setFlocksList] = useState<{ id: number; batchName: string }[]>([]);

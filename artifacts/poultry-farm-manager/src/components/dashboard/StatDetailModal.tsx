@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { dashboard as dashboardApi, isElectron } from "@/lib/api";
+import { dashboard as dashboardApi, owner as ownerApi, isElectron } from "@/lib/api";
 import { formatCurrency } from "@/lib/utils";
 import type { StatHistoryPoint } from "@/types/electron";
+import { useFarmId } from "@/hooks/useFarmId";
 import {
   AreaChart,
   Area,
@@ -47,28 +48,45 @@ interface StatDetailModalProps {
   statType: StatType;
   currentValue: string;
   onClose: () => void;
+  /** When set, history is aggregated across all farms for this owner */
+  ownerId?: number;
 }
 
-export default function StatDetailModal({ statType, currentValue, onClose }: StatDetailModalProps): React.ReactElement {
+export default function StatDetailModal({
+  statType,
+  currentValue,
+  onClose,
+  ownerId,
+}: StatDetailModalProps): React.ReactElement {
   const { user } = useAuth();
-  const farmId = user?.farmId ?? null;
+  const effectiveFarmId = useFarmId();
+  const farmId = ownerId != null ? null : effectiveFarmId;
   const [data, setData] = useState<StatHistoryPoint[]>([]);
   const [days, setDays] = useState(30);
   const [isLoading, setIsLoading] = useState(true);
   const config = statConfigs[statType];
 
   useEffect(() => {
-    if (!isElectron() || !farmId) {
+    if (!isElectron()) {
+      setIsLoading(false);
+      setData([]);
+      return;
+    }
+    if (ownerId == null && farmId == null) {
       setIsLoading(false);
       setData([]);
       return;
     }
     setIsLoading(true);
-    dashboardApi.getStatHistory(farmId, statType, days)
+    const req =
+      ownerId != null
+        ? ownerApi.getStatHistory(ownerId, statType, days)
+        : dashboardApi.getStatHistory(farmId!, statType, days);
+    req
       .then(setData)
       .catch(() => setData([]))
       .finally(() => setIsLoading(false));
-  }, [farmId, statType, days]);
+  }, [farmId, ownerId, statType, days]);
 
   const summary = React.useMemo(() => {
     if (data.length === 0) return null;
@@ -105,6 +123,9 @@ export default function StatDetailModal({ statType, currentValue, onClose }: Sta
         <div className="flex items-start justify-between px-6 pt-5 pb-3 border-b border-gray-200">
           <div>
             <h2 className="text-lg font-bold text-gray-900">{config.title}</h2>
+            {ownerId != null && (
+              <p className="text-xs text-gray-500 mt-0.5">All farms (combined)</p>
+            )}
             <p className="text-sm text-gray-500 mt-0.5">Current: {currentValue}</p>
           </div>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-600">

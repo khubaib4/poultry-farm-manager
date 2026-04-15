@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { isElectron } from "@/lib/api";
 import { getTodayString, addDays, formatDateForDisplay, calculateAge, formatAge } from "@/lib/utils";
@@ -7,6 +7,8 @@ import FlockSelector from "@/components/daily-entry/FlockSelector";
 import DailyEntryForm, { FormPayload } from "@/components/daily-entry/DailyEntryForm";
 import ExistingEntryCard from "@/components/daily-entry/ExistingEntryCard";
 import { ChevronLeft, ChevronRight, Calendar, Loader2, Bird, AlertCircle } from "lucide-react";
+import { useFarmId, useOwnerFarmReadOnly } from "@/hooks/useFarmId";
+import { useFarmPath } from "@/hooks/useFarmPath";
 
 interface Flock {
   id: number;
@@ -43,6 +45,9 @@ interface StockInfo {
 
 export default function DailyEntryPage(): React.ReactElement {
   const { user } = useAuth();
+  const farmId = useFarmId();
+  const farmPath = useFarmPath();
+  const readOnly = useOwnerFarmReadOnly();
   const location = useLocation();
   const queryParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const initialDate = queryParams.get("date") || getTodayString();
@@ -66,9 +71,9 @@ export default function DailyEntryPage(): React.ReactElement {
   const currentEntry = selectedFlockId ? existingEntries[selectedFlockId] : null;
 
   const loadFlocks = useCallback(async () => {
-    if (!isElectron() || !user?.farmId) return;
+    if (!isElectron() || !farmId) return;
     try {
-      const result = await window.electronAPI.flocks.getByFarm(user.farmId);
+      const result = await window.electronAPI.flocks.getByFarm(farmId);
       if (result.success && result.data) {
         const allFlocks = result.data as Flock[];
         setFlocks(allFlocks);
@@ -82,12 +87,12 @@ export default function DailyEntryPage(): React.ReactElement {
         }
       }
     } catch {}
-  }, [user?.farmId, selectedFlockId]);
+  }, [farmId, selectedFlockId, initialFlockId]);
 
   const loadEntriesForDate = useCallback(async () => {
-    if (!isElectron() || !user?.farmId) return;
+    if (!isElectron() || !farmId) return;
     try {
-      const result = await window.electronAPI.dailyEntries.getByFarm(user.farmId, selectedDate);
+      const result = await window.electronAPI.dailyEntries.getByFarm(farmId, selectedDate);
       if (result.success && result.data) {
         const entries = result.data as EntryData[];
         const map: Record<number, EntryData> = {};
@@ -97,7 +102,7 @@ export default function DailyEntryPage(): React.ReactElement {
         setExistingEntries(map);
       }
     } catch {}
-  }, [user?.farmId, selectedDate]);
+  }, [farmId, selectedDate]);
 
   const loadStockInfo = useCallback(async () => {
     if (!isElectron() || !selectedFlockId) return;
@@ -146,6 +151,7 @@ export default function DailyEntryPage(): React.ReactElement {
   };
 
   const handleSave = async (data: FormPayload) => {
+    if (readOnly) return;
     setIsSaving(true);
     setError(null);
     setSuccessMsg(null);
@@ -180,7 +186,7 @@ export default function DailyEntryPage(): React.ReactElement {
   };
 
   const handleDelete = async () => {
-    if (!currentEntry) return;
+    if (readOnly || !currentEntry) return;
     setIsDeleting(true);
     setError(null);
     try {
@@ -224,9 +230,9 @@ export default function DailyEntryPage(): React.ReactElement {
     <div className="max-w-3xl mx-auto p-4 md:p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Daily Entry</h1>
-        <a href="#/farm/daily-entry/history" className="text-sm text-green-600 hover:text-green-700 font-medium">
+        <Link to={farmPath("daily-entry/history")} className="text-sm text-green-600 hover:text-green-700 font-medium">
           View History
-        </a>
+        </Link>
       </div>
 
       <div className="flex items-center justify-between bg-white rounded-xl border border-gray-200 p-3">
@@ -258,6 +264,12 @@ export default function DailyEntryPage(): React.ReactElement {
         </button>
       </div>
 
+      {readOnly && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          You are viewing this farm as the owner. Daily entries cannot be edited here; sign in with the farm account to record or change entries.
+        </div>
+      )}
+
       {isFuture && (
         <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-700">
           <AlertCircle className="w-5 h-5 flex-shrink-0" />
@@ -270,9 +282,14 @@ export default function DailyEntryPage(): React.ReactElement {
           <Bird className="w-12 h-12 mx-auto text-gray-300 mb-3" />
           <h3 className="text-lg font-semibold text-gray-700 mb-1">No Active Flocks</h3>
           <p className="text-gray-500 mb-4">Add a flock first before recording daily entries.</p>
-          <a href="#/farm/flocks/new" className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium">
-            Add Flock
-          </a>
+          {!readOnly && (
+            <Link
+              to={farmPath("flocks/new")}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+            >
+              Add Flock
+            </Link>
+          )}
         </div>
       ) : (
         <>
@@ -313,6 +330,18 @@ export default function DailyEntryPage(): React.ReactElement {
                   <AlertCircle className="w-5 h-5 flex-shrink-0" />
                   <span>Selected date is before this flock's arrival date ({formatDateForDisplay(selectedFlock.arrivalDate)}).</span>
                 </div>
+              ) : readOnly ? (
+                currentEntry ? (
+                  <ExistingEntryCard
+                    entry={currentEntry}
+                    openingStock={stockInfo?.openingStock ?? selectedFlock.currentCount}
+                    readOnly
+                  />
+                ) : (
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-6 text-center text-sm text-gray-600">
+                    No entry recorded for this date.
+                  </div>
+                )
               ) : currentEntry && !isEditing ? (
                 <ExistingEntryCard
                   entry={currentEntry}

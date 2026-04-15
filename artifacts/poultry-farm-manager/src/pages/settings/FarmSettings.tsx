@@ -7,6 +7,7 @@ import SettingSection from "@/components/settings/SettingSection";
 import SettingRow from "@/components/settings/SettingRow";
 import { CheckCircle, AlertTriangle, Syringe, X, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useFarmId } from "@/hooks/useFarmId";
 
 export default function FarmSettings(): React.ReactElement {
   const { user } = useAuth();
@@ -21,7 +22,7 @@ export default function FarmSettings(): React.ReactElement {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [newCause, setNewCause] = useState("");
 
-  const farmId = user?.farmId ?? null;
+  const farmId = useFarmId();
 
   useEffect(() => {
     if (!isElectron() || !farmId) { setIsLoading(false); return; }

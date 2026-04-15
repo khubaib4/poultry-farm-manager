@@ -23,6 +23,7 @@ import {
   exportTopCustomersExcel,
 } from "@/lib/salesReportExcel";
 import type { Customer } from "@/types/electron";
+import { useFarmId } from "@/hooks/useFarmId";
 
 type ReportType = "daily" | "weekly" | "monthly" | "customer" | "top_customers";
 
@@ -54,7 +55,7 @@ function getDefaultDateRange(type: ReportType): { start: string; end: string } {
 export default function SalesReportPage(): React.ReactElement {
   const { user } = useAuth();
   const { showToast } = useToast();
-  const farmId = user?.farmId ?? null;
+  const farmId = useFarmId();
 
   const [reportType, setReportType] = useState<ReportType>("daily");
   const [startDate, setStartDate] = useState("");

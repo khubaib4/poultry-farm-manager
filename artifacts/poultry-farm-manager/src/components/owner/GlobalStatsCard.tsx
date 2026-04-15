@@ -8,6 +8,9 @@ interface GlobalStatsCardProps {
   trendLabel?: string;
   icon: React.ReactNode;
   color: string;
+  /** Slightly smaller value text (e.g. long currency strings) */
+  compactValue?: boolean;
+  onClick?: () => void;
 }
 
 export default function GlobalStatsCard({
@@ -17,6 +20,8 @@ export default function GlobalStatsCard({
   trendLabel,
   icon,
   color,
+  compactValue,
+  onClick,
 }: GlobalStatsCardProps): React.ReactElement {
   const trendColor =
     trend === undefined || trend === 0
@@ -32,12 +37,40 @@ export default function GlobalStatsCard({
         ? TrendingUp
         : TrendingDown;
 
+  const interactive = typeof onClick === "function";
+  const valueClass = compactValue
+    ? "text-lg sm:text-xl md:text-2xl"
+    : "text-xl sm:text-2xl md:text-[1.65rem]";
+
   return (
-    <div className="bg-white rounded-xl border p-5 hover:shadow-md transition-shadow">
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
+    <div
+      className={`bg-white rounded-xl border p-5 transition-shadow ${
+        interactive
+          ? "cursor-pointer hover:shadow-md hover:border-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+          : "hover:shadow-md"
+      }`}
+      onClick={onClick}
+      role={interactive ? "button" : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onKeyDown={
+        interactive
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+    >
+      <div className="flex items-start justify-between gap-2 min-w-0">
+        <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-slate-500">{title}</p>
-          <p className={`text-3xl font-bold mt-1 ${color}`}>{value}</p>
+          <p
+            className={`mt-1 font-bold tabular-nums leading-snug break-words min-w-0 ${valueClass} ${color}`}
+          >
+            {value}
+          </p>
           {trend !== undefined && (
             <div className={`flex items-center gap-1 mt-2 text-xs font-medium ${trendColor}`}>
               <TrendIcon className="h-3.5 w-3.5" />
@@ -51,7 +84,9 @@ export default function GlobalStatsCard({
             </div>
           )}
         </div>
-        <div className={`rounded-xl p-3 ${color.replace("text-", "bg-").replace("700", "50").replace("600", "50")}`}>
+        <div
+          className={`rounded-xl p-3 shrink-0 ${color.replace("text-", "bg-").replace("700", "50").replace("600", "50")}`}
+        >
           {icon}
         </div>
       </div>

@@ -13,12 +13,13 @@ import CustomerCard from "@/components/customers/CustomerCard";
 import CustomerTable from "@/components/customers/CustomerTable";
 import { CUSTOMER_CATEGORIES } from "@/components/customers/CategoryBadge";
 import type { Customer } from "@/types/electron";
+import { useFarmId } from "@/hooks/useFarmId";
 
 export default function CustomersPage(): React.ReactElement {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const farmId = user?.farmId ?? null;
+  const farmId = useFarmId();
   const { customers, isLoading, filters, setFilters, refresh } = useCustomers(farmId);
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   const [searchInput, setSearchInput] = useState("");

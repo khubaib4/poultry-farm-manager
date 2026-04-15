@@ -1,6 +1,8 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle2, PlusCircle, PartyPopper } from "lucide-react";
+import { useFarmPath } from "@/hooks/useFarmPath";
+import { useOwnerFarmReadOnly } from "@/hooks/useFarmId";
 
 interface FlockEntry {
   id: number;
@@ -16,6 +18,8 @@ interface EntryStatusWidgetProps {
 
 export default function EntryStatusWidget({ flocks, completed, total }: EntryStatusWidgetProps): React.ReactElement {
   const navigate = useNavigate();
+  const farmPath = useFarmPath();
+  const readOnly = useOwnerFarmReadOnly();
   const allComplete = total > 0 && completed === total;
   const percentComplete = total > 0 ? Math.round((completed / total) * 100) : 0;
   const pendingFlocks = flocks.filter(f => !f.hasEntryToday);
@@ -24,13 +28,16 @@ export default function EntryStatusWidget({ flocks, completed, total }: EntrySta
     <div className="bg-white rounded-xl border shadow-sm p-5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-900">Today's Entries</h3>
-        <button
-          onClick={() => navigate("/farm/daily-entry")}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
-        >
-          <PlusCircle className="h-4 w-4" />
-          Add Entry
-        </button>
+        {!readOnly && (
+          <button
+            type="button"
+            onClick={() => navigate(farmPath("daily-entry"))}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            <PlusCircle className="h-4 w-4" />
+            Add Entry
+          </button>
+        )}
       </div>
 
       <div className="mb-3">
@@ -57,7 +64,7 @@ export default function EntryStatusWidget({ flocks, completed, total }: EntrySta
           {pendingFlocks.map(f => (
             <button
               key={f.id}
-              onClick={() => navigate("/farm/daily-entry")}
+              onClick={() => navigate(farmPath("daily-entry"))}
               className="flex items-center justify-between w-full p-2 rounded-lg hover:bg-gray-50 transition-colors text-left"
             >
               <span className="text-sm text-gray-700">{f.batchName}</span>

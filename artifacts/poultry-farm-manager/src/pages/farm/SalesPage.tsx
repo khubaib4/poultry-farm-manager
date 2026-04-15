@@ -10,11 +10,12 @@ import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import EmptyState from "@/components/ui/EmptyState";
 import ErrorState from "@/components/ui/ErrorState";
 import SalesTable from "@/components/sales/SalesTable";
+import { useFarmId } from "@/hooks/useFarmId";
 
 export default function SalesPage(): React.ReactElement {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const farmId = user?.farmId ?? null;
+  const farmId = useFarmId();
   const { sales, summary, isLoading, error, filters, setFilters } = useSales(farmId);
   const [searchInput, setSearchInput] = useState("");
 

@@ -13,6 +13,7 @@ import SkipVaccinationModal from "@/components/vaccinations/SkipVaccinationModal
 import VaccinationDetailsModal from "@/components/vaccinations/VaccinationDetailsModal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import type { UpcomingVaccination, CompletedVaccination } from "@/types/electron";
+import { useFarmId } from "@/hooks/useFarmId";
 
 type TabType = "upcoming" | "completed" | "all";
 
@@ -29,7 +30,7 @@ export default function VaccinationSchedulePage(): React.ReactElement {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
-  const farmId = user?.farmId ?? null;
+  const farmId = useFarmId();
   const {
     upcoming,
     completed,

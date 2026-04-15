@@ -13,6 +13,7 @@ import MonthlyReport from "@/components/reports/MonthlyReport";
 import FlockReport from "@/components/reports/FlockReport";
 import FinancialReport from "@/components/reports/FinancialReport";
 import type { DailyReportData, WeeklyReportData, MonthlyReportData, FlockReportData, FinancialReportData } from "@/types/electron";
+import { useFarmId } from "@/hooks/useFarmId";
 
 const REPORT_TYPES: {
   type: ReportType;
@@ -61,7 +62,7 @@ const REPORT_TYPES: {
 export default function ReportsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const farmId = user?.farmId ?? null;
+  const farmId = useFarmId();
   const farmName = user?.name || "Farm";
   const [selectedType, setSelectedType] = useState<ReportType>("daily");
   const { data, reportType, isLoading, error, generate, clear } = useReportData();

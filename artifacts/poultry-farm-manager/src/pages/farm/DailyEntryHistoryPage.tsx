@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
 import { isElectron } from "@/lib/api";
 import { formatDateForDisplay, getTodayString, addDays } from "@/lib/utils";
 import { ArrowLeft, Download, Filter, Egg, Skull, Wheat, Bird } from "lucide-react";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import EmptyState from "@/components/ui/EmptyState";
+import { useFarmId } from "@/hooks/useFarmId";
+import { useFarmPath } from "@/hooks/useFarmPath";
 
 interface Flock {
   id: number;
@@ -28,7 +29,8 @@ interface EntryData {
 }
 
 export default function DailyEntryHistoryPage(): React.ReactElement {
-  const { user } = useAuth();
+  const farmId = useFarmId();
+  const farmPath = useFarmPath();
   const navigate = useNavigate();
   const [flocks, setFlocks] = useState<Flock[]>([]);
   const [entries, setEntries] = useState<EntryData[]>([]);
@@ -44,12 +46,12 @@ export default function DailyEntryHistoryPage(): React.ReactElement {
   }, {});
 
   const loadFlocks = useCallback(async () => {
-    if (!isElectron() || !user?.farmId) {
+    if (!isElectron() || !farmId) {
       setIsLoading(false);
       return;
     }
     try {
-      const result = await window.electronAPI.flocks.getByFarm(user.farmId);
+      const result = await window.electronAPI.flocks.getByFarm(farmId);
       if (result.success && result.data) {
         const loaded = result.data as Flock[];
         setFlocks(loaded);
@@ -60,7 +62,7 @@ export default function DailyEntryHistoryPage(): React.ReactElement {
     } catch {
       setIsLoading(false);
     }
-  }, [user?.farmId]);
+  }, [farmId]);
 
   const loadEntries = useCallback(async () => {
     if (!isElectron()) return;
@@ -122,7 +124,7 @@ export default function DailyEntryHistoryPage(): React.ReactElement {
     <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate("/farm/daily-entry")} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+          <button type="button" onClick={() => navigate(farmPath("daily-entry"))} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <h1 className="text-2xl font-bold text-gray-900">Entry History</h1>
@@ -214,7 +216,7 @@ export default function DailyEntryHistoryPage(): React.ReactElement {
                   return (
                     <tr
                       key={e.id}
-                      onClick={() => navigate(`/farm/daily-entry?date=${e.entryDate}&flock=${e.flockId}`)}
+                      onClick={() => navigate(`${farmPath("daily-entry")}?date=${e.entryDate}&flock=${e.flockId}`)}
                       className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
                     >
                       <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-900">{formatDateForDisplay(e.entryDate)}</td>

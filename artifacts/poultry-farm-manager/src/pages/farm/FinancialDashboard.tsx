@@ -10,6 +10,7 @@ import FinancialTrendChart from "@/components/financial/FinancialTrendChart";
 import ExpensePieChart from "@/components/financial/ExpensePieChart";
 import RevenuePieChart from "@/components/financial/RevenuePieChart";
 import QuickStatsGrid from "@/components/financial/QuickStatsGrid";
+import { useFarmId } from "@/hooks/useFarmId";
 
 function getMonthStart(): string {
   const d = new Date();
@@ -52,7 +53,7 @@ type Period = "month" | "lastMonth" | "quarter" | "year" | "custom";
 export default function FinancialDashboard(): React.ReactElement {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const farmId = user?.farmId ?? null;
+  const farmId = useFarmId();
 
   const [period, setPeriod] = useState<Period>("month");
   const [startDate, setStartDate] = useState(getMonthStart());

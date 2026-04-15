@@ -1,6 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Bird, CheckCircle2, Circle } from "lucide-react";
+import { useFarmPath } from "@/hooks/useFarmPath";
 
 interface FlockMiniCardProps {
   id: number;
@@ -27,12 +28,13 @@ function formatAge(days: number): string {
 
 export default function FlockMiniCard({ id, batchName, breed, currentCount, arrivalDate, ageAtArrivalDays, hasEntryToday }: FlockMiniCardProps): React.ReactElement {
   const navigate = useNavigate();
+  const farmPath = useFarmPath();
   const ageDays = calculateAge(arrivalDate, ageAtArrivalDays);
   const safeCurrentCount = Number(currentCount ?? 0);
 
   return (
     <button
-      onClick={() => navigate(`/farm/flocks/${id}`)}
+      onClick={() => navigate(farmPath(`flocks/${id}`))}
       className="flex items-center gap-3 p-3 bg-white rounded-lg border hover:border-primary/50 hover:shadow-sm transition-all text-left w-full"
     >
       <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-blue-50 shrink-0">

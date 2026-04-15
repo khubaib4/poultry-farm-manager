@@ -48,6 +48,8 @@ import type {
   FinancialReportData,
   UserData,
   OwnerDashboardStats,
+  OwnerReportParams,
+  OwnerReportResult,
   FarmOverview,
   FarmComparisonData,
   OwnerAlert,
@@ -82,6 +84,10 @@ import type {
   SyncConfig,
   SyncStatus,
   SyncTestConnectionResult,
+  SyncFromCloudStats,
+  SetupCodeResult,
+  SetupCodeValidation,
+  SetupApplyResult,
 } from "@/types/electron";
 
 function getApi() {
@@ -423,6 +429,24 @@ export const owner = {
 
   getRecentActivity: (ownerId: number, limit: number = 20) =>
     invoke<RecentActivity[]>(() => getApi()!.owner.getRecentActivity(ownerId, limit)),
+
+  getStatHistory: (ownerId: number, statType: string, days: number) =>
+    invoke<StatHistoryPoint[]>(() => {
+      const api = getApi();
+      if (!api) throw new Error("This feature is only available in the desktop app");
+      if (typeof api.ipcInvoke === "function") {
+        return api.ipcInvoke("owner:getStatHistory", ownerId, statType, days) as Promise<
+          IpcResponse<StatHistoryPoint[]>
+        >;
+      }
+      if (api.owner?.getStatHistory) {
+        return api.owner.getStatHistory(ownerId, statType, days);
+      }
+      throw new Error("Owner stat history unavailable. Restart the app after updating.");
+    }),
+
+  getReport: (ownerId: number, params: OwnerReportParams) =>
+    invoke<OwnerReportResult>(() => getApi()!.owner.getReport(ownerId, params)),
 };
 
 export const backup = {
@@ -605,10 +629,61 @@ export const sync = {
     invoke<{ success: boolean; error?: string }>(() => getApi()!.sync.syncNow()),
 
   pullFromCloud: (ownerId: number) =>
-    invoke<{ success: boolean; error?: string }>(() => getApi()!.sync.pullFromCloud(ownerId)),
+    invoke<{ success: boolean; error?: string; stats?: SyncFromCloudStats }>(() =>
+      getApi()!.sync.pullFromCloud(ownerId)
+    ),
 
   testConnection: (atlasUri: string) =>
     invoke<SyncTestConnectionResult>(() => getApi()!.sync.testConnection(atlasUri)),
+};
+
+export const setup = {
+  generateCode: (farmId: number, expiryDays?: number) =>
+    invoke<SetupCodeResult>(() => {
+      const api = getApi();
+      if (!api) throw new Error("This feature is only available in the desktop app");
+      if (typeof api.ipcInvoke === "function") {
+        return api.ipcInvoke("setup:generateCode", farmId, expiryDays) as Promise<
+          IpcResponse<SetupCodeResult>
+        >;
+      }
+      if (api.setup?.generateCode) {
+        return api.setup.generateCode(farmId, expiryDays);
+      }
+      throw new Error(
+        "Setup API unavailable: preload is outdated. Quit the app completely and run `pnpm run dev` again."
+      );
+    }),
+
+  validateCode: (code: string) =>
+    invoke<SetupCodeValidation>(() => {
+      const api = getApi();
+      if (!api) throw new Error("This feature is only available in the desktop app");
+      if (typeof api.ipcInvoke === "function") {
+        return api.ipcInvoke("setup:validateCode", code) as Promise<IpcResponse<SetupCodeValidation>>;
+      }
+      if (api.setup?.validateCode) {
+        return api.setup.validateCode(code);
+      }
+      throw new Error(
+        "Setup API unavailable: preload is outdated. Quit the app completely and run `pnpm run dev` again."
+      );
+    }),
+
+  applyCode: (code: string) =>
+    invoke<SetupApplyResult>(() => {
+      const api = getApi();
+      if (!api) throw new Error("This feature is only available in the desktop app");
+      if (typeof api.ipcInvoke === "function") {
+        return api.ipcInvoke("setup:applyCode", code) as Promise<IpcResponse<SetupApplyResult>>;
+      }
+      if (api.setup?.applyCode) {
+        return api.setup.applyCode(code);
+      }
+      throw new Error(
+        "Setup API unavailable: preload is outdated. Quit the app completely and run `pnpm run dev` again."
+      );
+    }),
 };
 
 export const isElectron = (): boolean => {

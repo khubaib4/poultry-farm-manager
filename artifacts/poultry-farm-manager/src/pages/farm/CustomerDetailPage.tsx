@@ -15,6 +15,7 @@ import PaymentHistoryTable from "@/components/payments/PaymentHistoryTable";
 import RecordPaymentModal from "@/components/payments/RecordPaymentModal";
 import CustomerPaymentAlert from "@/components/alerts/CustomerPaymentAlert";
 import type { CustomerWithStats, CustomerPayment, ReceivableItem, PaymentAlert } from "@/types/electron";
+import { useFarmId } from "@/hooks/useFarmId";
 
 function getPaymentTermsLabel(days: number | null): string {
   if (days === null || days === 0) return "Cash on Delivery";
@@ -27,7 +28,7 @@ export default function CustomerDetailPage(): React.ReactElement {
   const { user } = useAuth();
   const { showToast } = useToast();
   const id = Number(customerId);
-  const farmId = user?.farmId ?? null;
+  const farmId = useFarmId();
 
   const [customer, setCustomer] = useState<CustomerWithStats | null>(null);
   const [loading, setLoading] = useState(true);

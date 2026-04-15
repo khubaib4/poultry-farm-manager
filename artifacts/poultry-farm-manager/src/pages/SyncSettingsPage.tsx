@@ -7,11 +7,14 @@ import {
   XCircle,
   Loader2,
   Settings,
+  Download,
 } from "lucide-react";
 import { sync } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import type { SyncConfig, SyncStatus, SyncTestConnectionResult } from "@/types/electron";
 
 export default function SyncSettingsPage(): React.ReactElement {
+  const { user } = useAuth();
   const [config, setConfig] = useState<SyncConfig | null>(null);
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [atlasUri, setAtlasUri] = useState("");
@@ -20,6 +23,7 @@ export default function SyncSettingsPage(): React.ReactElement {
   const [testResult, setTestResult] = useState<SyncTestConnectionResult | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isPulling, setIsPulling] = useState(false);
 
   useEffect(() => {
     void loadConfig();
@@ -104,6 +108,35 @@ export default function SyncSettingsPage(): React.ReactElement {
       setTestResult({ success: false, message: String(error) });
     } finally {
       setIsSyncing(false);
+    }
+  }
+
+  async function handlePullFromCloud() {
+    if (user?.type !== "owner" || user.id == null) {
+      setTestResult({ success: false, message: "Sign in as an owner to pull data from the cloud." });
+      return;
+    }
+
+    setIsPulling(true);
+    try {
+      const result = await sync.pullFromCloud(user.id);
+      if (result.success && result.stats) {
+        const s = result.stats;
+        setTestResult({
+          success: true,
+          message: `Pulled from cloud. Farms: ${s.farms}, flocks: ${s.flocks}, daily entries: ${s.entries}, sales: ${s.sales}, customers: ${s.customers}. Updated documents: ${s.merged}.`,
+        });
+        await loadStatus();
+      } else if (result.success) {
+        setTestResult({ success: true, message: "Pull from cloud completed." });
+        await loadStatus();
+      } else {
+        setTestResult({ success: false, message: result.error || "Pull failed" });
+      }
+    } catch (error) {
+      setTestResult({ success: false, message: String(error) });
+    } finally {
+      setIsPulling(false);
     }
   }
 
@@ -278,20 +311,36 @@ export default function SyncSettingsPage(): React.ReactElement {
           <h2 className="font-semibold mb-3">Manual Sync</h2>
           <p className="text-sm text-gray-500 mb-4">
             Data syncs automatically every {config?.syncIntervalMinutes ?? 15}{" "}
-            minutes. Use this button to sync immediately.
+            minutes. Push local changes with Sync Now, or pull all farms from Atlas
+            (owner accounts) to refresh the dashboard with data from other devices.
           </p>
-          <button
-            onClick={handleSyncNow}
-            disabled={isSyncing || !status?.isOnline}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 flex items-center gap-2"
-          >
-            {isSyncing ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <RefreshCw className="w-4 h-4" />
-            )}
-            Sync Now
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={handleSyncNow}
+              disabled={isSyncing || isPulling || !status?.isOnline}
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 flex items-center gap-2"
+            >
+              {isSyncing ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
+              Sync Now
+            </button>
+            <button
+              type="button"
+              onClick={handlePullFromCloud}
+              disabled={isSyncing || isPulling || !status?.isOnline}
+              className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:opacity-50 flex items-center gap-2"
+            >
+              {isPulling ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
+              Pull from Cloud
+            </button>
+          </div>
         </div>
       )}
 

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { isElectron, inventory as inventoryApi } from "@/lib/api";
 import { ArrowLeft } from "lucide-react";
+import { useFarmId } from "@/hooks/useFarmId";
 
 const ITEM_TYPES = [
   { value: "feed", label: "Feed" },
@@ -15,7 +16,7 @@ const UNITS = ["bags", "kg", "pieces", "doses", "liters", "boxes"];
 export default function AddInventoryItemPage(): React.ReactElement {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const farmId = user?.farmId ?? null;
+  const farmId = useFarmId();
 
   const [itemType, setItemType] = useState("feed");
   const [itemName, setItemName] = useState("");

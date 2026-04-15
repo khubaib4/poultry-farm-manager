@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
 import { isElectron } from "@/lib/api";
 import { generateBatchName } from "@/lib/utils";
 import BreedSelector from "@/components/flocks/BreedSelector";
 import { Loader2 } from "lucide-react";
 import { z } from "zod";
+import { useFarmId } from "@/hooks/useFarmId";
+import { useFarmPath } from "@/hooks/useFarmPath";
 
 const flockSchema = z.object({
   batchName: z.string().min(1, "Batch name is required"),
@@ -20,7 +21,8 @@ const flockSchema = z.object({
 });
 
 export default function AddFlockPage(): React.ReactElement {
-  const { user } = useAuth();
+  const farmId = useFarmId();
+  const farmPath = useFarmPath();
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
@@ -37,9 +39,9 @@ export default function AddFlockPage(): React.ReactElement {
 
   useEffect(() => {
     const loadBatchName = async () => {
-      if (!isElectron() || !user?.farmId) return;
+      if (!isElectron() || !farmId) return;
       try {
-        const result = await window.electronAPI.flocks.getByFarm(user.farmId);
+        const result = await window.electronAPI.flocks.getByFarm(farmId);
         if (result.success && result.data) {
           const existing = (result.data as { batchName: string }[]).map((f) => f.batchName);
           setFormData((prev) => ({ ...prev, batchName: generateBatchName(existing) }));
@@ -49,7 +51,7 @@ export default function AddFlockPage(): React.ReactElement {
       }
     };
     loadBatchName();
-  }, [user]);
+  }, [farmId]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -86,7 +88,7 @@ export default function AddFlockPage(): React.ReactElement {
       return;
     }
 
-    if (!isElectron() || !user?.farmId) {
+    if (!isElectron() || !farmId) {
       setError("This feature is only available in the desktop app");
       return;
     }
@@ -95,7 +97,7 @@ export default function AddFlockPage(): React.ReactElement {
 
     try {
       const result = await window.electronAPI.flocks.create({
-        farmId: user.farmId,
+        farmId,
         batchName: parsed.data.batchName,
         breed: parsed.data.breed,
         initialCount: parsed.data.initialCount,
@@ -107,7 +109,7 @@ export default function AddFlockPage(): React.ReactElement {
 
       if (result.success && result.data) {
         const flock = result.data as { id: number };
-        navigate(`/farm/flocks/${flock.id}`, { replace: true });
+        navigate(farmPath(`flocks/${flock.id}`), { replace: true });
       } else {
         setError(result.error || "Failed to create flock");
       }
@@ -269,7 +271,7 @@ export default function AddFlockPage(): React.ReactElement {
               </button>
               <button
                 type="button"
-                onClick={() => navigate("/farm/flocks")}
+                onClick={() => navigate(farmPath("flocks"))}
                 disabled={isLoading}
                 className="rounded-lg border border-slate-200 px-6 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
               >

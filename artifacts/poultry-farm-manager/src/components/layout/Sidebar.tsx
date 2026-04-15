@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useMatch } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAlerts } from "@/hooks/useAlerts";
 import { useVaccinations } from "@/hooks/useVaccinations";
@@ -25,6 +25,7 @@ import {
   Cloud,
 } from "lucide-react";
 import AlertBadge from "@/components/alerts/AlertBadge";
+import { useFarmId } from "@/hooks/useFarmId";
 
 interface NavItem {
   label: string;
@@ -76,13 +77,25 @@ export default function Sidebar({ collapsed, onToggle, onNavigate }: SidebarProp
   const { overdue } = useVaccinations();
   const [overdueReceivablesCount, setOverdueReceivablesCount] = useState(0);
 
-  const farmId = user?.farmId ?? null;
-  useEffect(() => {
-    if (!isElectron() || !farmId || user?.type === "owner") return;
-    paymentsApi.getSummary(farmId).then(s => setOverdueReceivablesCount(s.overdueCount)).catch(() => {});
-  }, [farmId, user?.type, location.pathname]);
+  const farmId = useFarmId();
+  const ownerFarmMatch = useMatch("/owner/farms/:farmId/*");
+  const ownerFarmIdParam = ownerFarmMatch?.params.farmId;
 
-  const navItems = user?.type === "owner" ? ownerNavItems : farmNavItems;
+  useEffect(() => {
+    if (!isElectron() || !farmId) return;
+    paymentsApi.getSummary(farmId).then(s => setOverdueReceivablesCount(s.overdueCount)).catch(() => {});
+  }, [farmId, location.pathname]);
+
+  const farmNavForOwner =
+    user?.type === "owner" && ownerFarmIdParam
+      ? farmNavItems.map((item) => ({
+          ...item,
+          path: item.path.replace(/^\/farm\//, `/owner/farms/${ownerFarmIdParam}/`),
+        }))
+      : null;
+
+  const navItems =
+    user?.type === "owner" && farmNavForOwner ? farmNavForOwner : user?.type === "owner" ? ownerNavItems : farmNavItems;
 
   const lowStockActiveCount = lowStock.filter(a => !a.isDismissed).length;
   const overdueVaccCount = overdue.length;
@@ -123,7 +136,9 @@ export default function Sidebar({ collapsed, onToggle, onNavigate }: SidebarProp
 
       <nav className="flex-1 py-3 space-y-1 px-2 overflow-y-auto">
         {navItems.map((item) => {
-          const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + "/");
+          const isActive =
+            location.pathname === item.path ||
+            (item.path.length > 1 && location.pathname.startsWith(`${item.path}/`));
           const badge = getBadge(item);
           return (
             <button

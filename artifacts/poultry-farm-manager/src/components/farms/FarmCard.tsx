@@ -1,5 +1,7 @@
 import React from "react";
-import { MapPin, Bird, Calendar, MoreVertical } from "lucide-react";
+import { MapPin, Bird, Calendar, MoreVertical, QrCode } from "lucide-react";
+import { isElectron } from "@/lib/api";
+import GenerateSetupCodeDialog from "@/components/owner/GenerateSetupCodeDialog";
 
 interface FarmCardProps {
   farm: {
@@ -25,8 +27,10 @@ export default function FarmCard({
   onDelete,
 }: FarmCardProps): React.ReactElement {
   const [menuOpen, setMenuOpen] = React.useState(false);
+  const [setupDialogOpen, setSetupDialogOpen] = React.useState(false);
 
   return (
+    <>
     <div
       className="bg-white rounded-xl border hover:shadow-md transition-shadow cursor-pointer relative"
       onClick={onClick}
@@ -71,7 +75,7 @@ export default function FarmCard({
                       setMenuOpen(false);
                     }}
                   />
-                  <div className="absolute right-0 top-full mt-1 z-20 w-40 rounded-lg border bg-white shadow-lg py-1">
+                  <div className="absolute right-0 top-full mt-1 z-20 w-44 rounded-lg border bg-white shadow-lg py-1">
                     {onViewDashboard && (
                       <button
                         onClick={(e) => {
@@ -94,6 +98,20 @@ export default function FarmCard({
                         className="w-full px-3 py-2 text-sm text-left text-slate-700 hover:bg-slate-50"
                       >
                         Edit Farm
+                      </button>
+                    )}
+                    {isElectron() && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMenuOpen(false);
+                          setSetupDialogOpen(true);
+                        }}
+                        className="w-full px-3 py-2 text-sm text-left text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                      >
+                        <QrCode className="h-4 w-4 shrink-0" />
+                        Setup Code
                       </button>
                     )}
                     {onDelete && (
@@ -137,5 +155,12 @@ export default function FarmCard({
         )}
       </div>
     </div>
+    <GenerateSetupCodeDialog
+      farmId={farm.id}
+      farmName={farm.name}
+      isOpen={setupDialogOpen}
+      onClose={() => setSetupDialogOpen(false)}
+    />
+    </>
   );
 }

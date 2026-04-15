@@ -6,11 +6,12 @@ import DangerZoneCard from "@/components/settings/DangerZoneCard";
 import { HardDrive, Download, Trash2, CheckCircle, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
+import { useFarmId } from "@/hooks/useFarmId";
 
 export default function DataManagementSettings(): React.ReactElement {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const farmId = user?.farmId ?? null;
+  const farmId = useFarmId();
   const [isExporting, setIsExporting] = useState(false);
   const [exportStart, setExportStart] = useState("");
   const [exportEnd, setExportEnd] = useState("");

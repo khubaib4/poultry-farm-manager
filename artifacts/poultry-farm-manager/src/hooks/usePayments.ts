@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { payments as paymentsApi, isElectron } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFarmId } from "@/hooks/useFarmId";
 import type { PaymentWithDetails, PaymentFilters, PaymentsSummary } from "@/types/electron";
 
 export function usePayments() {
   const { user } = useAuth();
-  const farmId = user?.farmId ?? null;
+  const farmId = useFarmId();
 
   const [paymentsList, setPaymentsList] = useState<PaymentWithDetails[]>([]);
   const [summary, setSummary] = useState<PaymentsSummary | null>(null);

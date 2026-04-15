@@ -5,6 +5,7 @@ import { useToast } from "@/components/ui/Toast";
 import { useNavigate } from "react-router-dom";
 import type { Vaccine } from "@/types/electron";
 import { ArrowLeft, Plus, Pencil, Trash2, RotateCcw, X, Check } from "lucide-react";
+import { useFarmId } from "@/hooks/useFarmId";
 
 const routeOptions = [
   { value: "", label: "None" },
@@ -20,7 +21,7 @@ export default function VaccineSettingsPage(): React.ReactElement {
   const { user } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
-  const farmId = user?.farmId ?? null;
+  const farmId = useFarmId();
 
   const [vaccines, setVaccines] = useState<Vaccine[]>([]);
   const [isLoading, setIsLoading] = useState(true);

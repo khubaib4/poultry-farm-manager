@@ -5,6 +5,7 @@ import { isElectron, expenses as expensesApi } from "@/lib/api";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import ExpenseForm from "@/components/expenses/ExpenseForm";
+import { useFarmId } from "@/hooks/useFarmId";
 
 interface Expense {
   id: number;
@@ -22,7 +23,7 @@ export default function EditExpensePage(): React.ReactElement {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { expenseId } = useParams<{ expenseId: string }>();
-  const farmId = user?.farmId ?? null;
+  const farmId = useFarmId();
 
   const [expense, setExpense] = useState<Expense | null>(null);
   const [suppliers, setSuppliers] = useState<string[]>([]);

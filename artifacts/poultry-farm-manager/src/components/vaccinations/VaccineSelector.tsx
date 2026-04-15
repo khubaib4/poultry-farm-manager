@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { Settings } from "lucide-react";
 import type { Vaccine } from "@/types/electron";
+import { useFarmId } from "@/hooks/useFarmId";
 
 const fallbackVaccines = [
   "Newcastle Disease",
@@ -36,7 +37,7 @@ export default function VaccineSelector({ value, onChange, error }: VaccineSelec
   const inputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
   const navigate = useNavigate();
-  const farmId = user?.farmId ?? null;
+  const farmId = useFarmId();
 
   useEffect(() => {
     setSearch(value);

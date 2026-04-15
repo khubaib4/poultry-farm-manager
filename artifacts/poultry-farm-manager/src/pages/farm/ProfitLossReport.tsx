@@ -6,6 +6,7 @@ import { useFinancialData } from "@/hooks/useFinancialData";
 import { ArrowLeft, Printer, Download } from "lucide-react";
 import PLStatement from "@/components/financial/PLStatement";
 import type { ProfitLossData } from "@/types/electron";
+import { useFarmId } from "@/hooks/useFarmId";
 
 function getMonthStart(): string {
   const d = new Date();
@@ -96,7 +97,7 @@ function exportCSV(data: ProfitLossData, periodLabel: string) {
 export default function ProfitLossReport(): React.ReactElement {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const farmId = user?.farmId ?? null;
+  const farmId = useFarmId();
 
   const [period, setPeriod] = useState<Period>("month");
   const [startDate, setStartDate] = useState(getMonthStart());

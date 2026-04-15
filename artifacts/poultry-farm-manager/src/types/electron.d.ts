@@ -579,6 +579,9 @@ export interface StatHistoryPoint {
 
 export interface OwnerDashboardStats {
   totalBirds: number;
+  /** Month-to-date total eggs (all owner farms). */
+  totalEggsMonth: number;
+  /** Eggs recorded today (all owner farms), optional detail. */
   totalEggsToday: number;
   revenueMonth: number;
   profitMonth: number;
@@ -587,6 +590,37 @@ export interface OwnerDashboardStats {
   totalEggsTrend: number;
   revenueTrend: number;
   profitTrend: number;
+}
+
+export type OwnerReportType = "summary" | "financial" | "production" | "sales";
+
+export interface OwnerReportParams {
+  type: OwnerReportType;
+  startDate: string;
+  endDate: string;
+  farmId?: number;
+}
+
+export interface OwnerReportSummaryItem {
+  label: string;
+  value: string;
+}
+
+export interface OwnerReportSection {
+  title: string;
+  columns: string[];
+  rows: Record<string, string>[];
+}
+
+export interface OwnerReportResult {
+  type: OwnerReportType;
+  startDate: string;
+  endDate: string;
+  scopeLabel: string;
+  summary: OwnerReportSummaryItem[];
+  columns: string[];
+  rows: Record<string, string>[];
+  sections: OwnerReportSection[];
 }
 
 export interface FarmOverview {
@@ -1114,7 +1148,49 @@ export interface SyncTestConnectionResult {
   message: string;
 }
 
+export interface SyncFromCloudStats {
+  farms: number;
+  flocks: number;
+  entries: number;
+  sales: number;
+  customers: number;
+  expenses: number;
+  inventory: number;
+  vaccinations: number;
+  users: number;
+  saleItems: number;
+  salePayments: number;
+  inventoryTransactions: number;
+  vaccines: number;
+  eggPrices: number;
+  dismissedAlerts: number;
+  schedules: number;
+  counters: number;
+  merged: number;
+}
+
+export interface SetupCodeResult {
+  code: string;
+  expiresAt: string;
+}
+
+export interface SetupCodeValidation {
+  valid: boolean;
+  farmName?: string;
+  expiresAt?: string;
+  error?: string;
+}
+
+export interface SetupApplyResult {
+  success: boolean;
+  farmName: string;
+  farmId: number;
+  recordsPulled: number;
+  message: string;
+}
+
 export interface ElectronAPI {
+  ipcInvoke: (channel: string, ...args: unknown[]) => Promise<IpcResponse<unknown>>;
   auth: {
     loginOwner: (email: string, password: string) => Promise<IpcResponse<AuthSession>>;
     loginFarm: (username: string, password: string) => Promise<IpcResponse<AuthSession>>;
@@ -1253,6 +1329,8 @@ export interface ElectronAPI {
     getFarmComparison: (ownerId: number, farmIds: number[], startDate: string, endDate: string) => Promise<IpcResponse<FarmComparisonData[]>>;
     getConsolidatedAlerts: (ownerId: number) => Promise<IpcResponse<OwnerAlert[]>>;
     getRecentActivity: (ownerId: number, limit: number) => Promise<IpcResponse<RecentActivity[]>>;
+    getStatHistory: (ownerId: number, statType: string, days: number) => Promise<IpcResponse<StatHistoryPoint[]>>;
+    getReport: (ownerId: number, params: OwnerReportParams) => Promise<IpcResponse<OwnerReportResult>>;
   };
   dashboard: {
     getFarmStats: (farmId: number) => Promise<IpcResponse>;
@@ -1325,8 +1403,13 @@ export interface ElectronAPI {
     getStatus: () => Promise<IpcResponse<SyncStatus>>;
     checkOnline: () => Promise<IpcResponse<boolean>>;
     syncNow: () => Promise<IpcResponse<{ success: boolean; error?: string }>>;
-    pullFromCloud: (ownerId: number) => Promise<IpcResponse<{ success: boolean; error?: string }>>;
+    pullFromCloud: (ownerId: number) => Promise<IpcResponse<{ success: boolean; error?: string; stats?: SyncFromCloudStats }>>;
     testConnection: (atlasUri: string) => Promise<IpcResponse<SyncTestConnectionResult>>;
+  };
+  setup: {
+    generateCode: (farmId: number, expiryDays?: number) => Promise<IpcResponse<SetupCodeResult>>;
+    validateCode: (code: string) => Promise<IpcResponse<SetupCodeValidation>>;
+    applyCode: (code: string) => Promise<IpcResponse<SetupApplyResult>>;
   };
 }
 

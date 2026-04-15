@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { receivables as receivablesApi, payments as paymentsApi, isElectron } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFarmId } from "@/hooks/useFarmId";
 import type { ReceivableItem, PaymentsSummary } from "@/types/electron";
 
 export function useReceivables(filter?: string) {
   const { user } = useAuth();
-  const farmId = user?.farmId ?? null;
+  const farmId = useFarmId();
 
   const [receivables, setReceivables] = useState<ReceivableItem[]>([]);
   const [summary, setSummary] = useState<PaymentsSummary | null>(null);

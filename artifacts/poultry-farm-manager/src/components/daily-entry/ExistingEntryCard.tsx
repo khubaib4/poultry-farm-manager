@@ -18,12 +18,21 @@ interface EntryData {
 interface ExistingEntryCardProps {
   entry: EntryData;
   openingStock: number;
-  onEdit: () => void;
-  onDelete: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
   isDeleting?: boolean;
+  /** Hide edit/delete (owner read-only farm view). */
+  readOnly?: boolean;
 }
 
-export default function ExistingEntryCard({ entry, openingStock, onEdit, onDelete, isDeleting }: ExistingEntryCardProps): React.ReactElement {
+export default function ExistingEntryCard({
+  entry,
+  openingStock,
+  onEdit,
+  onDelete,
+  isDeleting,
+  readOnly,
+}: ExistingEntryCardProps): React.ReactElement {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const totalEggs = (entry.eggsGradeA || 0) + (entry.eggsGradeB || 0) + (entry.eggsCracked || 0);
   const closingStock = openingStock - (entry.deaths || 0);
@@ -38,25 +47,27 @@ export default function ExistingEntryCard({ entry, openingStock, onEdit, onDelet
           <div className="w-2 h-2 rounded-full bg-green-500" />
           <span className="font-semibold text-green-800">Entry Recorded</span>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={onEdit} className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-            <Edit className="w-3.5 h-3.5" /> Edit
-          </button>
-          {showDeleteConfirm ? (
-            <div className="flex items-center gap-1">
-              <button onClick={() => { onDelete(); setShowDeleteConfirm(false); }} disabled={isDeleting} className="px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50">
-                {isDeleting ? "..." : "Confirm"}
-              </button>
-              <button onClick={() => setShowDeleteConfirm(false)} className="px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-                Cancel
-              </button>
-            </div>
-          ) : (
-            <button onClick={() => setShowDeleteConfirm(true)} className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 transition-colors">
-              <Trash2 className="w-3.5 h-3.5" /> Delete
+        {!readOnly && onEdit && onDelete && (
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={onEdit} className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+              <Edit className="w-3.5 h-3.5" /> Edit
             </button>
-          )}
-        </div>
+            {showDeleteConfirm ? (
+              <div className="flex items-center gap-1">
+                <button type="button" onClick={() => { onDelete(); setShowDeleteConfirm(false); }} disabled={isDeleting} className="px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50">
+                  {isDeleting ? "..." : "Confirm"}
+                </button>
+                <button type="button" onClick={() => setShowDeleteConfirm(false)} className="px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button type="button" onClick={() => setShowDeleteConfirm(true)} className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 transition-colors">
+                <Trash2 className="w-3.5 h-3.5" /> Delete
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { dashboard as dashboardApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFarmId } from "@/hooks/useFarmId";
 
 interface FlockInfo {
   id: number;
@@ -79,7 +80,7 @@ const REFRESH_INTERVAL = 5 * 60 * 1000;
 
 export function useDashboardData(): DashboardData {
   const { user } = useAuth();
-  const farmId = user?.farmId ?? null;
+  const farmId = useFarmId();
   const [stats, setStats] = useState<FarmStats | null>(null);
   const [trends, setTrends] = useState<WeeklyTrends | null>(null);
   const [alerts, setAlerts] = useState<Alert[]>([]);
