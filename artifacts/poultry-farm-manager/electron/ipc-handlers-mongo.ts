@@ -1,8 +1,21 @@
 import { ipcMain, dialog, shell, app } from "electron";
+import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import Store from "electron-store";
 import { statSync } from "fs";
 import { join } from "path";
+
+import { getSyncConfig, saveSyncConfig, isSyncEnabled } from "./sync-config";
+import {
+  syncToCloud,
+  syncFromCloud,
+  getSyncStatus,
+  checkOnlineStatus,
+  connectToCloud,
+  disconnectFromCloud,
+  startBackgroundSync,
+  stopBackgroundSync,
+} from "./sync-service";
 
 import {
   OwnerModel,
@@ -3381,6 +3394,81 @@ export function registerIpcHandlers(): void {
         throw new Error("Selection cancelled");
       }
       return result.filePaths[0];
+    })
+  );
+
+  // ====================
+  // Sync (MongoDB Atlas)
+  // ====================
+  ipcMain.handle(
+    "sync:getConfig",
+    wrapHandler(async () => {
+      requireAuth();
+      return getSyncConfig();
+    })
+  );
+
+  ipcMain.handle(
+    "sync:saveConfig",
+    wrapHandler(async (_e: unknown, config: any) => {
+      requireAuth();
+      const updated = saveSyncConfig(config);
+      if (updated.syncEnabled && updated.atlasUri) {
+        await connectToCloud();
+        startBackgroundSync();
+      } else {
+        stopBackgroundSync();
+        await disconnectFromCloud();
+      }
+      return updated;
+    })
+  );
+
+  ipcMain.handle(
+    "sync:getStatus",
+    wrapHandler(async () => {
+      requireAuth();
+      return getSyncStatus();
+    })
+  );
+
+  ipcMain.handle(
+    "sync:checkOnline",
+    wrapHandler(async () => {
+      requireAuth();
+      return await checkOnlineStatus();
+    })
+  );
+
+  ipcMain.handle(
+    "sync:syncNow",
+    wrapHandler(async () => {
+      requireAuth();
+      return await syncToCloud();
+    })
+  );
+
+  ipcMain.handle(
+    "sync:pullFromCloud",
+    wrapHandler(async (_e: unknown, ownerId: number) => {
+      requireAuth();
+      return await syncFromCloud(ownerId);
+    })
+  );
+
+  ipcMain.handle(
+    "sync:testConnection",
+    wrapHandler(async (_e: unknown, atlasUri: string) => {
+      requireAuth();
+      try {
+        const testConn = await mongoose
+          .createConnection(atlasUri, { serverSelectionTimeoutMS: 10_000 })
+          .asPromise();
+        await testConn.close();
+        return { success: true, message: "Connection successful!" };
+      } catch (error) {
+        return { success: false, message: error instanceof Error ? error.message : String(error) };
+      }
     })
   );
 

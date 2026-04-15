@@ -3,6 +3,7 @@ import { join } from "path";
 import { connectMongoDB, disconnectMongoDB } from "./mongodb";
 import { registerIpcHandlers } from "./ipc-handlers-mongo";
 import { initAutoBackup } from "./autoBackup";
+import { startBackgroundSync } from "./sync-service";
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -61,6 +62,7 @@ app.whenReady().then(async () => {
 
   registerIpcHandlers();
   initAutoBackup();
+  startBackgroundSync();
 
   createWindow();
 

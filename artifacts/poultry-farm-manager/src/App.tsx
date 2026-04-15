@@ -59,6 +59,7 @@ const EditSalePage = lazy(() => import("@/pages/farm/EditSalePage"));
 const PaymentsPage = lazy(() => import("@/pages/farm/PaymentsPage"));
 const ReceivablesPage = lazy(() => import("@/pages/farm/ReceivablesPage"));
 const PlaceholderPage = lazy(() => import("@/pages/PlaceholderPage"));
+const SyncSettingsPage = lazy(() => import("@/pages/SyncSettingsPage"));
 
 function PageLoader(): React.ReactElement {
   return <LoadingSpinner size="lg" text="Loading..." />;
@@ -107,6 +108,7 @@ export default function App(): React.ReactElement {
                 <Route path="/owner/reports" element={<OwnerLayout><PlaceholderPage title="Reports" description="View analytics and reports across all farms." /></OwnerLayout>} />
                 <Route path="/owner/backup" element={<OwnerLayout><BackupRestorePage /></OwnerLayout>} />
                 <Route path="/owner/settings" element={<OwnerLayout><SettingsPage /></OwnerLayout>} />
+                <Route path="/sync-settings" element={<OwnerLayout><SyncSettingsPage /></OwnerLayout>} />
 
                 <Route path="/farm/dashboard" element={<FarmLayout><FarmDashboard /></FarmLayout>} />
                 <Route path="/farm/daily-entry" element={<FarmLayout><DailyEntryPage /></FarmLayout>} />

@@ -318,4 +318,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getGradeBreakdown: (farmId: number, startDate: string, endDate: string) =>
       ipcRenderer.invoke("salesReports:getGradeBreakdown", farmId, startDate, endDate),
   },
+  sync: {
+    getConfig: () => ipcRenderer.invoke("sync:getConfig"),
+    saveConfig: (config: unknown) => ipcRenderer.invoke("sync:saveConfig", config),
+    getStatus: () => ipcRenderer.invoke("sync:getStatus"),
+    checkOnline: () => ipcRenderer.invoke("sync:checkOnline"),
+    syncNow: () => ipcRenderer.invoke("sync:syncNow"),
+    pullFromCloud: (ownerId: number) => ipcRenderer.invoke("sync:pullFromCloud", ownerId),
+    testConnection: (atlasUri: string) => ipcRenderer.invoke("sync:testConnection", atlasUri),
+  },
 });

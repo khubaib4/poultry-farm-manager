@@ -79,6 +79,9 @@ import type {
   PaymentsSummary,
   ReceivableItem,
   PaymentAlert,
+  SyncConfig,
+  SyncStatus,
+  SyncTestConnectionResult,
 } from "@/types/electron";
 
 function getApi() {
@@ -583,6 +586,29 @@ export const salesReports = {
 
   getGradeBreakdown: (farmId: number, startDate: string, endDate: string) =>
     invoke<GradeBreakdownReport[]>(() => getApi()!.salesReports.getGradeBreakdown(farmId, startDate, endDate)),
+};
+
+export const sync = {
+  getConfig: () =>
+    invoke<SyncConfig>(() => getApi()!.sync.getConfig()),
+
+  saveConfig: (config: Partial<SyncConfig>) =>
+    invoke<SyncConfig>(() => getApi()!.sync.saveConfig(config)),
+
+  getStatus: () =>
+    invoke<SyncStatus>(() => getApi()!.sync.getStatus()),
+
+  checkOnline: () =>
+    invoke<boolean>(() => getApi()!.sync.checkOnline()),
+
+  syncNow: () =>
+    invoke<{ success: boolean; error?: string }>(() => getApi()!.sync.syncNow()),
+
+  pullFromCloud: (ownerId: number) =>
+    invoke<{ success: boolean; error?: string }>(() => getApi()!.sync.pullFromCloud(ownerId)),
+
+  testConnection: (atlasUri: string) =>
+    invoke<SyncTestConnectionResult>(() => getApi()!.sync.testConnection(atlasUri)),
 };
 
 export const isElectron = (): boolean => {

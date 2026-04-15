@@ -1093,6 +1093,27 @@ export interface GradeBreakdownReport {
   totalAmount: number;
 }
 
+export interface SyncConfig {
+  atlasUri: string;
+  syncEnabled: boolean;
+  lastSyncTime: string | null;
+  syncIntervalMinutes: number;
+  deviceId: string;
+}
+
+export interface SyncStatus {
+  isOnline: boolean;
+  isSyncing: boolean;
+  lastSyncTime: string | null;
+  pendingChanges: number;
+  error: string | null;
+}
+
+export interface SyncTestConnectionResult {
+  success: boolean;
+  message: string;
+}
+
 export interface ElectronAPI {
   auth: {
     loginOwner: (email: string, password: string) => Promise<IpcResponse<AuthSession>>;
@@ -1297,6 +1318,15 @@ export interface ElectronAPI {
     getTopCustomers: (farmId: number, limit: number, startDate: string, endDate: string) => Promise<IpcResponse<TopCustomer[]>>;
     getSalesTrend: (farmId: number, period: string, startDate: string, endDate: string) => Promise<IpcResponse<SalesTrendPoint[]>>;
     getGradeBreakdown: (farmId: number, startDate: string, endDate: string) => Promise<IpcResponse<GradeBreakdownReport[]>>;
+  };
+  sync: {
+    getConfig: () => Promise<IpcResponse<SyncConfig>>;
+    saveConfig: (config: Partial<SyncConfig>) => Promise<IpcResponse<SyncConfig>>;
+    getStatus: () => Promise<IpcResponse<SyncStatus>>;
+    checkOnline: () => Promise<IpcResponse<boolean>>;
+    syncNow: () => Promise<IpcResponse<{ success: boolean; error?: string }>>;
+    pullFromCloud: (ownerId: number) => Promise<IpcResponse<{ success: boolean; error?: string }>>;
+    testConnection: (atlasUri: string) => Promise<IpcResponse<SyncTestConnectionResult>>;
   };
 }
 

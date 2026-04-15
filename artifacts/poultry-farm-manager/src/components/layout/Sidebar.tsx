@@ -22,6 +22,7 @@ import {
   HardDrive,
   Users,
   ShoppingCart,
+  Cloud,
 } from "lucide-react";
 import AlertBadge from "@/components/alerts/AlertBadge";
 
@@ -38,6 +39,7 @@ const ownerNavItems: NavItem[] = [
   { label: "Compare Farms", path: "/owner/compare", icon: <BarChart3 className="h-5 w-5" /> },
   { label: "Reports", path: "/owner/reports", icon: <Receipt className="h-5 w-5" /> },
   { label: "Backup", path: "/owner/backup", icon: <HardDrive className="h-5 w-5" /> },
+  { label: "Cloud Sync", path: "/sync-settings", icon: <Cloud className="h-5 w-5" /> },
   { label: "Settings", path: "/owner/settings", icon: <Settings className="h-5 w-5" /> },
 ];
 
