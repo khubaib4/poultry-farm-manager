@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, shell } from "electron";
 import { join } from "path";
-import { connectMongoDB, disconnectMongoDB } from "./mongodb";
+import { connectMongoDB, disconnectMongoDB } from "./mongodb-embedded";
 import { registerIpcHandlers } from "./ipc-handlers-mongo";
 import { initAutoBackup } from "./autoBackup";
 import { startBackgroundSync } from "./sync-service";

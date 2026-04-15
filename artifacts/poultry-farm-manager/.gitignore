@@ -17,6 +17,9 @@ release/
 *.log
 npm-debug.log*
 
+# MongoDB binaries (downloaded during build)
+mongodb-binaries/
+
 # Environment files
 .env
 .env.local

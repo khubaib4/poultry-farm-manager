@@ -9,6 +9,15 @@
   "files": [
     "out/**/*"
   ],
+  "extraResources": [
+    {
+      "from": "mongodb-binaries",
+      "to": "mongodb-binaries",
+      "filter": [
+        "**/*"
+      ]
+    }
+  ],
   "win": {
     "target": [
       {
