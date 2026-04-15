@@ -140,13 +140,13 @@ export default function EditFlockPage(): React.ReactElement {
               <div>
                 <dt className="text-slate-500">Initial Count</dt>
                 <dd className="font-medium text-slate-900">
-                  {flock.initialCount.toLocaleString()} birds
+                  {Number(flock.initialCount ?? 0).toLocaleString()} birds
                 </dd>
               </div>
               <div>
                 <dt className="text-slate-500">Arrival Date</dt>
                 <dd className="font-medium text-slate-900">
-                  {new Date(flock.arrivalDate).toLocaleDateString()}
+                  {flock.arrivalDate ? new Date(flock.arrivalDate).toLocaleDateString() : "N/A"}
                 </dd>
               </div>
               <div>

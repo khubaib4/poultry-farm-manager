@@ -108,7 +108,7 @@ export default function InventoryPage(): React.ReactElement {
             <Package className="h-4 w-4 text-amber-600" />
             <span className="text-xs text-gray-500">Feed Stock</span>
           </div>
-          <p className="text-lg font-bold text-amber-700">{totalFeed.toLocaleString()} <span className="text-xs font-normal">units</span></p>
+          <p className="text-lg font-bold text-amber-700">{Number(totalFeed ?? 0).toLocaleString()} <span className="text-xs font-normal">units</span></p>
         </div>
         <div className="bg-white rounded-xl border border-blue-200 p-4">
           <div className="flex items-center gap-2 mb-2">

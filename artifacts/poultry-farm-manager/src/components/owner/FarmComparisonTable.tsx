@@ -79,8 +79,8 @@ export default function FarmComparisonTable({ data, onExport }: FarmComparisonTa
             {sorted.map((farm) => (
               <tr key={farm.farmId} className="hover:bg-slate-50">
                 <td className="px-3 py-3 text-sm font-medium text-slate-900 whitespace-nowrap">{farm.farmName}</td>
-                <td className="px-3 py-3 text-sm text-slate-700">{farm.totalBirds.toLocaleString()}</td>
-                <td className="px-3 py-3 text-sm text-slate-700">{farm.avgEggsPerDay.toLocaleString()}</td>
+                <td className="px-3 py-3 text-sm text-slate-700">{Number(farm.totalBirds ?? 0).toLocaleString()}</td>
+                <td className="px-3 py-3 text-sm text-slate-700">{Number(farm.avgEggsPerDay ?? 0).toLocaleString()}</td>
                 <td className={`px-3 py-3 text-sm font-medium ${statusColor(farm.productionRate, [70, 85])}`}>{farm.productionRate}%</td>
                 <td className={`px-3 py-3 text-sm font-medium ${farm.mortalityRate <= 0.5 ? "text-green-600" : farm.mortalityRate <= 1 ? "text-amber-600" : "text-red-600"}`}>{farm.mortalityRate}%</td>
                 <td className="px-3 py-3 text-sm text-gray-700">{formatCurrency(farm.revenue)}</td>

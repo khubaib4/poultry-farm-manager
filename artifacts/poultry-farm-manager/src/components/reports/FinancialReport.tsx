@@ -26,16 +26,16 @@ export default function FinancialReport({ data }: Props) {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <div className="bg-green-50 rounded-lg p-3 text-center">
-          <div className="text-2xl font-bold text-green-700">Rs {data.revenue.total.toLocaleString()}</div>
+          <div className="text-2xl font-bold text-green-700">Rs {Number(data.revenue.total ?? 0).toLocaleString()}</div>
           <div className="text-xs text-green-600">Sales Revenue</div>
         </div>
         <div className="bg-red-50 rounded-lg p-3 text-center">
-          <div className="text-2xl font-bold text-red-700">Rs {data.expenses.total.toLocaleString()}</div>
+          <div className="text-2xl font-bold text-red-700">Rs {Number(data.expenses.total ?? 0).toLocaleString()}</div>
           <div className="text-xs text-red-600">Total Expenses</div>
         </div>
         <div className={`rounded-lg p-3 text-center ${data.profitLoss.profit >= 0 ? "bg-emerald-50" : "bg-orange-50"}`}>
           <div className={`text-2xl font-bold ${data.profitLoss.profit >= 0 ? "text-emerald-700" : "text-orange-700"}`}>
-            Rs {data.profitLoss.profit.toLocaleString()}
+            Rs {Number(data.profitLoss.profit ?? 0).toLocaleString()}
           </div>
           <div className={`text-xs ${data.profitLoss.profit >= 0 ? "text-emerald-600" : "text-orange-600"}`}>Net Profit/Loss</div>
         </div>
@@ -61,7 +61,7 @@ export default function FinancialReport({ data }: Props) {
                 {data.revenue.byCustomer.map(c => (
                   <tr key={c.name} className="hover:bg-gray-50">
                     <td className="px-3 py-2 border border-gray-200 font-medium">{c.name}</td>
-                    <td className="px-3 py-2 text-right border border-gray-200 font-medium">Rs {c.amount.toLocaleString()}</td>
+                    <td className="px-3 py-2 text-right border border-gray-200 font-medium">Rs {Number(c.amount ?? 0).toLocaleString()}</td>
                     <td className="px-3 py-2 text-right border border-gray-200">
                       {data.revenue.total > 0 ? Math.round((c.amount / data.revenue.total) * 100) : 0}%
                     </td>
@@ -89,7 +89,7 @@ export default function FinancialReport({ data }: Props) {
                 {data.revenue.byProduct.map(p => (
                   <tr key={p.name} className="hover:bg-gray-50">
                     <td className="px-3 py-2 border border-gray-200 font-medium">{p.name}</td>
-                    <td className="px-3 py-2 text-right border border-gray-200 font-medium">Rs {p.amount.toLocaleString()}</td>
+                    <td className="px-3 py-2 text-right border border-gray-200 font-medium">Rs {Number(p.amount ?? 0).toLocaleString()}</td>
                     <td className="px-3 py-2 text-right border border-gray-200">
                       {data.revenue.total > 0 ? Math.round((p.amount / data.revenue.total) * 100) : 0}%
                     </td>
@@ -109,7 +109,7 @@ export default function FinancialReport({ data }: Props) {
               <div key={ec.category}>
                 <div className="flex justify-between text-sm mb-1">
                   <span className="capitalize font-medium">{ec.category}</span>
-                  <span>Rs {ec.amount.toLocaleString()} ({data.expenses.total > 0 ? Math.round((ec.amount / data.expenses.total) * 100) : 0}%)</span>
+                  <span>Rs {Number(ec.amount ?? 0).toLocaleString()} ({Number(data.expenses.total ?? 0) > 0 ? Math.round((Number(ec.amount ?? 0) / Number(data.expenses.total ?? 0)) * 100) : 0}%)</span>
                 </div>
                 <div className="w-full bg-gray-100 rounded-full h-3">
                   <div
@@ -129,24 +129,24 @@ export default function FinancialReport({ data }: Props) {
       <div className="mb-6 border border-gray-200 rounded-lg p-4">
         <div className="space-y-2 text-sm">
           <div className="flex justify-between font-semibold text-green-700 pb-2 border-b">
-            <span>Sales Revenue ({data.revenue.salesCount} sales)</span><span>Rs {data.revenue.total.toLocaleString()}</span>
+            <span>Sales Revenue ({data.revenue.salesCount} sales)</span><span>Rs {Number(data.revenue.total ?? 0).toLocaleString()}</span>
           </div>
           {data.revenue.byProduct.map(p => (
             <div key={p.name} className="flex justify-between pl-4 text-gray-600">
-              <span>{p.name}</span><span>Rs {p.amount.toLocaleString()}</span>
+              <span>{p.name}</span><span>Rs {Number(p.amount ?? 0).toLocaleString()}</span>
             </div>
           ))}
           <div className="flex justify-between font-semibold text-red-700 pt-2 pb-2 border-b border-t mt-2">
-            <span>Expenses</span><span>Rs {data.expenses.total.toLocaleString()}</span>
+            <span>Expenses</span><span>Rs {Number(data.expenses.total ?? 0).toLocaleString()}</span>
           </div>
           {data.expenses.byCategory.map(ec => (
             <div key={ec.category} className="flex justify-between pl-4 text-gray-600 capitalize">
-              <span>{ec.category}</span><span>Rs {ec.amount.toLocaleString()}</span>
+              <span>{ec.category}</span><span>Rs {Number(ec.amount ?? 0).toLocaleString()}</span>
             </div>
           ))}
           <div className={`flex justify-between font-bold text-lg pt-3 border-t-2 mt-2 ${data.profitLoss.profit >= 0 ? "text-green-700" : "text-red-700"}`}>
             <span>{data.profitLoss.profit >= 0 ? "Net Profit" : "Net Loss"}</span>
-            <span>Rs {Math.abs(data.profitLoss.profit).toLocaleString()}</span>
+            <span>Rs {Math.abs(Number(data.profitLoss.profit ?? 0)).toLocaleString()}</span>
           </div>
           <div className="text-right text-xs text-gray-500">Profit Margin: {data.profitLoss.margin}%</div>
         </div>
@@ -155,9 +155,9 @@ export default function FinancialReport({ data }: Props) {
       <h3 className="font-semibold text-gray-800 mb-2">Collections</h3>
       <div className="mb-6 border border-gray-200 rounded-lg p-4">
         <div className="space-y-2 text-sm">
-          <div className="flex justify-between"><span>Total Billed</span><span className="font-medium">Rs {data.revenue.total.toLocaleString()}</span></div>
-          <div className="flex justify-between"><span>Total Collected</span><span className="font-medium text-green-600">Rs {data.revenue.totalCollected.toLocaleString()}</span></div>
-          <div className="flex justify-between"><span>Outstanding</span><span className={`font-medium ${data.revenue.outstanding > 0 ? "text-amber-600" : "text-green-600"}`}>Rs {data.revenue.outstanding.toLocaleString()}</span></div>
+          <div className="flex justify-between"><span>Total Billed</span><span className="font-medium">Rs {Number(data.revenue.total ?? 0).toLocaleString()}</span></div>
+          <div className="flex justify-between"><span>Total Collected</span><span className="font-medium text-green-600">Rs {Number(data.revenue.totalCollected ?? 0).toLocaleString()}</span></div>
+          <div className="flex justify-between"><span>Outstanding</span><span className={`font-medium ${Number(data.revenue.outstanding ?? 0) > 0 ? "text-amber-600" : "text-green-600"}`}>Rs {Number(data.revenue.outstanding ?? 0).toLocaleString()}</span></div>
           <div className="flex justify-between border-t pt-2 mt-2 font-semibold">
             <span>Collection Rate</span>
             <span className={data.revenue.collectionRate >= 80 ? "text-green-600" : data.revenue.collectionRate >= 50 ? "text-amber-600" : "text-red-600"}>
@@ -190,7 +190,7 @@ export default function FinancialReport({ data }: Props) {
           <div className="text-xs text-gray-500">Cost/Egg</div>
         </div>
         <div className="border border-gray-200 rounded-lg p-3 text-center">
-          <div className="text-lg font-bold text-gray-900">{data.metrics.totalBirds.toLocaleString()}</div>
+          <div className="text-lg font-bold text-gray-900">{Number(data.metrics.totalBirds ?? 0).toLocaleString()}</div>
           <div className="text-xs text-gray-500">Total Birds</div>
         </div>
       </div>

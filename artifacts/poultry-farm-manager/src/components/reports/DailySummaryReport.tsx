@@ -19,11 +19,11 @@ export default function DailySummaryReport({ data }: Props) {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <div className="bg-blue-50 rounded-lg p-3 text-center">
-          <div className="text-2xl font-bold text-blue-700">{data.totals.birds.toLocaleString()}</div>
+          <div className="text-2xl font-bold text-blue-700">{Number(data.totals.birds ?? 0).toLocaleString()}</div>
           <div className="text-xs text-blue-600">Total Birds</div>
         </div>
         <div className="bg-amber-50 rounded-lg p-3 text-center">
-          <div className="text-2xl font-bold text-amber-700">{data.totals.eggsTotal.toLocaleString()}</div>
+          <div className="text-2xl font-bold text-amber-700">{Number(data.totals.eggsTotal ?? 0).toLocaleString()}</div>
           <div className="text-xs text-amber-600">Total Eggs</div>
         </div>
         <div className="bg-red-50 rounded-lg p-3 text-center">
@@ -31,7 +31,7 @@ export default function DailySummaryReport({ data }: Props) {
           <div className="text-xs text-red-600">Deaths</div>
         </div>
         <div className="bg-green-50 rounded-lg p-3 text-center">
-          <div className="text-2xl font-bold text-green-700">Rs {data.totals.revenue.toLocaleString()}</div>
+          <div className="text-2xl font-bold text-green-700">Rs {Number(data.totals.revenue ?? 0).toLocaleString()}</div>
           <div className="text-xs text-green-600">Revenue</div>
         </div>
       </div>
@@ -100,12 +100,12 @@ export default function DailySummaryReport({ data }: Props) {
         <div className="border border-gray-200 rounded-lg p-3">
           <h4 className="text-xs font-medium text-gray-500 mb-1">Financial</h4>
           <div className="text-sm">
-            <div className="flex justify-between"><span>Revenue</span><span className="font-medium text-green-600">Rs {data.totals.revenue.toLocaleString()}</span></div>
-            <div className="flex justify-between"><span>Expenses</span><span className="font-medium text-red-600">Rs {data.totals.expenses.toLocaleString()}</span></div>
+            <div className="flex justify-between"><span>Revenue</span><span className="font-medium text-green-600">Rs {Number(data.totals.revenue ?? 0).toLocaleString()}</span></div>
+            <div className="flex justify-between"><span>Expenses</span><span className="font-medium text-red-600">Rs {Number(data.totals.expenses ?? 0).toLocaleString()}</span></div>
             <div className="flex justify-between border-t border-gray-200 mt-1 pt-1">
               <span className="font-medium">Net</span>
               <span className={`font-bold ${data.totals.revenue - data.totals.expenses >= 0 ? "text-green-600" : "text-red-600"}`}>
-                Rs {(data.totals.revenue - data.totals.expenses).toLocaleString()}
+                Rs {(Number(data.totals.revenue ?? 0) - Number(data.totals.expenses ?? 0)).toLocaleString()}
               </span>
             </div>
           </div>

@@ -20,7 +20,7 @@ const COLORS = {
 };
 
 function fmt(amount: number): string {
-  return `Rs ${amount.toLocaleString()}`;
+  return `Rs ${Number(amount ?? 0).toLocaleString()}`;
 }
 
 function sanitize(filename: string): string {
@@ -103,8 +103,8 @@ export function exportDailyReportPDF(data: DailyReportData, farmName: string) {
   addHeader(doc, farmName, "Daily Summary Report", `Date: ${data.date}`);
 
   let y = addSummaryRow(doc, 42, [
-    { label: "Total Birds", value: data.totals.birds.toLocaleString() },
-    { label: "Total Eggs", value: data.totals.eggsTotal.toLocaleString() },
+    { label: "Total Birds", value: Number(data.totals.birds ?? 0).toLocaleString() },
+    { label: "Total Eggs", value: Number(data.totals.eggsTotal ?? 0).toLocaleString() },
     { label: "Deaths", value: data.totals.deaths.toString(), color: data.totals.deaths > 0 ? COLORS.red : COLORS.text },
     { label: "Revenue", value: fmt(data.totals.revenue), color: COLORS.green },
   ]);
@@ -148,8 +148,8 @@ export function exportWeeklyReportPDF(data: WeeklyReportData, farmName: string) 
   addHeader(doc, farmName, "Weekly Performance Report", `Period: ${data.startDate} to ${data.endDate}`);
 
   let y = addSummaryRow(doc, 42, [
-    { label: "Total Birds", value: data.weeklyTotals.birds.toLocaleString() },
-    { label: "Total Eggs", value: data.weeklyTotals.eggsTotal.toLocaleString() },
+    { label: "Total Birds", value: Number(data.weeklyTotals.birds ?? 0).toLocaleString() },
+    { label: "Total Eggs", value: Number(data.weeklyTotals.eggsTotal ?? 0).toLocaleString() },
     { label: "Avg Eggs/Day", value: data.averages.eggsPerDay.toString() },
     { label: "Net Profit", value: fmt(data.financial.profit), color: data.financial.profit >= 0 ? COLORS.green : COLORS.red },
   ]);
@@ -159,7 +159,7 @@ export function exportWeeklyReportPDF(data: WeeklyReportData, farmName: string) 
   y = addAutoTable(doc, y,
     [["Day", "Date", "Grade A", "Grade B", "Cracked", "Total", "Deaths", "Feed (kg)"]],
     data.dailyData.map(d => [
-      dayNames[new Date(d.date).getDay()], d.date, d.eggsGradeA, d.eggsGradeB, d.eggsCracked, d.eggsTotal, d.deaths, d.feedKg.toFixed(1),
+      dayNames[new Date(d.date).getDay()], d.date, d.eggsGradeA, d.eggsGradeB, d.eggsCracked, d.eggsTotal, d.deaths, Number(d.feedKg ?? 0).toFixed(1),
     ])
   );
 
@@ -193,8 +193,8 @@ export function exportMonthlyReportPDF(data: MonthlyReportData, farmName: string
   addHeader(doc, farmName, "Monthly Summary Report", `${monthNames[data.month]} ${data.year}`);
 
   let y = addSummaryRow(doc, 42, [
-    { label: "Current Birds", value: data.totals.birds.toLocaleString() },
-    { label: "Total Eggs", value: data.totals.eggsTotal.toLocaleString() },
+    { label: "Current Birds", value: Number(data.totals.birds ?? 0).toLocaleString() },
+    { label: "Total Eggs", value: Number(data.totals.eggsTotal ?? 0).toLocaleString() },
     { label: "Production Rate", value: `${data.averages.productionRate}%` },
     { label: "Net Profit", value: fmt(data.financial.profit), color: data.financial.profit >= 0 ? COLORS.green : COLORS.red },
   ]);
@@ -203,7 +203,7 @@ export function exportMonthlyReportPDF(data: MonthlyReportData, farmName: string
   y = addAutoTable(doc, y,
     [["Week", "Eggs", "Deaths", "Feed (kg)", "Expenses"]],
     data.weeklyData.map(w => [
-      `${w.weekStart} — ${w.weekEnd}`, w.eggsTotal.toLocaleString(), w.deaths, w.feedKg.toFixed(1), fmt(w.expenses),
+      `${w.weekStart} — ${w.weekEnd}`, Number(w.eggsTotal ?? 0).toLocaleString(), w.deaths, Number(w.feedKg ?? 0).toFixed(1), fmt(w.expenses),
     ])
   );
 
@@ -211,10 +211,10 @@ export function exportMonthlyReportPDF(data: MonthlyReportData, farmName: string
   y = addAutoTable(doc, y,
     [["Grade", "Quantity"]],
     [
-      ["Grade A", data.totals.eggsGradeA.toLocaleString()],
-      ["Grade B", data.totals.eggsGradeB.toLocaleString()],
-      ["Cracked", data.totals.eggsCracked.toLocaleString()],
-      ["Total", data.totals.eggsTotal.toLocaleString()],
+      ["Grade A", Number(data.totals.eggsGradeA ?? 0).toLocaleString()],
+      ["Grade B", Number(data.totals.eggsGradeB ?? 0).toLocaleString()],
+      ["Cracked", Number(data.totals.eggsCracked ?? 0).toLocaleString()],
+      ["Total", Number(data.totals.eggsTotal ?? 0).toLocaleString()],
     ]
   );
 
@@ -249,7 +249,7 @@ export function exportFlockReportPDF(data: FlockReportData, farmName: string) {
   addHeader(doc, farmName, "Flock Performance Report", `${data.flock.batchName} — ${data.flock.breed || "Unknown Breed"}`);
 
   let y = addSummaryRow(doc, 42, [
-    { label: "Total Eggs", value: data.stats.totalEggs.toLocaleString() },
+    { label: "Total Eggs", value: Number(data.stats.totalEggs ?? 0).toLocaleString() },
     { label: "Production Rate", value: `${data.stats.productionRate}%` },
     { label: "Mortality Rate", value: `${data.stats.mortalityRate}%`, color: data.stats.mortalityRate > 5 ? COLORS.red : COLORS.text },
     { label: "Feed/Egg (kg)", value: data.stats.feedConversionRatio.toString() },
@@ -263,8 +263,8 @@ export function exportFlockReportPDF(data: FlockReportData, farmName: string) {
       ["Breed", data.flock.breed || "—"],
       ["Age", `${data.flock.ageDays} days`],
       ["Status", data.flock.status || "—"],
-      ["Initial Count", data.flock.initialCount.toLocaleString()],
-      ["Current Count", (data.flock.currentCount || 0).toLocaleString()],
+      ["Initial Count", Number(data.flock.initialCount ?? 0).toLocaleString()],
+      ["Current Count", Number(data.flock.currentCount ?? 0).toLocaleString()],
       ["Arrival Date", data.flock.arrivalDate],
       ["Days Tracked", data.stats.daysTracked.toString()],
     ]
@@ -274,10 +274,10 @@ export function exportFlockReportPDF(data: FlockReportData, farmName: string) {
   y = addAutoTable(doc, y,
     [["Metric", "Value"]],
     [
-      ["Grade A Eggs", data.stats.totalEggsA.toLocaleString()],
-      ["Grade B Eggs", data.stats.totalEggsB.toLocaleString()],
-      ["Cracked Eggs", data.stats.totalCracked.toLocaleString()],
-      ["Total Eggs", data.stats.totalEggs.toLocaleString()],
+      ["Grade A Eggs", Number(data.stats.totalEggsA ?? 0).toLocaleString()],
+      ["Grade B Eggs", Number(data.stats.totalEggsB ?? 0).toLocaleString()],
+      ["Cracked Eggs", Number(data.stats.totalCracked ?? 0).toLocaleString()],
+      ["Total Eggs", Number(data.stats.totalEggs ?? 0).toLocaleString()],
       ["Total Deaths", data.stats.totalDeaths.toString()],
       ["Total Feed", `${data.stats.totalFeed} kg`],
     ]
@@ -373,8 +373,8 @@ export function exportFinancialReportPDF(data: FinancialReportData, farmName: st
       ["Profit/Bird", fmt(data.metrics.profitPerBird)],
       ["Revenue/Egg", fmt(data.metrics.revenuePerEgg)],
       ["Cost/Egg", fmt(data.metrics.costPerEgg)],
-      ["Total Birds", data.metrics.totalBirds.toLocaleString()],
-      ["Total Eggs", data.metrics.totalEggs.toLocaleString()],
+      ["Total Birds", Number(data.metrics.totalBirds ?? 0).toLocaleString()],
+      ["Total Eggs", Number(data.metrics.totalEggs ?? 0).toLocaleString()],
     ]
   );
 

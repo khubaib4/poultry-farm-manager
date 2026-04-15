@@ -20,6 +20,11 @@ interface FlockCardProps {
 
 export default function FlockCard({ flock }: FlockCardProps): React.ReactElement {
   const navigate = useNavigate();
+  const safeCurrentCount = Number(flock.currentCount ?? 0);
+  const safeInitialCount = Number(flock.initialCount ?? 0);
+  const safeEggsLast7Days = Number(flock.eggsLast7Days ?? 0);
+  const safeMortalityRate = Number(flock.mortalityRate ?? 0);
+  const safeProductionRate = Number(flock.productionRate ?? 0);
 
   const statusColors: Record<string, string> = {
     active: "bg-green-50 text-green-700",
@@ -59,10 +64,10 @@ export default function FlockCard({ flock }: FlockCardProps): React.ReactElement
             <div className="flex items-center gap-1">
               <Bird className="h-3.5 w-3.5 text-slate-400" />
               <span className="font-medium text-slate-900">
-                {flock.currentCount.toLocaleString()}
+                {safeCurrentCount.toLocaleString()}
               </span>
               <span className="text-xs text-slate-400">
-                / {flock.initialCount.toLocaleString()}
+                / {safeInitialCount.toLocaleString()}
               </span>
             </div>
           </div>
@@ -70,31 +75,31 @@ export default function FlockCard({ flock }: FlockCardProps): React.ReactElement
           <div>
             <p className="text-slate-500 text-xs">Eggs (7d)</p>
             <p className="font-medium text-slate-900">
-              {flock.eggsLast7Days.toLocaleString()}
+              {safeEggsLast7Days.toLocaleString()}
             </p>
           </div>
 
           <div>
             <div className="flex items-center gap-1">
               <p className="text-slate-500 text-xs">Mortality</p>
-              {flock.mortalityRate > 1 && (
+              {safeMortalityRate > 1 && (
                 <AlertTriangle className="h-3 w-3 text-amber-500" />
               )}
             </div>
-            <p className={`font-medium ${flock.mortalityRate > 1 ? "text-amber-600" : "text-slate-900"}`}>
-              {flock.mortalityRate.toFixed(1)}%
+            <p className={`font-medium ${safeMortalityRate > 1 ? "text-amber-600" : "text-slate-900"}`}>
+              {Number(flock.mortalityRate ?? 0).toFixed(1)}%
             </p>
           </div>
 
           <div>
             <div className="flex items-center gap-1">
               <p className="text-slate-500 text-xs">Production</p>
-              {flock.productionRate > 0 && flock.productionRate < 80 && flock.status === "active" && (
+              {safeProductionRate > 0 && safeProductionRate < 80 && flock.status === "active" && (
                 <AlertTriangle className="h-3 w-3 text-orange-500" />
               )}
             </div>
-            <p className={`font-medium ${flock.productionRate > 0 && flock.productionRate < 80 && flock.status === "active" ? "text-orange-600" : "text-slate-900"}`}>
-              {flock.productionRate > 0 ? `${flock.productionRate.toFixed(1)}%` : "--"}
+            <p className={`font-medium ${safeProductionRate > 0 && safeProductionRate < 80 && flock.status === "active" ? "text-orange-600" : "text-slate-900"}`}>
+              {safeProductionRate > 0 ? `${Number(flock.productionRate ?? 0).toFixed(1)}%` : "--"}
             </p>
           </div>
         </div>

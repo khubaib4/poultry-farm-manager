@@ -1,7 +1,7 @@
-import { app, BrowserWindow, shell } from "electron";
+import { app, BrowserWindow, dialog, shell } from "electron";
 import { join } from "path";
-import { initializeDatabase, closeDatabase } from "./database";
-import { registerIpcHandlers } from "./ipc-handlers";
+import { connectMongoDB, disconnectMongoDB } from "./mongodb";
+import { registerIpcHandlers } from "./ipc-handlers-mongo";
 import { initAutoBackup } from "./autoBackup";
 
 function createWindow(): void {
@@ -41,8 +41,24 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
-  initializeDatabase();
+app.whenReady().then(async () => {
+  try {
+    await connectMongoDB();
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Unknown MongoDB connection error";
+    await dialog.showMessageBox({
+      type: "error",
+      title: "Database Connection Failed",
+      message: "Could not connect to the local database.",
+      detail:
+        "Please make sure the local MongoDB service is running, then restart the app.\n\n" +
+        message,
+    });
+    app.quit();
+    return;
+  }
+
   registerIpcHandlers();
   initAutoBackup();
 
@@ -60,5 +76,5 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
-  closeDatabase();
+  void disconnectMongoDB();
 });

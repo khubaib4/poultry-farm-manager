@@ -87,7 +87,7 @@ export default function StatDetailModal({ statType, currentValue, onClose }: Sta
 
   const formatValue = (val: number): string => {
     if (config.isCurrency) return formatCurrency(val);
-    return val.toLocaleString();
+    return Number(val ?? 0).toLocaleString();
   };
 
   const formatDate = (dateStr: string): string => {

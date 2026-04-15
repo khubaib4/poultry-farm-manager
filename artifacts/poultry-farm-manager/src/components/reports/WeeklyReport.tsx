@@ -21,11 +21,11 @@ export default function WeeklyReport({ data }: Props) {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <div className="bg-blue-50 rounded-lg p-3 text-center">
-          <div className="text-2xl font-bold text-blue-700">{data.weeklyTotals.birds.toLocaleString()}</div>
+          <div className="text-2xl font-bold text-blue-700">{Number(data.weeklyTotals.birds ?? 0).toLocaleString()}</div>
           <div className="text-xs text-blue-600">Total Birds</div>
         </div>
         <div className="bg-amber-50 rounded-lg p-3 text-center">
-          <div className="text-2xl font-bold text-amber-700">{data.weeklyTotals.eggsTotal.toLocaleString()}</div>
+          <div className="text-2xl font-bold text-amber-700">{Number(data.weeklyTotals.eggsTotal ?? 0).toLocaleString()}</div>
           <div className="text-xs text-amber-600">Total Eggs</div>
         </div>
         <div className="bg-purple-50 rounded-lg p-3 text-center">
@@ -33,7 +33,7 @@ export default function WeeklyReport({ data }: Props) {
           <div className="text-xs text-purple-600">Avg Eggs/Day</div>
         </div>
         <div className="bg-green-50 rounded-lg p-3 text-center">
-          <div className="text-2xl font-bold text-green-700">Rs {data.financial.profit.toLocaleString()}</div>
+          <div className="text-2xl font-bold text-green-700">Rs {Number(data.financial.profit ?? 0).toLocaleString()}</div>
           <div className="text-xs text-green-600">Net Profit</div>
         </div>
       </div>
@@ -66,7 +66,7 @@ export default function WeeklyReport({ data }: Props) {
                   <td className="px-3 py-2 text-right border border-gray-200">{d.eggsCracked}</td>
                   <td className="px-3 py-2 text-right border border-gray-200 font-medium">{d.eggsTotal}</td>
                   <td className="px-3 py-2 text-right border border-gray-200">{d.deaths > 0 ? <span className="text-red-600">{d.deaths}</span> : "0"}</td>
-                  <td className="px-3 py-2 text-right border border-gray-200">{d.feedKg.toFixed(1)}</td>
+                  <td className="px-3 py-2 text-right border border-gray-200">{Number(d.feedKg ?? 0).toFixed(1)}</td>
                 </tr>
               );
             })}
@@ -77,7 +77,7 @@ export default function WeeklyReport({ data }: Props) {
               <td className="px-3 py-2 text-right border border-gray-200">{data.weeklyTotals.eggsCracked}</td>
               <td className="px-3 py-2 text-right border border-gray-200">{data.weeklyTotals.eggsTotal}</td>
               <td className="px-3 py-2 text-right border border-gray-200">{data.weeklyTotals.deaths}</td>
-              <td className="px-3 py-2 text-right border border-gray-200">{data.weeklyTotals.feedKg.toFixed(1)}</td>
+              <td className="px-3 py-2 text-right border border-gray-200">{Number(data.weeklyTotals.feedKg ?? 0).toFixed(1)}</td>
             </tr>
           </tbody>
         </table>
@@ -94,20 +94,20 @@ export default function WeeklyReport({ data }: Props) {
         </div>
         <div className="border border-gray-200 rounded-lg p-4">
           <h4 className="text-sm font-medium text-gray-500 mb-2">Feed Summary</h4>
-          <div className="text-2xl font-bold text-gray-900">{data.weeklyTotals.feedKg.toFixed(1)} kg</div>
+          <div className="text-2xl font-bold text-gray-900">{Number(data.weeklyTotals.feedKg ?? 0).toFixed(1)} kg</div>
           <div className="text-xs text-gray-500 mt-1">
-            Avg {(data.weeklyTotals.feedKg / 7).toFixed(1)} kg/day
+            Avg {(Number(data.weeklyTotals.feedKg ?? 0) / 7).toFixed(1)} kg/day
           </div>
         </div>
         <div className="border border-gray-200 rounded-lg p-4">
           <h4 className="text-sm font-medium text-gray-500 mb-2">Financial Summary</h4>
           <div className="space-y-1 text-sm">
-            <div className="flex justify-between"><span>Revenue</span><span className="text-green-600 font-medium">Rs {data.financial.revenue.toLocaleString()}</span></div>
-            <div className="flex justify-between"><span>Expenses</span><span className="text-red-600 font-medium">Rs {data.financial.expenses.toLocaleString()}</span></div>
+            <div className="flex justify-between"><span>Revenue</span><span className="text-green-600 font-medium">Rs {Number(data.financial.revenue ?? 0).toLocaleString()}</span></div>
+            <div className="flex justify-between"><span>Expenses</span><span className="text-red-600 font-medium">Rs {Number(data.financial.expenses ?? 0).toLocaleString()}</span></div>
             <div className="flex justify-between border-t pt-1 mt-1">
               <span className="font-medium">Profit/Loss</span>
               <span className={`font-bold ${data.financial.profit >= 0 ? "text-green-600" : "text-red-600"}`}>
-                Rs {data.financial.profit.toLocaleString()}
+                Rs {Number(data.financial.profit ?? 0).toLocaleString()}
               </span>
             </div>
           </div>

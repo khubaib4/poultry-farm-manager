@@ -67,9 +67,9 @@ export default function SalesByGradeChart({ data }: Props): React.ReactElement {
             {data.map(d => (
               <tr key={d.grade} className="border-b border-gray-50">
                 <td className="py-2 text-gray-900">{GRADE_LABELS[d.grade] || d.grade}</td>
-                <td className="py-2 text-right text-gray-700">{d.eggsQty.toLocaleString()}</td>
+                  <td className="py-2 text-right text-gray-700">{Number(d.eggsQty ?? 0).toLocaleString()}</td>
                 <td className="py-2 text-right text-gray-700">{formatCurrency(d.eggsAmount)}</td>
-                <td className="py-2 text-right text-gray-700">{d.traysQty.toLocaleString()}</td>
+                  <td className="py-2 text-right text-gray-700">{Number(d.traysQty ?? 0).toLocaleString()}</td>
                 <td className="py-2 text-right text-gray-700">{formatCurrency(d.traysAmount)}</td>
               </tr>
             ))}

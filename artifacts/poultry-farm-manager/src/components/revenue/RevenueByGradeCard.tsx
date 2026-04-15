@@ -76,7 +76,7 @@ export default function RevenueBreakdownCard({ byCustomer, byType, totalRevenue 
                       <div className="h-full rounded-full bg-blue-500" style={{ width: `${pct}%` }} />
                     </div>
                     <span className="text-xs text-gray-500 w-20 text-right">
-                      {t.quantity.toLocaleString()} {t.itemType === "tray" ? "trays" : "eggs"} · {pct.toFixed(0)}%
+                      {Number(t.quantity ?? 0).toLocaleString()} {t.itemType === "tray" ? "trays" : "eggs"} · {pct.toFixed(0)}%
                     </span>
                   </div>
                 </div>

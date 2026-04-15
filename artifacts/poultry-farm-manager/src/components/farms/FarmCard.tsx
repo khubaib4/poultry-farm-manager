@@ -119,7 +119,7 @@ export default function FarmCard({
           {farm.capacity != null && (
             <div className="flex items-center gap-1.5">
               <Bird className="h-3.5 w-3.5" />
-              <span>{farm.capacity.toLocaleString()} birds</span>
+              <span>{Number(farm.capacity ?? 0).toLocaleString()} birds</span>
             </div>
           )}
           {farm.createdAt && (

@@ -27,7 +27,7 @@ function formatBytes(bytes: number): string {
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString();
+  return iso ? new Date(iso).toLocaleString() : "N/A";
 }
 
 function MetadataStats({ metadata }: { metadata: BackupMetadata }) {

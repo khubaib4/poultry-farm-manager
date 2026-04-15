@@ -85,7 +85,7 @@ export default function OwnerDashboard(): React.ReactElement {
         <div className="bg-white rounded-xl border p-5">
           <p className="text-sm text-slate-500">Total Capacity</p>
           <p className="text-3xl font-bold mt-1 text-green-700">
-            {totalCapacity.toLocaleString()}
+            {Number(totalCapacity ?? 0).toLocaleString()}
           </p>
         </div>
         <div className="bg-white rounded-xl border p-5">

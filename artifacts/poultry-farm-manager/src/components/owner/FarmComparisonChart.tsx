@@ -21,11 +21,11 @@ const metricOptions: { key: MetricKey; label: string; color: string; format: (v:
   { key: "productionRate", label: "Production Rate (%)", color: "#2563eb", format: (v) => `${v}%` },
   { key: "mortalityRate", label: "Mortality Rate (%)", color: "#dc2626", format: (v) => `${v}%` },
   { key: "profitMargin", label: "Profit Margin (%)", color: "#16a34a", format: (v) => `${v}%` },
-  { key: "totalBirds", label: "Total Birds", color: "#7c3aed", format: (v) => v.toLocaleString() },
-  { key: "avgEggsPerDay", label: "Avg Eggs/Day", color: "#ea580c", format: (v) => v.toLocaleString() },
-  { key: "revenue", label: "Revenue", color: "#0891b2", format: (v) => `PKR ${v.toLocaleString()}` },
-  { key: "expenses", label: "Expenses", color: "#be185d", format: (v) => `PKR ${v.toLocaleString()}` },
-  { key: "profit", label: "Profit", color: "#15803d", format: (v) => `PKR ${v.toLocaleString()}` },
+  { key: "totalBirds", label: "Total Birds", color: "#7c3aed", format: (v) => Number(v ?? 0).toLocaleString() },
+  { key: "avgEggsPerDay", label: "Avg Eggs/Day", color: "#ea580c", format: (v) => Number(v ?? 0).toLocaleString() },
+  { key: "revenue", label: "Revenue", color: "#0891b2", format: (v) => `PKR ${Number(v ?? 0).toLocaleString()}` },
+  { key: "expenses", label: "Expenses", color: "#be185d", format: (v) => `PKR ${Number(v ?? 0).toLocaleString()}` },
+  { key: "profit", label: "Profit", color: "#15803d", format: (v) => `PKR ${Number(v ?? 0).toLocaleString()}` },
 ];
 
 export default function FarmComparisonChart({ data }: FarmComparisonChartProps): React.ReactElement {

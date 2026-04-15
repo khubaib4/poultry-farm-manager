@@ -229,30 +229,30 @@ export default function FlockDetailPage(): React.ReactElement {
         <StatCard
           icon={<Bird className="h-4 w-4 text-blue-600" />}
           label="Current Count"
-          value={flock.currentCount.toLocaleString()}
-          sub={`of ${flock.initialCount.toLocaleString()}`}
+          value={Number(flock.currentCount ?? 0).toLocaleString()}
+          sub={`of ${Number(flock.initialCount ?? 0).toLocaleString()}`}
         />
         <StatCard
           icon={<Skull className="h-4 w-4 text-slate-500" />}
           label="Total Deaths"
-          value={flock.totalDeaths.toLocaleString()}
+          value={Number(flock.totalDeaths ?? 0).toLocaleString()}
         />
         <StatCard
           icon={<AlertTriangle className="h-4 w-4 text-amber-500" />}
           label="Mortality Rate"
-          value={`${flock.mortalityRate.toFixed(1)}%`}
-          warning={flock.mortalityRate > 1}
+          value={`${Number(flock.mortalityRate ?? 0).toFixed(1)}%`}
+          warning={Number(flock.mortalityRate ?? 0) > 1}
         />
         <StatCard
           icon={<Egg className="h-4 w-4 text-orange-500" />}
           label="Total Eggs"
-          value={flock.totalEggs.toLocaleString()}
+          value={Number(flock.totalEggs ?? 0).toLocaleString()}
         />
         <StatCard
           icon={<TrendingUp className="h-4 w-4 text-green-600" />}
           label="Production (7d)"
-          value={flock.productionRate > 0 ? `${flock.productionRate.toFixed(1)}%` : "--"}
-          warning={flock.productionRate > 0 && flock.productionRate < 80 && (flock.status === "active" || !flock.status)}
+          value={Number(flock.productionRate ?? 0) > 0 ? `${Number(flock.productionRate ?? 0).toFixed(1)}%` : "--"}
+          warning={Number(flock.productionRate ?? 0) > 0 && Number(flock.productionRate ?? 0) < 80 && (flock.status === "active" || !flock.status)}
         />
       </div>
 
@@ -295,7 +295,7 @@ export default function FlockDetailPage(): React.ReactElement {
               <div className="flex justify-between">
                 <dt className="text-slate-500">Arrival Date</dt>
                 <dd className="font-medium text-slate-900">
-                  {new Date(flock.arrivalDate).toLocaleDateString()}
+                  {flock.arrivalDate ? new Date(flock.arrivalDate).toLocaleDateString() : "N/A"}
                 </dd>
               </div>
               <div className="flex justify-between">
@@ -307,7 +307,7 @@ export default function FlockDetailPage(): React.ReactElement {
               <div className="flex justify-between">
                 <dt className="text-slate-500">Initial Count</dt>
                 <dd className="font-medium text-slate-900">
-                  {flock.initialCount.toLocaleString()} birds
+                  {Number(flock.initialCount ?? 0).toLocaleString()} birds
                 </dd>
               </div>
               {flock.notes && (
@@ -319,7 +319,7 @@ export default function FlockDetailPage(): React.ReactElement {
               {flock.statusChangedDate && (
                 <div className="pt-2 border-t">
                   <dt className="text-slate-500 mb-1">
-                    Status changed on {new Date(flock.statusChangedDate).toLocaleDateString()}
+                    Status changed on {flock.statusChangedDate ? new Date(flock.statusChangedDate).toLocaleDateString() : "N/A"}
                   </dt>
                   {flock.statusNotes && (
                     <dd className="text-slate-700">{flock.statusNotes}</dd>
@@ -336,15 +336,15 @@ export default function FlockDetailPage(): React.ReactElement {
                 <div className="flex items-center justify-between text-sm mb-1">
                   <span className="text-slate-500">Survival Rate</span>
                   <span className="font-medium text-slate-900">
-                    {(100 - flock.mortalityRate).toFixed(1)}%
+                    {(100 - Number(flock.mortalityRate ?? 0)).toFixed(1)}%
                   </span>
                 </div>
                 <div className="w-full bg-slate-100 rounded-full h-2">
                   <div
                     className={`h-2 rounded-full ${
-                      flock.mortalityRate > 5 ? "bg-red-500" : flock.mortalityRate > 1 ? "bg-amber-500" : "bg-green-500"
+                      Number(flock.mortalityRate ?? 0) > 5 ? "bg-red-500" : Number(flock.mortalityRate ?? 0) > 1 ? "bg-amber-500" : "bg-green-500"
                     }`}
-                    style={{ width: `${Math.max(0, 100 - flock.mortalityRate)}%` }}
+                    style={{ width: `${Math.max(0, 100 - Number(flock.mortalityRate ?? 0))}%` }}
                   />
                 </div>
               </div>
@@ -352,28 +352,28 @@ export default function FlockDetailPage(): React.ReactElement {
                 <div className="flex items-center justify-between text-sm mb-1">
                   <span className="text-slate-500">Production Rate (7d)</span>
                   <span className="font-medium text-slate-900">
-                    {flock.productionRate > 0 ? `${flock.productionRate.toFixed(1)}%` : "No data"}
+                    {Number(flock.productionRate ?? 0) > 0 ? `${Number(flock.productionRate ?? 0).toFixed(1)}%` : "No data"}
                   </span>
                 </div>
                 <div className="w-full bg-slate-100 rounded-full h-2">
                   <div
                     className={`h-2 rounded-full ${
-                      flock.productionRate >= 80 ? "bg-green-500" : flock.productionRate > 0 ? "bg-amber-500" : "bg-slate-200"
+                      Number(flock.productionRate ?? 0) >= 80 ? "bg-green-500" : Number(flock.productionRate ?? 0) > 0 ? "bg-amber-500" : "bg-slate-200"
                     }`}
-                    style={{ width: `${Math.min(100, flock.productionRate)}%` }}
+                    style={{ width: `${Math.min(100, Number(flock.productionRate ?? 0))}%` }}
                   />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3 pt-2">
                 <div className="rounded-lg bg-slate-50 p-3 text-center">
                   <p className="text-2xl font-bold text-slate-900">
-                    {flock.eggsLast7Days.toLocaleString()}
+                    {Number(flock.eggsLast7Days ?? 0).toLocaleString()}
                   </p>
                   <p className="text-xs text-slate-500">Eggs (last 7 days)</p>
                 </div>
                 <div className="rounded-lg bg-slate-50 p-3 text-center">
                   <p className="text-2xl font-bold text-slate-900">
-                    {flock.totalEggs.toLocaleString()}
+                    {Number(flock.totalEggs ?? 0).toLocaleString()}
                   </p>
                   <p className="text-xs text-slate-500">Total Eggs</p>
                 </div>
@@ -431,7 +431,7 @@ export default function FlockDetailPage(): React.ReactElement {
                         </span>
                       </div>
                       <span className="text-sm text-amber-700">
-                        {new Date(v.scheduledDate).toLocaleDateString()}
+                        {v.scheduledDate ? new Date(v.scheduledDate).toLocaleDateString() : "N/A"}
                       </span>
                     </div>
                   ))}

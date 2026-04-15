@@ -169,14 +169,14 @@ export default function DailyEntryHistoryPage(): React.ReactElement {
           <div className="p-2 bg-amber-100 rounded-lg"><Egg className="w-5 h-5 text-amber-600" /></div>
           <div>
             <div className="text-sm text-gray-500">Total Eggs</div>
-            <div className="text-xl font-bold text-gray-900">{totalEggs.toLocaleString()}</div>
+            <div className="text-xl font-bold text-gray-900">{Number(totalEggs ?? 0).toLocaleString()}</div>
           </div>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3">
           <div className="p-2 bg-yellow-100 rounded-lg"><Wheat className="w-5 h-5 text-yellow-600" /></div>
           <div>
             <div className="text-sm text-gray-500">Total Feed</div>
-            <div className="text-xl font-bold text-gray-900">{totalFeed.toFixed(1)} kg</div>
+            <div className="text-xl font-bold text-gray-900">{Number(totalFeed ?? 0).toFixed(1)} kg</div>
           </div>
         </div>
       </div>

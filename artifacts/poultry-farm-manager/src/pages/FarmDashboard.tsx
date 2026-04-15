@@ -106,19 +106,19 @@ export default function FarmDashboard(): React.ReactElement {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard
                 title="Total Live Birds"
-                value={stats ? stats.totalBirds.toLocaleString() : "0"}
+                value={Number(stats?.totalBirds ?? 0).toLocaleString()}
                 icon={<Bird className="h-5 w-5" />}
                 iconColor="text-blue-600 bg-blue-50"
-                onClick={() => setSelectedStat({ type: "birds", currentValue: `${stats?.totalBirds.toLocaleString() ?? "0"} birds` })}
+                onClick={() => setSelectedStat({ type: "birds", currentValue: `${Number(stats?.totalBirds ?? 0).toLocaleString()} birds` })}
               />
               <StatCard
                 title="Today's Eggs"
-                value={stats ? stats.todayEggs.toLocaleString() : "0"}
+                value={Number(stats?.todayEggs ?? 0).toLocaleString()}
                 icon={<Egg className="h-5 w-5" />}
                 iconColor="text-green-600 bg-green-50"
                 trend={eggTrend}
                 trendLabel={trends ? `avg ${trends.avgEggsThisWeek}/day this week` : undefined}
-                onClick={() => setSelectedStat({ type: "eggs", currentValue: `${stats?.todayEggs.toLocaleString() ?? "0"} eggs` })}
+                onClick={() => setSelectedStat({ type: "eggs", currentValue: `${Number(stats?.todayEggs ?? 0).toLocaleString()} eggs` })}
               />
               <StatCard
                 title="Today's Deaths"
@@ -132,11 +132,11 @@ export default function FarmDashboard(): React.ReactElement {
               />
               <StatCard
                 title="Today's Feed"
-                value={stats ? stats.todayFeed.toLocaleString() : "0"}
+                value={Number(stats?.todayFeed ?? 0).toLocaleString()}
                 unit="kg"
                 icon={<Wheat className="h-5 w-5" />}
                 iconColor="text-amber-600 bg-amber-50"
-                onClick={() => setSelectedStat({ type: "feed", currentValue: `${stats?.todayFeed.toLocaleString() ?? "0"} kg` })}
+                onClick={() => setSelectedStat({ type: "feed", currentValue: `${Number(stats?.todayFeed ?? 0).toLocaleString()} kg` })}
               />
             </div>
           </div>

@@ -28,6 +28,7 @@ function formatAge(days: number): string {
 export default function FlockMiniCard({ id, batchName, breed, currentCount, arrivalDate, ageAtArrivalDays, hasEntryToday }: FlockMiniCardProps): React.ReactElement {
   const navigate = useNavigate();
   const ageDays = calculateAge(arrivalDate, ageAtArrivalDays);
+  const safeCurrentCount = Number(currentCount ?? 0);
 
   return (
     <button
@@ -40,7 +41,7 @@ export default function FlockMiniCard({ id, batchName, breed, currentCount, arri
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-gray-900 truncate">{batchName}</p>
         <div className="flex items-center gap-2 text-xs text-gray-500">
-          <span>{currentCount.toLocaleString()} birds</span>
+          <span>{safeCurrentCount.toLocaleString()} birds</span>
           <span className="text-gray-300">&middot;</span>
           <span>{formatAge(ageDays)} old</span>
           {breed && (
