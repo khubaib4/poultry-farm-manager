@@ -18,12 +18,14 @@
     "db:push": "drizzle-kit push"
   },
   "dependencies": {
+    "archiver": "^7.0.1",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.8.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "catalog:",
     "electron-store": "^11.0.2",
+    "extract-zip": "^2.0.1",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.545.0",
@@ -41,6 +43,7 @@
   "devDependencies": {
     "@electron/rebuild": "^4.0.3",
     "@rollup/rollup-darwin-arm64": "^4.60.1",
+    "@types/archiver": "^7.0.0",
     "@types/bcryptjs": "^3.0.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.10.0",

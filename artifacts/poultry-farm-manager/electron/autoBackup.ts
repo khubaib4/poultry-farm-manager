@@ -2,8 +2,8 @@ import { app } from "electron";
 import { join } from "path";
 import { existsSync, mkdirSync } from "fs";
 import Store from "electron-store";
-import { createBackup, cleanOldBackups, generateBackupFilename } from "./backup";
-import type { AutoBackupSettings } from "./backup";
+import { createBackup, deleteBackupFile, getBackupDirectory, listBackups } from "./backup-mongo";
+import type { AutoBackupSettings } from "./backup-sqlite.ts.bak";
 
 const store = new Store<{ autoBackup: AutoBackupSettings }>({
   defaults: {
@@ -11,7 +11,7 @@ const store = new Store<{ autoBackup: AutoBackupSettings }>({
       enabled: false,
       frequency: "daily",
       time: "02:00",
-      location: join(app.getPath("userData"), "backups"),
+      location: getBackupDirectory(),
       retention: 7,
       lastBackup: null,
       nextBackup: null,
@@ -47,30 +47,35 @@ export function saveAutoBackupSettings(settings: Partial<AutoBackupSettings>): A
   return updated;
 }
 
-export function runAutoBackup(): { success: boolean; path?: string; error?: string } {
+export async function runAutoBackup(): Promise<{ success: boolean; path?: string; error?: string }> {
   const settings = getAutoBackupSettings();
-  const dir = settings.location || join(app.getPath("userData"), "backups");
+  const dir = settings.location || getBackupDirectory();
 
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
   }
 
-  const filename = generateBackupFilename();
-  const destPath = join(dir, filename);
+  const ts = new Date().toISOString().replace(/[:.]/g, "-");
+  const destPath = join(dir, `backup-${ts}.zip`);
 
-  try {
-    const result = createBackup(destPath);
-    cleanOldBackups(dir, settings.retention);
+  const result = await createBackup(destPath);
+  if (!result.success || !result.path) throw new Error(result.error || "Auto-backup failed");
 
-    persistSettings({ lastBackup: new Date().toISOString() });
-
-    console.log(`Auto-backup completed: ${result.path}`);
-    return { success: true, path: result.path };
-  } catch (err) {
-    const error = err instanceof Error ? err.message : "Unknown error";
-    console.error("Auto-backup failed:", error);
-    throw new Error(error);
+  // Retention: keep newest N zip files in the backup directory
+  const backups = await listBackups();
+  const retention = Math.max(0, Number(settings.retention ?? 0));
+  if (retention > 0 && backups.length > retention) {
+    const toDelete = backups.filter((b) => b.path?.startsWith(dir)).slice(retention);
+    for (const b of toDelete) {
+      try {
+        await deleteBackupFile(b.path);
+      } catch {}
+    }
   }
+
+  persistSettings({ lastBackup: new Date().toISOString() });
+  console.log(`Auto-backup completed: ${result.path}`);
+  return { success: true, path: result.path };
 }
 
 function getNextBackupTime(settings: AutoBackupSettings): Date {
@@ -102,7 +107,7 @@ export function scheduleNextBackup(): void {
   if (backupTimer) clearTimeout(backupTimer);
 
   backupTimer = setTimeout(() => {
-    try { runAutoBackup(); } catch {}
+    void runAutoBackup().catch(() => {});
     scheduleNextBackup();
   }, Math.max(delay, 60000));
 }

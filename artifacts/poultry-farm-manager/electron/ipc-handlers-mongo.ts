@@ -49,11 +49,11 @@ import {
   createBackup,
   restoreBackup,
   validateBackup,
-  validateBackupPath,
+  listBackups,
+  getBackupDirectory,
+  openBackupFolder,
   deleteBackupFile,
-  listBackupsInDirectory,
-  generateBackupFilename,
-} from "./backup";
+} from "./backup-mongo";
 import {
   getAutoBackupSettings,
   saveAutoBackupSettings,
@@ -3270,12 +3270,7 @@ export function registerIpcHandlers(): void {
     wrapHandler(async () => {
       const session = requireAuth();
       void session;
-      const userDataDir = app.getPath("userData");
-      const backupDir = join(userDataDir, "backups");
-      const filename = generateBackupFilename();
-      const destPath = join(backupDir, filename);
-      validateBackupPath(destPath);
-      return createBackup(destPath);
+      return await createBackup();
     })
   );
 
@@ -3283,8 +3278,7 @@ export function registerIpcHandlers(): void {
     "backup:createToPath",
     wrapHandler(async (_e: unknown, path: string) => {
       requireAuth();
-      validateBackupPath(path);
-      return createBackup(path);
+      return await createBackup(path);
     })
   );
 
@@ -3295,16 +3289,14 @@ export function registerIpcHandlers(): void {
       const result = await dialog.showOpenDialog({
         title: "Select Backup File",
         properties: ["openFile"],
-        filters: [{ name: "Database Backup", extensions: ["db"] }],
+        filters: [{ name: "MongoDB Backup", extensions: ["zip"] }],
       });
       if (result.canceled || !result.filePaths[0]) {
         throw new Error("Restore cancelled");
       }
       const backupPath = result.filePaths[0];
-      const validation = validateBackup(backupPath);
-      if (!validation.valid) {
-        throw new Error(validation.error || "Invalid backup file");
-      }
+      const validation = await validateBackup(backupPath);
+      if (!validation.valid) throw new Error(validation.error || "Invalid backup file");
       return { backupPath, metadata: validation.metadata };
     })
   );
@@ -3313,10 +3305,9 @@ export function registerIpcHandlers(): void {
     "backup:confirmRestore",
     wrapHandler(async (_e: unknown, backupPath: string) => {
       requireAuth();
-      validateBackupPath(backupPath);
-      const res = restoreBackup(backupPath);
+      const res = await restoreBackup(backupPath);
       if (!res.success) throw new Error(res.error || "Restore failed");
-      return { success: true };
+      return res;
     })
   );
 
@@ -3324,8 +3315,7 @@ export function registerIpcHandlers(): void {
     "backup:validate",
     wrapHandler(async (_e: unknown, backupPath: string) => {
       requireAuth();
-      validateBackupPath(backupPath);
-      return validateBackup(backupPath);
+      return await validateBackup(backupPath);
     })
   );
 
@@ -3333,8 +3323,7 @@ export function registerIpcHandlers(): void {
     "backup:getHistory",
     wrapHandler(async () => {
       requireAuth();
-      const dir = join(app.getPath("userData"), "backups");
-      return listBackupsInDirectory(dir);
+      return await listBackups();
     })
   );
 
@@ -3342,9 +3331,8 @@ export function registerIpcHandlers(): void {
     "backup:delete",
     wrapHandler(async (_e: unknown, backupPath: string) => {
       requireAuth();
-      validateBackupPath(backupPath);
-      deleteBackupFile(backupPath);
-      return { deleted: true };
+      await deleteBackupFile(backupPath);
+      return { deleted: true, path: backupPath };
     })
   );
 
@@ -3352,9 +3340,8 @@ export function registerIpcHandlers(): void {
     "backup:openFolder",
     wrapHandler(async () => {
       requireAuth();
-      const dir = join(app.getPath("userData"), "backups");
-      shell.openPath(dir);
-      return { opened: true };
+      await openBackupFolder();
+      return { opened: true, dir: getBackupDirectory() };
     })
   );
 
