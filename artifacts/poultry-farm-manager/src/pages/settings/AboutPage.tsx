@@ -41,10 +41,10 @@ export default function AboutPage(): React.ReactElement {
           <span className="text-sm font-medium text-gray-700">House of Developers</span>
         </SettingRow>
         <SettingRow label="Website">
-          <span className="text-sm text-emerald-600">www.houseofdevelopers.com</span>
+          <span className="text-sm text-emerald-600">www.houseofdevelopers.co.uk</span>
         </SettingRow>
         <SettingRow label="Support Email">
-          <span className="text-sm text-emerald-600">support@houseofdevelopers.com</span>
+          <span className="text-sm text-emerald-600">khubaib@houseofdevelopers.co.uk</span>
         </SettingRow>
       </SettingSection>
 
