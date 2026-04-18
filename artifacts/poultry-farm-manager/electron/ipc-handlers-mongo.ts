@@ -37,6 +37,7 @@ import {
   SaleItemModel,
   SalePaymentModel,
   DismissedAlertModel,
+  CounterModel,
   nextSequence,
 } from "./models";
 
@@ -2154,17 +2155,69 @@ export function registerIpcHandlers(): void {
     "sales:getNextInvoiceNumber",
     wrapHandler(async (_e: unknown, farmId: number) => {
       await requireFarmAccess(farmId);
-      const last = await SaleModel.find({ farmId }).sort({ id: -1 }).limit(1).lean();
-      const lastInvoice = last[0]?.invoiceNumber ?? "INV-0000";
-      const match = /(\d+)$/.exec(lastInvoice);
-      const nextNum = match ? String(Number(match[1]) + 1).padStart(match[1].length, "0") : "0001";
-      return `INV-${nextNum}`;
+      // Before creating a new sale, find the highest existing invoice number for this farm
+      const lastInvoice = await SaleModel.findOne({
+        farmId,
+        invoiceNumber: { $regex: /^INV-\d+$/ },
+      })
+        .sort({ invoiceNumber: -1 })
+        .lean();
+
+      let nextInvoiceNum = 1;
+      if (lastInvoice?.invoiceNumber) {
+        const match = lastInvoice.invoiceNumber.match(/INV-(\d+)/);
+        if (match) nextInvoiceNum = parseInt(match[1], 10) + 1;
+      }
+
+      // Also check the counter collection
+      const counter = await CounterModel.findOne({ name: `sale_invoice_${farmId}` }).lean();
+      if (counter && Number(counter.seq) >= nextInvoiceNum) {
+        nextInvoiceNum = Number(counter.seq) + 1;
+      }
+
+      return `INV-${String(nextInvoiceNum).padStart(4, "0")}`;
     })
   );
 
   ipcMain.handle(
     "sales:create",
     wrapHandler(async (_e: unknown, data: any) => {
+      const farmId = Number(data?.farmId);
+      if (!Number.isFinite(farmId)) throw new Error("Invalid farmId");
+      await requireFarmAccess(farmId);
+
+      let invoiceNumber: string | undefined = data.invoiceNumber;
+      if (!invoiceNumber) {
+        // Before creating a new sale, find the highest existing invoice number for this farm
+        const lastInvoice = await SaleModel.findOne({
+          farmId,
+          invoiceNumber: { $regex: /^INV-\d+$/ },
+        })
+          .sort({ invoiceNumber: -1 })
+          .lean();
+
+        let nextInvoiceNum = 1;
+        if (lastInvoice?.invoiceNumber) {
+          const match = lastInvoice.invoiceNumber.match(/INV-(\d+)/);
+          if (match) nextInvoiceNum = parseInt(match[1], 10) + 1;
+        }
+
+        // Also check the counter collection
+        const counter = await CounterModel.findOne({ name: `sale_invoice_${farmId}` }).lean();
+        if (counter && Number(counter.seq) >= nextInvoiceNum) {
+          nextInvoiceNum = Number(counter.seq) + 1;
+        }
+
+        // Update the counter to the new value (store the last used invoice number)
+        await CounterModel.findOneAndUpdate(
+          { name: `sale_invoice_${farmId}` },
+          { $set: { seq: nextInvoiceNum } },
+          { upsert: true }
+        );
+
+        invoiceNumber = `INV-${String(nextInvoiceNum).padStart(4, "0")}`;
+      }
+
       const computed = computeSaleTotals({
         items: data.items ?? [],
         discountType: data.discountType,
@@ -2172,9 +2225,9 @@ export function registerIpcHandlers(): void {
         paidAmount: data.amountPaid ?? data.paidAmount,
       });
       const parsed = saleSchema.omit({ id: true }).safeParse({
-        farmId: data.farmId,
+        farmId,
         customerId: data.customerId,
-        invoiceNumber: data.invoiceNumber ?? "INV-0001",
+        invoiceNumber,
         saleDate: data.saleDate,
         dueDate: data.dueDate,
         subtotal: computed.subtotal,
@@ -2189,7 +2242,6 @@ export function registerIpcHandlers(): void {
         isDeleted: 0,
       });
       if (!parsed.success) throw new Error(parsed.error.message);
-      await requireFarmAccess(parsed.data.farmId!);
 
       const createdSale = await createWithId("sales", SaleModel as any, parsed.data as any);
       const sale = toPlain<any>(createdSale);
