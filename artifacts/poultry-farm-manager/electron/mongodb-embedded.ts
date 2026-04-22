@@ -2,42 +2,11 @@ import { MongoMemoryServer } from "mongodb-memory-server";
 import mongoose from "mongoose";
 import { app } from "electron";
 import { getMongoDBConfig } from "./mongodb-config";
-import { DailyEntryModel } from "./models/dailyEntry.model";
+// Note: embedded MongoDB bootstrap only; no legacy migrations needed in dev.
 
 let mongod: MongoMemoryServer | null = null;
 let isConnected = false;
 let connecting: Promise<void> | null = null;
-
-// Migrate old egg fields to totalEggs (MongoDB)
-async function migrateEggFields(): Promise<void> {
-  try {
-    const result = await DailyEntryModel.updateMany(
-      { totalEggs: { $exists: false } },
-      [
-        {
-          $set: {
-            totalEggs: {
-              $add: [
-                { $ifNull: ["$eggsGradeA", 0] },
-                { $ifNull: ["$eggsGradeB", 0] },
-                { $ifNull: ["$eggsCracked", 0] },
-              ],
-            },
-          },
-        },
-      ] as any
-    );
-    const modifiedCount =
-      typeof (result as any).modifiedCount === "number"
-        ? (result as any).modifiedCount
-        : typeof (result as any).nModified === "number"
-          ? (result as any).nModified
-          : 0;
-    console.log(`[mongodb] Migrated ${modifiedCount} daily entries to totalEggs`);
-  } catch (error) {
-    console.error("[mongodb] Failed to migrate egg fields:", error);
-  }
-}
 
 async function startEmbeddedMongoDB(): Promise<string> {
   if (mongod) return mongod.getUri();
@@ -121,7 +90,6 @@ export async function connectMongoDB(): Promise<void> {
       });
       isConnected = true;
       console.log("[mongodb] Connected successfully");
-      await migrateEggFields();
     } finally {
       connecting = null;
     }

@@ -900,6 +900,41 @@ export interface SalePayment {
   createdAt: string | null;
 }
 
+export interface StockSummary {
+  currentStock: number;
+  totalCollected: number;
+  totalSold: number;
+  totalAdjustments: number;
+  todayCollection: number;
+  todaySold: number;
+  avgDailyCollection: number;
+  avgDailySales: number;
+  daysRemaining: number | null;
+  stockInTrays: number;
+  stockInPetis: number;
+}
+
+export interface StockMovement {
+  id: string;
+  date: string;
+  type: "collection" | "sale" | "wastage" | "breakage" | "correction" | "opening_stock";
+  description: string;
+  quantity: number;
+  direction: "in" | "out";
+  notes?: string;
+}
+
+export interface StockAdjustment {
+  id: number;
+  farmId: number;
+  adjustmentDate: string;
+  type: "wastage" | "breakage" | "correction" | "opening_stock";
+  quantity: number;
+  reason: string;
+  notes: string;
+  createdAt: string;
+}
+
 export interface SaleDetail extends Sale {
   customer: Customer | null;
   walkInCustomerName?: string;
@@ -1392,6 +1427,24 @@ export interface ElectronAPI {
     getNextInvoiceNumber: (farmId: number) => Promise<IpcResponse<string>>;
     getSummary: (farmId: number, startDate: string, endDate: string) => Promise<IpcResponse<SalesSummary>>;
     recordPayment: (data: RecordPaymentData) => Promise<IpcResponse<SalePayment>>;
+  };
+  stock: {
+    getSummary: (farmId: number) => Promise<IpcResponse<StockSummary>>;
+    getMovements: (
+      farmId: number,
+      options?: { startDate?: string; endDate?: string; type?: string; limit?: number }
+    ) => Promise<IpcResponse<StockMovement[]>>;
+    createAdjustment: (data: {
+      farmId: number;
+      adjustmentDate?: string;
+      type: "wastage" | "breakage" | "correction" | "opening_stock";
+      quantity: number;
+      reason?: string;
+      notes?: string;
+      createdBy?: string;
+    }) => Promise<IpcResponse<StockAdjustment>>;
+    getAdjustments: (farmId: number) => Promise<IpcResponse<StockAdjustment[]>>;
+    deleteAdjustment: (id: number) => Promise<IpcResponse<{ success: true }>>;
   };
   payments: {
     getByFarm: (farmId: number, filters?: PaymentFilters) => Promise<IpcResponse<PaymentWithDetails[]>>;

@@ -37,6 +37,7 @@ import {
   SaleModel,
   SaleItemModel,
   SalePaymentModel,
+  StockAdjustmentModel,
   DismissedAlertModel,
   CounterModel,
   nextSequence,
@@ -60,6 +61,7 @@ import {
   saleSchema,
   saleItemSchema,
   salePaymentSchema,
+  stockAdjustmentSchema,
   dismissedAlertSchema,
 } from "./schemas";
 
@@ -2614,6 +2616,284 @@ export function registerIpcHandlers(): void {
         { paidAmount: newPaid, balanceDue, paymentStatus }
       );
       return toPlain<any>(payment);
+    })
+  );
+
+  // --------------------
+  // Egg stock
+  // --------------------
+  ipcMain.handle(
+    "stock:getSummary",
+    wrapHandler(async (_e: unknown, farmId: number) => {
+      await requireFarmAccess(farmId);
+
+      const flocks = await FlockModel.find({ farmId }).lean();
+      const flockIds = flocks.map((f: any) => f.id).filter((id: unknown) => typeof id === "number");
+
+      const totalCollectedAgg =
+        flockIds.length > 0
+          ? await DailyEntryModel.aggregate([
+              { $match: { flockId: { $in: flockIds } } },
+              { $group: { _id: null, total: { $sum: "$totalEggs" } } },
+            ])
+          : [];
+      const totalCollected = Number(totalCollectedAgg?.[0]?.total ?? 0);
+
+      const sales = await SaleModel.find({ farmId, isDeleted: { $ne: 1 } })
+        .select({ id: 1, saleDate: 1 })
+        .lean();
+      const saleIds = sales.map((s: any) => s.id).filter((id: unknown) => typeof id === "number");
+
+      const saleItems = saleIds.length
+        ? await SaleItemModel.find({ saleId: { $in: saleIds } }).lean()
+        : [];
+
+      let totalSold = 0;
+      for (const item of saleItems as any[]) {
+        const unitType = String((item as any).unitType ?? "tray");
+        const multiplier = unitType === "peti" ? 360 : unitType === "tray" ? 30 : 1;
+        totalSold += Number((item as any).quantity ?? 0) * multiplier;
+      }
+
+      const totalAdjustmentsAgg = await StockAdjustmentModel.aggregate([
+        { $match: { farmId } },
+        { $group: { _id: null, total: { $sum: "$quantity" } } },
+      ]);
+      const totalAdjustments = Number(totalAdjustmentsAgg?.[0]?.total ?? 0);
+
+      const currentStock = totalCollected - totalSold + totalAdjustments;
+
+      const today = ymdLocal(new Date());
+      const todayCollectedAgg =
+        flockIds.length > 0
+          ? await DailyEntryModel.aggregate([
+              { $match: { flockId: { $in: flockIds }, entryDate: today } },
+              { $group: { _id: null, total: { $sum: "$totalEggs" } } },
+            ])
+          : [];
+      const todayCollection = Number(todayCollectedAgg?.[0]?.total ?? 0);
+
+      const salesTodayIds = sales
+        .filter((s: any) => String(s.saleDate) === today)
+        .map((s: any) => s.id)
+        .filter((id: unknown) => typeof id === "number");
+      const todaySaleItems = salesTodayIds.length
+        ? await SaleItemModel.find({ saleId: { $in: salesTodayIds } }).lean()
+        : [];
+      let todaySold = 0;
+      for (const item of todaySaleItems as any[]) {
+        const unitType = String((item as any).unitType ?? "tray");
+        const multiplier = unitType === "peti" ? 360 : unitType === "tray" ? 30 : 1;
+        todaySold += Number((item as any).quantity ?? 0) * multiplier;
+      }
+
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      const weekAgoStr = ymdLocal(weekAgo);
+
+      const weeklyCollectedAgg =
+        flockIds.length > 0
+          ? await DailyEntryModel.aggregate([
+              { $match: { flockId: { $in: flockIds }, entryDate: { $gte: weekAgoStr } } },
+              { $group: { _id: null, total: { $sum: "$totalEggs" } } },
+            ])
+          : [];
+      const avgDailyCollection = Math.round(Number(weeklyCollectedAgg?.[0]?.total ?? 0) / 7);
+
+      const weeklySaleIds = sales
+        .filter((s: any) => String(s.saleDate) >= weekAgoStr)
+        .map((s: any) => s.id)
+        .filter((id: unknown) => typeof id === "number");
+      const weeklySaleItems = weeklySaleIds.length
+        ? await SaleItemModel.find({ saleId: { $in: weeklySaleIds } }).lean()
+        : [];
+      let weekSold = 0;
+      for (const item of weeklySaleItems as any[]) {
+        const unitType = String((item as any).unitType ?? "tray");
+        const multiplier = unitType === "peti" ? 360 : unitType === "tray" ? 30 : 1;
+        weekSold += Number((item as any).quantity ?? 0) * multiplier;
+      }
+      const avgDailySales = Math.round(weekSold / 7);
+
+      const daysRemaining = avgDailySales > 0 ? Math.round(currentStock / avgDailySales) : null;
+
+      return {
+        currentStock,
+        totalCollected,
+        totalSold,
+        totalAdjustments,
+        todayCollection,
+        todaySold,
+        avgDailyCollection,
+        avgDailySales,
+        daysRemaining,
+        stockInTrays: Math.floor(currentStock / 30),
+        stockInPetis: Math.floor(currentStock / 360),
+      };
+    })
+  );
+
+  ipcMain.handle(
+    "stock:getMovements",
+    wrapHandler(
+      async (
+        _e: unknown,
+        farmId: number,
+        options?: { startDate?: string; endDate?: string; type?: string; limit?: number }
+      ) => {
+        await requireFarmAccess(farmId);
+
+        const { startDate, endDate, type, limit = 50 } = options || {};
+        const movements: any[] = [];
+
+        const flocks = await FlockModel.find({ farmId }).lean();
+        const flockIds = flocks.map((f: any) => f.id).filter((id: unknown) => typeof id === "number");
+        const flockMap = new Map<number, string>(flocks.map((f: any) => [Number(f.id), String(f.batchName ?? f.name ?? "")]));
+
+        if (!type || type === "in" || type === "collection") {
+          const entryQuery: any = { flockId: { $in: flockIds } };
+          if (startDate || endDate) entryQuery.entryDate = {};
+          if (startDate) entryQuery.entryDate.$gte = startDate;
+          if (endDate) entryQuery.entryDate.$lte = endDate;
+
+          const entries = flockIds.length
+            ? await DailyEntryModel.find(entryQuery).sort({ entryDate: -1, id: -1 }).limit(limit).lean()
+            : [];
+          for (const entry of entries as any[]) {
+            const qty = Number((entry as any).totalEggs ?? 0);
+            if (qty <= 0) continue;
+            movements.push({
+              id: `entry-${(entry as any).id}`,
+              date: String((entry as any).entryDate),
+              type: "collection",
+              description: `Daily collection - ${flockMap.get(Number((entry as any).flockId)) || "Unknown Flock"}`,
+              quantity: qty,
+              direction: "in",
+            });
+          }
+        }
+
+        if (!type || type === "out" || type === "sale") {
+          const saleQuery: any = { farmId, isDeleted: { $ne: 1 } };
+          if (startDate || endDate) saleQuery.saleDate = {};
+          if (startDate) saleQuery.saleDate.$gte = startDate;
+          if (endDate) saleQuery.saleDate.$lte = endDate;
+
+          const sales = await SaleModel.find(saleQuery).sort({ saleDate: -1, id: -1 }).limit(limit).lean();
+          const saleIds = sales.map((s: any) => s.id).filter((id: unknown) => typeof id === "number");
+          const items = saleIds.length
+            ? await SaleItemModel.find({ saleId: { $in: saleIds } }).lean()
+            : [];
+
+          const bySaleId = new Map<number, number>();
+          for (const item of items as any[]) {
+            const sid = Number((item as any).saleId);
+            const unitType = String((item as any).unitType ?? "tray");
+            const multiplier = unitType === "peti" ? 360 : unitType === "tray" ? 30 : 1;
+            const eggs = Number((item as any).quantity ?? 0) * multiplier;
+            bySaleId.set(sid, (bySaleId.get(sid) || 0) + eggs);
+          }
+
+          for (const sale of sales as any[]) {
+            const totalEggs = Number(bySaleId.get(Number((sale as any).id)) || 0);
+            if (totalEggs <= 0) continue;
+            movements.push({
+              id: `sale-${(sale as any).id}`,
+              date: String((sale as any).saleDate),
+              type: "sale",
+              description: `Sale ${(sale as any).invoiceNumber} - ${(sale as any).customerName || (sale as any).walkInCustomerName || "Walk-in"}`,
+              quantity: totalEggs,
+              direction: "out",
+            });
+          }
+        }
+
+        if (!type || type === "adjustment") {
+          const adjQuery: any = { farmId };
+          if (startDate || endDate) adjQuery.adjustmentDate = {};
+          if (startDate) adjQuery.adjustmentDate.$gte = startDate;
+          if (endDate) adjQuery.adjustmentDate.$lte = endDate;
+
+          const adjustments = await StockAdjustmentModel.find(adjQuery)
+            .sort({ adjustmentDate: -1, id: -1 })
+            .limit(limit)
+            .lean();
+
+          for (const adj of adjustments as any[]) {
+            const q = Number((adj as any).quantity ?? 0);
+            movements.push({
+              id: `adj-${(adj as any).id}`,
+              date: String((adj as any).adjustmentDate),
+              type: String((adj as any).type),
+              description: String((adj as any).reason || (adj as any).type),
+              quantity: Math.abs(q),
+              direction: q >= 0 ? "in" : "out",
+              notes: (adj as any).notes || "",
+            });
+          }
+        }
+
+        movements.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+        return movements.slice(0, limit);
+      }
+    )
+  );
+
+  ipcMain.handle(
+    "stock:createAdjustment",
+    wrapHandler(async (_e: unknown, data: any) => {
+      const farmId = Number(data?.farmId);
+      if (!Number.isFinite(farmId)) throw new Error("Invalid farmId");
+      const session = await requireFarmAccess(farmId);
+
+      const now = new Date().toISOString();
+      const adjustmentDate = String(data.adjustmentDate || now.split("T")[0]);
+      const typeRaw = String(data.type || "");
+      const type =
+        typeRaw === "wastage" || typeRaw === "breakage" || typeRaw === "correction" || typeRaw === "opening_stock"
+          ? typeRaw
+          : null;
+      if (!type) throw new Error("Invalid adjustment type");
+
+      const qty = Number(data.quantity ?? 0);
+      if (!Number.isFinite(qty) || qty === 0) throw new Error("Invalid quantity");
+
+      const signedQty = type === "wastage" || type === "breakage" ? -Math.abs(qty) : qty;
+
+      const parsed = stockAdjustmentSchema.omit({ id: true }).safeParse({
+        farmId,
+        adjustmentDate,
+        type,
+        quantity: signedQty,
+        reason: data.reason || "",
+        notes: data.notes || "",
+        createdBy: data.createdBy || (session.type === "user" ? String(session.name) : ""),
+        createdAt: now,
+        updatedAt: now,
+      });
+      if (!parsed.success) throw new Error(parsed.error.message);
+
+      const adjustment = await createWithId("stock_adjustments", StockAdjustmentModel as any, parsed.data as any);
+      return toPlain<any>(adjustment);
+    })
+  );
+
+  ipcMain.handle(
+    "stock:getAdjustments",
+    wrapHandler(async (_e: unknown, farmId: number) => {
+      await requireFarmAccess(farmId);
+      return await StockAdjustmentModel.find({ farmId }).sort({ adjustmentDate: -1, id: -1 }).lean();
+    })
+  );
+
+  ipcMain.handle(
+    "stock:deleteAdjustment",
+    wrapHandler(async (_e: unknown, id: number) => {
+      const adj = await StockAdjustmentModel.findOne({ id }).lean();
+      if (!adj) throw new Error("Adjustment not found");
+      await requireFarmAccess(Number((adj as any).farmId));
+      await StockAdjustmentModel.deleteOne({ id });
+      return { success: true };
     })
   );
 

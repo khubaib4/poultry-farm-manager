@@ -5040,6 +5040,324 @@ export function registerIpcHandlers(): void {
     })
   );
 
+  // --------------------
+  // Egg stock
+  // --------------------
+  const unitMultiplier = (unitType: unknown): number => {
+    const u = String(unitType ?? "tray");
+    return u === "peti" ? 360 : u === "tray" ? 30 : 1;
+  };
+
+  const getNextStockAdjustmentId = (): number => {
+    const row = db
+      .select({ maxId: sql<number>`max(${schema.stockAdjustments.id})` })
+      .from(schema.stockAdjustments)
+      .get();
+    const maxId = Number(row?.maxId ?? 0);
+    return (Number.isFinite(maxId) ? maxId : 0) + 1;
+  };
+
+  ipcMain.handle(
+    "stock:getSummary",
+    wrapHandler(async (_e: unknown, farmId: number) => {
+      requireFarmAccess(farmId);
+
+      const flocks = db.select({ id: schema.flocks.id }).from(schema.flocks)
+        .where(eq(schema.flocks.farmId, farmId)).all();
+      const flockIds = flocks.map((f) => f.id);
+
+      const collectedRow = flockIds.length
+        ? db
+            .select({ total: sum(schema.dailyEntries.totalEggs) })
+            .from(schema.dailyEntries)
+            .where(inArray(schema.dailyEntries.flockId, flockIds))
+            .get()
+        : { total: 0 };
+      const totalCollected = Number(collectedRow?.total ?? 0);
+
+      const sales = db.select({ id: schema.sales.id, saleDate: schema.sales.saleDate })
+        .from(schema.sales)
+        .where(and(eq(schema.sales.farmId, farmId), eq(schema.sales.isDeleted, 0)))
+        .all();
+      const saleIds = sales.map((s) => s.id);
+
+      const saleItems = saleIds.length
+        ? db.select({ saleId: schema.saleItems.saleId, unitType: schema.saleItems.unitType, quantity: schema.saleItems.quantity })
+            .from(schema.saleItems)
+            .where(inArray(schema.saleItems.saleId, saleIds))
+            .all()
+        : [];
+      let totalSold = 0;
+      for (const item of saleItems) {
+        totalSold += Number(item.quantity ?? 0) * unitMultiplier(item.unitType);
+      }
+
+      const adjRow = db
+        .select({ total: sum(schema.stockAdjustments.quantity) })
+        .from(schema.stockAdjustments)
+        .where(eq(schema.stockAdjustments.farmId, farmId))
+        .get();
+      const totalAdjustments = Number(adjRow?.total ?? 0);
+
+      const currentStock = totalCollected - totalSold + totalAdjustments;
+
+      const today = new Date().toISOString().split("T")[0];
+      const todayCollectedRow = flockIds.length
+        ? db
+            .select({ total: sum(schema.dailyEntries.totalEggs) })
+            .from(schema.dailyEntries)
+            .where(and(inArray(schema.dailyEntries.flockId, flockIds), eq(schema.dailyEntries.entryDate, today)))
+            .get()
+        : { total: 0 };
+      const todayCollection = Number(todayCollectedRow?.total ?? 0);
+
+      const todaySaleIds = sales.filter((s) => s.saleDate === today).map((s) => s.id);
+      const todayItems = todaySaleIds.length
+        ? db
+            .select({ unitType: schema.saleItems.unitType, quantity: schema.saleItems.quantity })
+            .from(schema.saleItems)
+            .where(inArray(schema.saleItems.saleId, todaySaleIds))
+            .all()
+        : [];
+      let todaySold = 0;
+      for (const item of todayItems) {
+        todaySold += Number(item.quantity ?? 0) * unitMultiplier(item.unitType);
+      }
+
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      const weekAgoStr = weekAgo.toISOString().split("T")[0];
+
+      const weeklyCollectedRow = flockIds.length
+        ? db
+            .select({ total: sum(schema.dailyEntries.totalEggs) })
+            .from(schema.dailyEntries)
+            .where(and(inArray(schema.dailyEntries.flockId, flockIds), gte(schema.dailyEntries.entryDate, weekAgoStr)))
+            .get()
+        : { total: 0 };
+      const avgDailyCollection = Math.round(Number(weeklyCollectedRow?.total ?? 0) / 7);
+
+      const weeklySaleIds = sales.filter((s) => s.saleDate >= weekAgoStr).map((s) => s.id);
+      const weeklyItems = weeklySaleIds.length
+        ? db
+            .select({ unitType: schema.saleItems.unitType, quantity: schema.saleItems.quantity })
+            .from(schema.saleItems)
+            .where(inArray(schema.saleItems.saleId, weeklySaleIds))
+            .all()
+        : [];
+      let weekSold = 0;
+      for (const item of weeklyItems) {
+        weekSold += Number(item.quantity ?? 0) * unitMultiplier(item.unitType);
+      }
+      const avgDailySales = Math.round(weekSold / 7);
+
+      const daysRemaining = avgDailySales > 0 ? Math.round(currentStock / avgDailySales) : null;
+
+      return {
+        currentStock,
+        totalCollected,
+        totalSold,
+        totalAdjustments,
+        todayCollection,
+        todaySold,
+        avgDailyCollection,
+        avgDailySales,
+        daysRemaining,
+        stockInTrays: Math.floor(currentStock / 30),
+        stockInPetis: Math.floor(currentStock / 360),
+      };
+    })
+  );
+
+  ipcMain.handle(
+    "stock:getMovements",
+    wrapHandler(async (_e: unknown, farmId: number, options?: { startDate?: string; endDate?: string; type?: string; limit?: number }) => {
+      requireFarmAccess(farmId);
+      const { startDate, endDate, type, limit = 50 } = options || {};
+
+      const movements: any[] = [];
+
+      const flocks = db
+        .select({ id: schema.flocks.id, name: schema.flocks.batchName })
+        .from(schema.flocks)
+        .where(eq(schema.flocks.farmId, farmId))
+        .all();
+      const flockIds = flocks.map((f) => f.id);
+      const flockMap = new Map<number, string>(flocks.map((f) => [f.id, f.name]));
+
+      if (!type || type === "in" || type === "collection") {
+        const entryWhere: any[] = [];
+        if (flockIds.length) entryWhere.push(inArray(schema.dailyEntries.flockId, flockIds));
+        if (startDate) entryWhere.push(gte(schema.dailyEntries.entryDate, startDate));
+        if (endDate) entryWhere.push(lte(schema.dailyEntries.entryDate, endDate));
+
+        const entries = flockIds.length
+          ? db
+              .select()
+              .from(schema.dailyEntries)
+              .where(entryWhere.length ? and(...entryWhere) : undefined)
+              .orderBy(desc(schema.dailyEntries.entryDate), desc(schema.dailyEntries.id))
+              .limit(limit)
+              .all()
+          : [];
+
+        for (const entry of entries) {
+          const qty = Number(entry.totalEggs ?? 0);
+          if (qty <= 0) continue;
+          movements.push({
+            id: `entry-${entry.id}`,
+            date: entry.entryDate,
+            type: "collection",
+            description: `Daily collection - ${flockMap.get(entry.flockId ?? 0) || "Unknown Flock"}`,
+            quantity: qty,
+            direction: "in",
+          });
+        }
+      }
+
+      if (!type || type === "out" || type === "sale") {
+        const saleWhere: any[] = [eq(schema.sales.farmId, farmId), eq(schema.sales.isDeleted, 0)];
+        if (startDate) saleWhere.push(gte(schema.sales.saleDate, startDate));
+        if (endDate) saleWhere.push(lte(schema.sales.saleDate, endDate));
+
+        const sales = db
+          .select({
+            id: schema.sales.id,
+            saleDate: schema.sales.saleDate,
+            invoiceNumber: schema.sales.invoiceNumber,
+            customerName: schema.customers.name,
+            walkInCustomerName: schema.sales.walkInCustomerName,
+          })
+          .from(schema.sales)
+          .leftJoin(schema.customers, eq(schema.sales.customerId, schema.customers.id))
+          .where(and(...saleWhere))
+          .orderBy(desc(schema.sales.saleDate), desc(schema.sales.id))
+          .limit(limit)
+          .all();
+
+        const saleIds = sales.map((s) => s.id);
+        const items = saleIds.length
+          ? db
+              .select({ saleId: schema.saleItems.saleId, unitType: schema.saleItems.unitType, quantity: schema.saleItems.quantity })
+              .from(schema.saleItems)
+              .where(inArray(schema.saleItems.saleId, saleIds))
+              .all()
+          : [];
+
+        const bySaleId = new Map<number, number>();
+        for (const item of items) {
+          const sid = Number(item.saleId);
+          bySaleId.set(sid, (bySaleId.get(sid) || 0) + Number(item.quantity ?? 0) * unitMultiplier(item.unitType));
+        }
+
+        for (const sale of sales) {
+          const totalEggs = Number(bySaleId.get(sale.id) || 0);
+          if (totalEggs <= 0) continue;
+          const displayName = String(sale.customerName || sale.walkInCustomerName || "Walk-in");
+          movements.push({
+            id: `sale-${sale.id}`,
+            date: sale.saleDate,
+            type: "sale",
+            description: `Sale ${sale.invoiceNumber} - ${displayName}`,
+            quantity: totalEggs,
+            direction: "out",
+          });
+        }
+      }
+
+      if (!type || type === "adjustment") {
+        const adjWhere: any[] = [eq(schema.stockAdjustments.farmId, farmId)];
+        if (startDate) adjWhere.push(gte(schema.stockAdjustments.adjustmentDate, startDate));
+        if (endDate) adjWhere.push(lte(schema.stockAdjustments.adjustmentDate, endDate));
+
+        const adjustments = db
+          .select()
+          .from(schema.stockAdjustments)
+          .where(and(...adjWhere))
+          .orderBy(desc(schema.stockAdjustments.adjustmentDate), desc(schema.stockAdjustments.id))
+          .limit(limit)
+          .all();
+
+        for (const adj of adjustments) {
+          const q = Number(adj.quantity ?? 0);
+          movements.push({
+            id: `adj-${adj.id}`,
+            date: adj.adjustmentDate,
+            type: adj.type,
+            description: adj.reason || adj.type,
+            quantity: Math.abs(q),
+            direction: q >= 0 ? "in" : "out",
+            notes: adj.notes || "",
+          });
+        }
+      }
+
+      movements.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+      return movements.slice(0, limit);
+    })
+  );
+
+  ipcMain.handle(
+    "stock:createAdjustment",
+    wrapHandler(async (_e: unknown, data: any) => {
+      const farmId = Number(data?.farmId);
+      if (!Number.isFinite(farmId)) throw new Error("Invalid farmId");
+      const session = requireFarmAccess(farmId);
+
+      const now = new Date().toISOString();
+      const adjustmentDate = String(data.adjustmentDate || now.split("T")[0]);
+      const typeRaw = String(data.type || "");
+      if (!["wastage", "breakage", "correction", "opening_stock"].includes(typeRaw)) {
+        throw new Error("Invalid adjustment type");
+      }
+
+      const qty = Number(data.quantity ?? 0);
+      if (!Number.isFinite(qty) || qty === 0) throw new Error("Invalid quantity");
+      const signedQty = typeRaw === "wastage" || typeRaw === "breakage" ? -Math.abs(qty) : qty;
+
+      const id = getNextStockAdjustmentId();
+      db.insert(schema.stockAdjustments).values({
+        id,
+        farmId,
+        adjustmentDate,
+        type: typeRaw,
+        quantity: Math.trunc(signedQty),
+        reason: String(data.reason || ""),
+        notes: String(data.notes || ""),
+        createdBy: String(data.createdBy || session.name || ""),
+        createdAt: now,
+        updatedAt: now,
+      }).run();
+
+      return db.select().from(schema.stockAdjustments).where(eq(schema.stockAdjustments.id, id)).get();
+    })
+  );
+
+  ipcMain.handle(
+    "stock:getAdjustments",
+    wrapHandler(async (_e: unknown, farmId: number) => {
+      requireFarmAccess(farmId);
+      return db
+        .select()
+        .from(schema.stockAdjustments)
+        .where(eq(schema.stockAdjustments.farmId, farmId))
+        .orderBy(desc(schema.stockAdjustments.adjustmentDate), desc(schema.stockAdjustments.id))
+        .all();
+    })
+  );
+
+  ipcMain.handle(
+    "stock:deleteAdjustment",
+    wrapHandler(async (_e: unknown, id: number) => {
+      requireAuth();
+      const existing = db.select().from(schema.stockAdjustments).where(eq(schema.stockAdjustments.id, id)).get();
+      if (!existing) throw new Error("Adjustment not found");
+      requireFarmAccess(existing.farmId);
+      db.delete(schema.stockAdjustments).where(eq(schema.stockAdjustments.id, id)).run();
+      return { success: true };
+    })
+  );
+
   ipcMain.handle(
     "payments:getByFarm",
     wrapHandler(async (_e: unknown, farmId: number, filters?: {

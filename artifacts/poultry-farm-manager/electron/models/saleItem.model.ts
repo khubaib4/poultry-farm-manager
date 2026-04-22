@@ -17,8 +17,6 @@ const SaleItemMongooseSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-SaleItemMongooseSchema.index({ saleId: 1 });
-
 SaleItemMongooseSchema.pre("validate", function () {
   zodValidateDoc(this, saleItemSchema);
 });

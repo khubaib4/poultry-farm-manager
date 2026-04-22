@@ -385,6 +385,21 @@ function createTablesManually(): void {
       dismissed_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
   `);
+
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS stock_adjustments (
+      id INTEGER PRIMARY KEY,
+      farm_id INTEGER NOT NULL REFERENCES farms(id),
+      adjustment_date TEXT NOT NULL,
+      type TEXT NOT NULL,
+      quantity INTEGER NOT NULL,
+      reason TEXT DEFAULT '',
+      notes TEXT DEFAULT '',
+      created_by TEXT DEFAULT '',
+      created_at TEXT,
+      updated_at TEXT
+    );
+  `);
 }
 
 export function getDatabase(): typeof db {

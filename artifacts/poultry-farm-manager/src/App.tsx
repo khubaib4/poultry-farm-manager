@@ -35,6 +35,7 @@ const RevenuePage = lazy(() => import("@/pages/farm/RevenuePage"));
 const FinancialDashboard = lazy(() => import("@/pages/farm/FinancialDashboard"));
 const ProfitLossReport = lazy(() => import("@/pages/farm/ProfitLossReport"));
 const InventoryPage = lazy(() => import("@/pages/farm/InventoryPage"));
+const StockPage = lazy(() => import("@/pages/farm/StockPage"));
 const AddInventoryItemPage = lazy(() => import("@/pages/farm/AddInventoryItemPage"));
 const EditInventoryItemPage = lazy(() => import("@/pages/farm/EditInventoryItemPage"));
 const AlertsPage = lazy(() => import("@/pages/farm/AlertsPage"));
@@ -152,6 +153,7 @@ export default function App(): React.ReactElement {
                   <Route path="sales/new" element={<NewSalePage />} />
                   <Route path="sales/:id" element={<SaleDetailPage />} />
                   <Route path="sales/:id/edit" element={<EditSalePage />} />
+                  <Route path="stock" element={<StockPage />} />
                   <Route path="payments" element={<PaymentsPage />} />
                   <Route path="receivables" element={<ReceivablesPage />} />
                   <Route path="expenses" element={<ExpensesPage />} />
@@ -181,6 +183,7 @@ export default function App(): React.ReactElement {
                 <Route path="/farm/flocks/:flockId" element={<FarmLayout><FlockDetailPage /></FarmLayout>} />
                 <Route path="/farm/flocks/:flockId/edit" element={<FarmLayout><EditFlockPage /></FarmLayout>} />
                 <Route path="/farm/inventory" element={<FarmLayout><InventoryPage /></FarmLayout>} />
+                <Route path="/farm/stock" element={<FarmLayout><StockPage /></FarmLayout>} />
                 <Route path="/farm/inventory/new" element={<FarmLayout><AddInventoryItemPage /></FarmLayout>} />
                 <Route path="/farm/inventory/:itemId/edit" element={<FarmLayout><EditInventoryItemPage /></FarmLayout>} />
                 <Route path="/farm/vaccinations" element={<FarmLayout><VaccinationSchedulePage /></FarmLayout>} />

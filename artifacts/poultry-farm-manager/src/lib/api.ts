@@ -76,6 +76,9 @@ import type {
   SalesSummary,
   SalePayment,
   RecordPaymentData,
+  StockSummary,
+  StockMovement,
+  StockAdjustment,
   PaymentWithDetails,
   CustomerPayment,
   PaymentFilters,
@@ -592,6 +595,32 @@ export const sales = {
 
   recordPayment: (data: RecordPaymentData) =>
     invoke<SalePayment>(() => getApi()!.sales.recordPayment(data)),
+};
+
+export const stock = {
+  getSummary: (farmId: number) =>
+    invoke<StockSummary>(() => getApi()!.stock.getSummary(farmId)),
+
+  getMovements: (
+    farmId: number,
+    options?: { startDate?: string; endDate?: string; type?: string; limit?: number }
+  ) => invoke<StockMovement[]>(() => getApi()!.stock.getMovements(farmId, options)),
+
+  createAdjustment: (data: {
+    farmId: number;
+    adjustmentDate?: string;
+    type: "wastage" | "breakage" | "correction" | "opening_stock";
+    quantity: number;
+    reason?: string;
+    notes?: string;
+    createdBy?: string;
+  }) => invoke<StockAdjustment>(() => getApi()!.stock.createAdjustment(data)),
+
+  getAdjustments: (farmId: number) =>
+    invoke<StockAdjustment[]>(() => getApi()!.stock.getAdjustments(farmId)),
+
+  deleteAdjustment: (id: number) =>
+    invoke<{ success: true }>(() => getApi()!.stock.deleteAdjustment(id)),
 };
 
 export const payments = {

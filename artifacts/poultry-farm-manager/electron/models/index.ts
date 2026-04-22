@@ -16,5 +16,6 @@ export * from "./customer.model";
 export * from "./sale.model";
 export * from "./saleItem.model";
 export * from "./salePayment.model";
+export * from "./stockAdjustment.model";
 export * from "./dismissedAlert.model";
 

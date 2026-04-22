@@ -219,6 +219,20 @@ export const salePaymentSchema = z.object({
   notes: z.string().optional().nullable(),
 });
 
+// Egg stock adjustments
+export const stockAdjustmentSchema = z.object({
+  id: idNumber.optional(),
+  farmId: idNumber.optional().nullable(),
+  adjustmentDate: isoDateString,
+  type: z.enum(["wastage", "breakage", "correction", "opening_stock"]),
+  quantity: z.number(),
+  reason: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+  createdBy: z.string().optional().nullable(),
+  createdAt: isoDateString.optional().nullable(),
+  updatedAt: isoDateString.optional().nullable(),
+});
+
 // Alerts
 export const dismissedAlertSchema = z.object({
   id: idNumber.optional(),

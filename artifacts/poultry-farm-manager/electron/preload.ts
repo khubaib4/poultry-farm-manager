@@ -307,6 +307,17 @@ contextBridge.exposeInMainWorld("electronAPI", {
     recordPayment: (data: unknown) =>
       ipcRenderer.invoke("sales:recordPayment", data),
   },
+  stock: {
+    getSummary: (farmId: number) => ipcRenderer.invoke("stock:getSummary", farmId),
+    getMovements: (farmId: number, options?: unknown) =>
+      ipcRenderer.invoke("stock:getMovements", farmId, options),
+    createAdjustment: (data: unknown) =>
+      ipcRenderer.invoke("stock:createAdjustment", data),
+    getAdjustments: (farmId: number) =>
+      ipcRenderer.invoke("stock:getAdjustments", farmId),
+    deleteAdjustment: (id: number) =>
+      ipcRenderer.invoke("stock:deleteAdjustment", id),
+  },
   payments: {
     getByFarm: (farmId: number, filters?: unknown) =>
       ipcRenderer.invoke("payments:getByFarm", farmId, filters),

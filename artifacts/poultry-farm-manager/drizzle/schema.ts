@@ -223,6 +223,19 @@ export const salePayments = sqliteTable("sale_payments", {
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const stockAdjustments = sqliteTable("stock_adjustments", {
+  id: integer("id").primaryKey(),
+  farmId: integer("farm_id").notNull(),
+  adjustmentDate: text("adjustment_date").notNull(),
+  type: text("type").notNull(),
+  quantity: integer("quantity").notNull(),
+  reason: text("reason").default(""),
+  notes: text("notes").default(""),
+  createdBy: text("created_by").default(""),
+  createdAt: text("created_at"),
+  updatedAt: text("updated_at"),
+});
+
 export const vaccines = sqliteTable("vaccines", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   farmId: integer("farm_id").notNull().references(() => farms.id),
