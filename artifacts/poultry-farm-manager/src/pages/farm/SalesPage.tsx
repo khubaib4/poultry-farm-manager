@@ -4,13 +4,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { isElectron } from "@/lib/api";
 import { useSales } from "@/hooks/useSales";
 import { formatCurrency } from "@/lib/utils";
-import { Plus, Search, X, ShoppingCart, DollarSign, CreditCard, AlertTriangle } from "lucide-react";
+import { Plus, Search, X, ShoppingCart, DollarSign, CreditCard, AlertTriangle, FileDown } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import EmptyState from "@/components/ui/EmptyState";
 import ErrorState from "@/components/ui/ErrorState";
 import SalesTable from "@/components/sales/SalesTable";
 import { useFarmId } from "@/hooks/useFarmId";
+import SalesExportModal from "@/components/sales/SalesExportModal";
 
 export default function SalesPage(): React.ReactElement {
   const { user } = useAuth();
@@ -18,6 +19,7 @@ export default function SalesPage(): React.ReactElement {
   const farmId = useFarmId();
   const { sales, summary, isLoading, error, filters, setFilters } = useSales(farmId);
   const [searchInput, setSearchInput] = useState("");
+  const [showExportModal, setShowExportModal] = useState(false);
 
   if (!isElectron()) {
     return <div className="p-6 text-center text-gray-500">This feature is only available in the desktop app.</div>;
@@ -40,13 +42,22 @@ export default function SalesPage(): React.ReactElement {
         subtitle={`${sales.length} sale${sales.length !== 1 ? "s" : ""}`}
         icon={<ShoppingCart className="h-6 w-6" />}
         actions={
-          <button
-            onClick={() => navigate("/farm/sales/new")}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            New Sale
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowExportModal(true)}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <FileDown className="h-4 w-4" />
+              Export PDF
+            </button>
+            <button
+              onClick={() => navigate("/farm/sales/new")}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              New Sale
+            </button>
+          </div>
         }
       />
 
@@ -139,6 +150,19 @@ export default function SalesPage(): React.ReactElement {
         />
       ) : (
         <SalesTable sales={sales} />
+      )}
+
+      {showExportModal && farmId != null && (
+        <SalesExportModal
+          farmId={farmId}
+          initialFilters={{
+            startDate: filters.startDate || "",
+            endDate: filters.endDate || "",
+            paymentStatus: (filters.paymentStatus as any) || "all",
+            search: filters.search || searchInput || "",
+          }}
+          onClose={() => setShowExportModal(false)}
+        />
       )}
     </div>
   );

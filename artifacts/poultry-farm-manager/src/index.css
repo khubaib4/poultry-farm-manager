@@ -69,3 +69,14 @@
     padding: 0;
   }
 }
+
+/* Prevent distracting number input wheel/spinner behavior */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}

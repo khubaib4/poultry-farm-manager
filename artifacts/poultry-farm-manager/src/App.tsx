@@ -1,4 +1,4 @@
-import React, { lazy, Suspense } from "react";
+import React, { lazy, Suspense, useEffect } from "react";
 import {
   HashRouter,
   Routes,
@@ -93,6 +93,21 @@ function FarmLayout({ children }: { children: React.ReactNode }): React.ReactEle
 }
 
 export default function App(): React.ReactElement {
+  useEffect(() => {
+    const preventNumberScroll = (e: WheelEvent) => {
+      const target = e.target as unknown;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (target.type !== "number") return;
+      if (document.activeElement !== target) return;
+
+      e.preventDefault();
+      target.blur();
+    };
+
+    document.addEventListener("wheel", preventNumberScroll, { passive: false });
+    return () => document.removeEventListener("wheel", preventNumberScroll);
+  }, []);
+
   return (
     <ErrorBoundary>
       <HashRouter>
