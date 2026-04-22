@@ -114,6 +114,11 @@ export default function SaleDetailPage(): React.ReactElement {
   if (isLoading) return <LoadingSpinner size="lg" text="Loading sale..." />;
   if (error || !sale) return <ErrorState message={error || "Sale not found"} onRetry={loadSale} />;
 
+  const customerDisplayName =
+    (sale.customerId && sale.customer?.name)
+      ? sale.customer.name
+      : (sale.walkInCustomerName?.trim() || "Walk-in Customer");
+
   const hasPayments = sale.payments && sale.payments.length > 0;
   const canEdit = !hasPayments;
   const canDelete = !hasPayments;
@@ -123,14 +128,14 @@ export default function SaleDetailPage(): React.ReactElement {
     <div className="p-4 sm:p-6 max-w-4xl mx-auto">
       <PageHeader
         title={sale.invoiceNumber}
-        subtitle={`Sale to ${sale.customer?.name || "Unknown"}`}
+        subtitle={`Sale to ${customerDisplayName}`}
         icon={<FileText className="h-6 w-6" />}
         actions={
           <div className="flex items-center gap-2">
             <button onClick={() => navigate("/farm/sales")} className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900">
               <ArrowLeft className="h-4 w-4" /> Back
             </button>
-            <InvoiceActions saleId={sale.id} invoiceNumber={sale.invoiceNumber} customerName={sale.customer?.name} size="sm" />
+            <InvoiceActions saleId={sale.id} invoiceNumber={sale.invoiceNumber} customerName={customerDisplayName} size="sm" />
             {canEdit && (
               <button
                 onClick={() => navigate(`/farm/sales/${sale.id}/edit`)}
@@ -193,7 +198,10 @@ export default function SaleDetailPage(): React.ReactElement {
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <p className="text-gray-500">Customer</p>
-                <p className="font-medium text-gray-900">{sale.customer?.name || "Unknown"}</p>
+                <p className="font-medium text-gray-900">
+                  {customerDisplayName}
+                  {!sale.customerId && <span className="text-gray-500 font-normal"> (Walk-in)</span>}
+                </p>
                 {sale.customer?.businessName && <p className="text-xs text-gray-500">{sale.customer.businessName}</p>}
               </div>
               <div>

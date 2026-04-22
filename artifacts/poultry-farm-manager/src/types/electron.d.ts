@@ -837,7 +837,8 @@ export interface SaleItemData {
 
 export interface SaleData {
   farmId: number;
-  customerId: number;
+  customerId: number | null;
+  walkInCustomerName?: string;
   saleDate: string;
   dueDate?: string;
   items: SaleItemData[];
@@ -851,7 +852,8 @@ export interface SaleData {
 export interface Sale {
   id: number;
   farmId: number;
-  customerId: number;
+  customerId: number | null;
+  walkInCustomerName?: string;
   invoiceNumber: string;
   saleDate: string;
   dueDate: string | null;
@@ -873,6 +875,7 @@ export interface SaleWithCustomer extends Sale {
   customerName: string;
   customerPhone: string | null;
   customerBusinessName: string | null;
+  walkInCustomerName?: string;
 }
 
 export interface SaleItem {
@@ -898,7 +901,8 @@ export interface SalePayment {
 }
 
 export interface SaleDetail extends Sale {
-  customer: Customer;
+  customer: Customer | null;
+  walkInCustomerName?: string;
   items: SaleItem[];
   payments: SalePayment[];
 }
@@ -977,7 +981,7 @@ export interface ReceivableItem {
   paidAmount: number;
   balanceDue: number;
   paymentStatus: string;
-  customerId: number;
+  customerId: number | null;
   customerName: string;
   customerPhone: string | null;
   customerBusinessName: string | null;

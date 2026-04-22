@@ -81,8 +81,13 @@ export function generateInvoicePDF(
   }
   y += 16;
 
+  const customerName =
+    (sale.customerId && sale.customer?.name)
+      ? sale.customer.name
+      : (sale.walkInCustomerName?.trim() || "Walk-in Customer");
+
   doc.setFillColor(...COLORS.lightBg);
-  doc.rect(margin, y, contentWidth, sale.customer.address ? 28 : 22, "F");
+  doc.rect(margin, y, contentWidth, sale.customer?.address ? 28 : 22, "F");
 
   doc.setFontSize(8);
   doc.setTextColor(...COLORS.muted);
@@ -92,25 +97,25 @@ export function generateInvoicePDF(
   doc.setFontSize(11);
   doc.setTextColor(...COLORS.text);
   doc.setFont("helvetica", "bold");
-  doc.text(sale.customer.name, margin + 4, y + 11);
+  doc.text(customerName, margin + 4, y + 11);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   let billY = y + 16;
-  if (sale.customer.businessName) {
+  if (sale.customer?.businessName) {
     doc.text(sale.customer.businessName, margin + 4, billY);
     billY += 4;
   }
-  if (sale.customer.address) {
+  if (sale.customer?.address) {
     doc.text(sale.customer.address, margin + 4, billY);
     billY += 4;
   }
-  if (sale.customer.phone) {
+  if (sale.customer?.phone) {
     doc.text(`Phone: ${sale.customer.phone}`, margin + 4, billY);
     billY += 4;
   }
 
-  y = Math.max(billY + 4, y + (sale.customer.address ? 32 : 26));
+  y = Math.max(billY + 4, y + (sale.customer?.address ? 32 : 26));
 
   const itemRows = sale.items.map(item => {
     const unitType = (item as any).unitType || (item.itemType === "tray" ? "tray" : "egg");

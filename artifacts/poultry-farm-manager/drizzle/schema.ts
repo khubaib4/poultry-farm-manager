@@ -182,7 +182,8 @@ export const customers = sqliteTable("customers", {
 export const sales = sqliteTable("sales", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   farmId: integer("farm_id").notNull().references(() => farms.id),
-  customerId: integer("customer_id").notNull().references(() => customers.id),
+  customerId: integer("customer_id").references(() => customers.id),
+  walkInCustomerName: text("walk_in_customer_name").default(""),
   invoiceNumber: text("invoice_number").notNull(),
   saleDate: text("sale_date").notNull(),
   dueDate: text("due_date"),

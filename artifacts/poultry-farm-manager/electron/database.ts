@@ -171,6 +171,66 @@ function createTablesManually(): void {
   safeAlter("ALTER TABLE egg_categories ADD COLUMN updated_at TEXT DEFAULT CURRENT_TIMESTAMP");
   safeAlter("ALTER TABLE sale_items ADD COLUMN unit_type TEXT DEFAULT 'tray'");
   safeAlter("ALTER TABLE sale_items ADD COLUMN total_eggs INTEGER DEFAULT 0");
+  safeAlter("ALTER TABLE sales ADD COLUMN walk_in_customer_name TEXT DEFAULT ''");
+
+  // Ensure `sales.customer_id` is nullable (older DBs used NOT NULL, which blocks walk-in sales).
+  try {
+    const cols = sqlite
+      .prepare("PRAGMA table_info(sales)")
+      .all() as Array<{ name: string; notnull: number }>;
+    const customerIdCol = cols.find((c) => c.name === "customer_id");
+    const hasWalkIn = cols.some((c) => c.name === "walk_in_customer_name");
+    const customerIdNotNull = customerIdCol ? customerIdCol.notnull === 1 : false;
+
+    if (customerIdNotNull || !hasWalkIn) {
+      sqlite.exec("PRAGMA foreign_keys = OFF;");
+      sqlite.exec("BEGIN;");
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS sales_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          farm_id INTEGER NOT NULL REFERENCES farms(id),
+          customer_id INTEGER REFERENCES customers(id),
+          walk_in_customer_name TEXT DEFAULT '',
+          invoice_number TEXT NOT NULL,
+          sale_date TEXT NOT NULL,
+          due_date TEXT,
+          subtotal REAL NOT NULL DEFAULT 0,
+          discount_type TEXT DEFAULT 'none',
+          discount_value REAL DEFAULT 0,
+          discount_amount REAL DEFAULT 0,
+          total_amount REAL NOT NULL DEFAULT 0,
+          paid_amount REAL DEFAULT 0,
+          balance_due REAL DEFAULT 0,
+          payment_status TEXT DEFAULT 'unpaid',
+          notes TEXT,
+          is_deleted INTEGER DEFAULT 0,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      sqlite.exec(`
+        INSERT INTO sales_new (
+          id, farm_id, customer_id, walk_in_customer_name, invoice_number, sale_date, due_date,
+          subtotal, discount_type, discount_value, discount_amount, total_amount,
+          paid_amount, balance_due, payment_status, notes, is_deleted, created_at, updated_at
+        )
+        SELECT
+          id, farm_id, customer_id,
+          COALESCE(walk_in_customer_name, ''),
+          invoice_number, sale_date, due_date,
+          subtotal, discount_type, discount_value, discount_amount, total_amount,
+          paid_amount, balance_due, payment_status, notes, is_deleted, created_at, updated_at
+        FROM sales;
+      `);
+      sqlite.exec("DROP TABLE sales;");
+      sqlite.exec("ALTER TABLE sales_new RENAME TO sales;");
+      sqlite.exec("COMMIT;");
+      sqlite.exec("PRAGMA foreign_keys = ON;");
+    }
+  } catch {
+    try { sqlite.exec("ROLLBACK;"); } catch {}
+    try { sqlite.exec("PRAGMA foreign_keys = ON;"); } catch {}
+  }
 
   // Backfill total_eggs for older databases if egg grade columns exist
   try {
@@ -276,7 +336,8 @@ function createTablesManually(): void {
     CREATE TABLE IF NOT EXISTS sales (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       farm_id INTEGER NOT NULL REFERENCES farms(id),
-      customer_id INTEGER NOT NULL REFERENCES customers(id),
+      customer_id INTEGER REFERENCES customers(id),
+      walk_in_customer_name TEXT DEFAULT '',
       invoice_number TEXT NOT NULL,
       sale_date TEXT NOT NULL,
       due_date TEXT,

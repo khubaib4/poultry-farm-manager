@@ -6,7 +6,8 @@ const SaleMongooseSchema = new mongoose.Schema(
   {
     id: { type: Number, index: true, unique: true, sparse: true },
     farmId: { type: Number, index: true, required: true },
-    customerId: { type: Number, index: true, required: true },
+    customerId: { type: Number, index: true, default: null },
+    walkInCustomerName: { type: String, default: "" },
     invoiceNumber: { type: String, required: true, index: true },
     saleDate: { type: String, required: true, index: true },
     dueDate: { type: String, index: true },

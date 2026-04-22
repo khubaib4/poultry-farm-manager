@@ -13,6 +13,12 @@ interface SalesTableProps {
 export default function SalesTable({ sales }: SalesTableProps): React.ReactElement {
   const navigate = useNavigate();
 
+  function getCustomerDisplayName(sale: SaleWithCustomer): string {
+    if (sale.customerId && sale.customerName) return sale.customerName;
+    if (sale.walkInCustomerName && sale.walkInCustomerName.trim()) return `${sale.walkInCustomerName.trim()} (Walk-in)`;
+    return "Walk-in Customer";
+  }
+
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
       <div className="overflow-x-auto">
@@ -44,7 +50,7 @@ export default function SalesTable({ sales }: SalesTableProps): React.ReactEleme
                 </td>
                 <td className="px-4 py-3">
                   <div>
-                    <p className="text-sm font-medium text-gray-900">{sale.customerName}</p>
+                    <p className="text-sm font-medium text-gray-900">{getCustomerDisplayName(sale)}</p>
                     {sale.customerBusinessName && (
                       <p className="text-xs text-gray-500">{sale.customerBusinessName}</p>
                     )}
@@ -81,7 +87,7 @@ export default function SalesTable({ sales }: SalesTableProps): React.ReactEleme
                     <DownloadInvoiceButton
                       saleId={sale.id}
                       invoiceNumber={sale.invoiceNumber}
-                      customerName={sale.customerName}
+                      customerName={getCustomerDisplayName(sale)}
                       size="sm"
                       variant="outline"
                     />

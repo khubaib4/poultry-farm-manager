@@ -29,6 +29,8 @@ export default function NewSalePage(): React.ReactElement {
   const [customerId, setCustomerId] = useState<number | "">("");
   const [customerSearch, setCustomerSearch] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
+  const [customerType, setCustomerType] = useState<"existing" | "walkin">("existing");
+  const [walkInName, setWalkInName] = useState("");
   const [saleDate, setSaleDate] = useState(new Date().toISOString().split("T")[0]);
   const [dueDate, setDueDate] = useState("");
   const [items, setItems] = useState<SaleItemRow[]>([
@@ -112,7 +114,7 @@ export default function NewSalePage(): React.ReactElement {
 
   function validate(): boolean {
     const errs: Record<string, string> = {};
-    if (!customerId) errs.customer = "Customer is required";
+    if (customerType === "existing" && !customerId) errs.customer = "Customer is required";
     if (!saleDate) errs.saleDate = "Sale date is required";
     const validItems = parsedItems.filter(i => i.grade && i.quantity > 0 && i.unitPrice > 0);
     if (validItems.length === 0) errs.items = "At least one item with quantity and price is required";
@@ -133,7 +135,9 @@ export default function NewSalePage(): React.ReactElement {
       const validItems = parsedItems.filter(i => i.grade && i.quantity > 0 && i.unitPrice > 0);
       const result = await salesApi.create({
         farmId,
-        customerId: customerId as number,
+        customerId: customerType === "existing" ? (customerId as number) : null,
+        walkInCustomerName:
+          customerType === "walkin" ? (walkInName.trim() || "Walk-in Customer") : "",
         saleDate,
         dueDate: dueDate || undefined,
         items: validItems.map(i => ({
@@ -174,52 +178,104 @@ export default function NewSalePage(): React.ReactElement {
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
           <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Customer</h3>
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Search customer by name, phone, or business..."
-              value={selectedCustomer ? selectedCustomer.name + (selectedCustomer.businessName ? ` (${selectedCustomer.businessName})` : "") : customerSearch}
-              onChange={(e) => {
-                setCustomerSearch(e.target.value);
-                setCustomerId("");
-                setShowDropdown(true);
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setCustomerType("existing");
+                setWalkInName("");
               }}
-              onFocus={() => setShowDropdown(true)}
-              className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none ${errors.customer ? "border-red-300" : "border-gray-300"}`}
-            />
-            {showDropdown && filteredCustomers.length > 0 && !selectedCustomer && (
-              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                {filteredCustomers.map(c => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => {
-                      setCustomerId(c.id);
-                      setCustomerSearch("");
-                      setShowDropdown(false);
-                    }}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-100 last:border-0"
-                  >
-                    <span className="font-medium">{c.name}</span>
-                    {c.businessName && <span className="text-gray-500 ml-1">({c.businessName})</span>}
-                    {c.phone && <span className="text-gray-400 ml-2">{c.phone}</span>}
-                  </button>
-                ))}
-              </div>
-            )}
-            {errors.customer && <p className="text-xs text-red-500 mt-1">{errors.customer}</p>}
+              className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                customerType === "existing"
+                  ? "bg-emerald-600 text-white"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              Existing Customer
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCustomerType("walkin");
+                setCustomerId("");
+                setCustomerSearch("");
+                setShowDropdown(false);
+              }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                customerType === "walkin"
+                  ? "bg-emerald-600 text-white"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              Walk-in Customer
+            </button>
           </div>
-          {selectedCustomer && (
-            <div className="flex items-center gap-4 text-xs text-gray-500">
-              <span>Terms: {selectedCustomer.paymentTermsDays === 0 ? "Cash" : `Net ${selectedCustomer.paymentTermsDays}`}</span>
-              {selectedCustomer.defaultPricePerEgg != null && <span>Egg: PKR {selectedCustomer.defaultPricePerEgg}</span>}
-              {selectedCustomer.defaultPricePerTray != null && <span>Tray: PKR {selectedCustomer.defaultPricePerTray}</span>}
-              <button type="button" onClick={() => { setCustomerId(""); setCustomerSearch(""); }} className="text-red-500 hover:text-red-700 ml-auto">Clear</button>
+
+          {customerType === "existing" ? (
+            <>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search customer by name, phone, or business..."
+                  value={selectedCustomer ? selectedCustomer.name + (selectedCustomer.businessName ? ` (${selectedCustomer.businessName})` : "") : customerSearch}
+                  onChange={(e) => {
+                    setCustomerSearch(e.target.value);
+                    setCustomerId("");
+                    setShowDropdown(true);
+                  }}
+                  onFocus={() => setShowDropdown(true)}
+                  className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none ${errors.customer ? "border-red-300" : "border-gray-300"}`}
+                />
+                {showDropdown && filteredCustomers.length > 0 && !selectedCustomer && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                    {filteredCustomers.map(c => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => {
+                          setCustomerId(c.id);
+                          setCustomerSearch("");
+                          setShowDropdown(false);
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                      >
+                        <span className="font-medium">{c.name}</span>
+                        {c.businessName && <span className="text-gray-500 ml-1">({c.businessName})</span>}
+                        {c.phone && <span className="text-gray-400 ml-2">{c.phone}</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {errors.customer && <p className="text-xs text-red-500 mt-1">{errors.customer}</p>}
+              </div>
+              {selectedCustomer && (
+                <div className="flex items-center gap-4 text-xs text-gray-500">
+                  <span>Terms: {selectedCustomer.paymentTermsDays === 0 ? "Cash" : `Net ${selectedCustomer.paymentTermsDays}`}</span>
+                  {selectedCustomer.defaultPricePerEgg != null && <span>Egg: PKR {selectedCustomer.defaultPricePerEgg}</span>}
+                  {selectedCustomer.defaultPricePerTray != null && <span>Tray: PKR {selectedCustomer.defaultPricePerTray}</span>}
+                  <button type="button" onClick={() => { setCustomerId(""); setCustomerSearch(""); }} className="text-red-500 hover:text-red-700 ml-auto">Clear</button>
+                </div>
+              )}
+              <button type="button" onClick={() => navigate("/farm/customers/new")} className="text-xs text-emerald-600 hover:text-emerald-700 font-medium">
+                + Add New Customer
+              </button>
+            </>
+          ) : (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Customer Name (Optional)</label>
+              <input
+                type="text"
+                value={walkInName}
+                onChange={(e) => setWalkInName(e.target.value)}
+                placeholder="Enter customer name or leave blank for anonymous"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Walk-in customers are not added to your customer list.
+              </p>
             </div>
           )}
-          <button type="button" onClick={() => navigate("/farm/customers/new")} className="text-xs text-emerald-600 hover:text-emerald-700 font-medium">
-            + Add New Customer
-          </button>
         </div>
 
         <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">

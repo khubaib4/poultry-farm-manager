@@ -17,6 +17,11 @@ interface Props {
 }
 
 export default function InvoicePreview({ sale, farm }: Props): React.ReactElement {
+  const customerName =
+    (sale.customerId && sale.customer?.name)
+      ? sale.customer.name
+      : (sale.walkInCustomerName?.trim() || "Walk-in Customer");
+
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6 sm:p-8 print:border-0 print:shadow-none print:p-0">
       <div className="border-b-2 border-emerald-600 pb-4 mb-6">
@@ -53,10 +58,10 @@ export default function InvoicePreview({ sale, farm }: Props): React.ReactElemen
 
       <div className="bg-gray-50 rounded-lg p-4 mb-6">
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Bill To</p>
-        <p className="text-sm font-semibold text-gray-900">{sale.customer.name}</p>
-        {sale.customer.businessName && <p className="text-sm text-gray-600">{sale.customer.businessName}</p>}
-        {sale.customer.address && <p className="text-sm text-gray-600">{sale.customer.address}</p>}
-        {sale.customer.phone && <p className="text-sm text-gray-600">Phone: {sale.customer.phone}</p>}
+        <p className="text-sm font-semibold text-gray-900">{customerName}</p>
+        {sale.customer?.businessName && <p className="text-sm text-gray-600">{sale.customer.businessName}</p>}
+        {sale.customer?.address && <p className="text-sm text-gray-600">{sale.customer.address}</p>}
+        {sale.customer?.phone && <p className="text-sm text-gray-600">Phone: {sale.customer.phone}</p>}
       </div>
 
       <table className="w-full text-sm mb-6">

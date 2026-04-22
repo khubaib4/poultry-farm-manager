@@ -2299,7 +2299,8 @@ export function registerIpcHandlers(): void {
       });
       const parsed = saleSchema.omit({ id: true }).safeParse({
         farmId,
-        customerId: data.customerId,
+        customerId: data.customerId ?? null,
+        walkInCustomerName: data.customerId ? "" : (data.walkInCustomerName ?? ""),
         invoiceNumber,
         saleDate: data.saleDate,
         dueDate: data.dueDate,
@@ -2395,23 +2396,33 @@ export function registerIpcHandlers(): void {
       }
       if (filters?.customerId) q.customerId = filters.customerId;
       if (filters?.paymentStatus) q.paymentStatus = filters.paymentStatus;
-      if (filters?.search) {
-        const re = new RegExp(filters.search, "i");
-        q.invoiceNumber = re;
-      }
+      const search = String(filters?.search ?? "").trim();
       const sales = await SaleModel.find(q).sort({ saleDate: -1, id: -1 }).lean();
-      const customerIds = Array.from(new Set(sales.map((s: any) => s.customerId)));
+      const customerIds = Array.from(
+        new Set(sales.map((s: any) => s.customerId).filter((id: any) => Number.isFinite(Number(id))))
+      ).map((id: any) => Number(id));
       const customers = await CustomerModel.find({ id: { $in: customerIds } }).lean();
       const cmap = new Map<number, any>(customers.map((c: any) => [c.id, c]));
-      return sales.map((s: any) => {
+      let rows = sales.map((s: any) => {
         const c = cmap.get(s.customerId);
+        const walkInName = String(s.walkInCustomerName ?? "").trim();
         return {
           ...s,
-          customerName: c?.name ?? "",
+          walkInCustomerName: s.walkInCustomerName ?? "",
+          customerName: c?.name ?? (walkInName || "Walk-in Customer"),
           customerPhone: c?.phone ?? null,
           customerBusinessName: c?.businessName ?? null,
         };
       });
+      if (search) {
+        const qLower = search.toLowerCase();
+        rows = rows.filter((s: any) =>
+          String(s.invoiceNumber ?? "").toLowerCase().includes(qLower) ||
+          String(s.customerName ?? "").toLowerCase().includes(qLower) ||
+          String(s.walkInCustomerName ?? "").toLowerCase().includes(qLower)
+        );
+      }
+      return rows;
     })
   );
 
@@ -2422,7 +2433,7 @@ export function registerIpcHandlers(): void {
       const sale = await SaleModel.findOne({ id }).lean();
       if (!sale) throw new Error("Sale not found");
       await requireFarmAccess(sale.farmId!);
-      const customer = await CustomerModel.findOne({ id: sale.customerId }).lean();
+      const customer = sale.customerId ? await CustomerModel.findOne({ id: sale.customerId }).lean() : null;
       const items = await SaleItemModel.find({ saleId: id }).lean();
       const payments = await SalePaymentModel.find({ saleId: id }).sort({ paymentDate: -1 }).lean();
 
@@ -2458,7 +2469,7 @@ export function registerIpcHandlers(): void {
         );
       }
 
-      return { ...sale, ...computed, customer, items, payments };
+      return { ...sale, ...computed, walkInCustomerName: (sale as any).walkInCustomerName ?? "", customer, items, payments };
     })
   );
 
@@ -2512,7 +2523,8 @@ export function registerIpcHandlers(): void {
       const updated = await SaleModel.findOneAndUpdate(
         { id },
         {
-          customerId: data.customerId ?? sale.customerId,
+          customerId: data.customerId ?? sale.customerId ?? null,
+          walkInCustomerName: data.customerId ? "" : (data.walkInCustomerName ?? sale.walkInCustomerName ?? ""),
           saleDate: data.saleDate ?? sale.saleDate,
           dueDate: data.dueDate ?? sale.dueDate,
           subtotal: computed.subtotal,

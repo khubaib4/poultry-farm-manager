@@ -182,6 +182,7 @@ export const saleSchema = z.object({
   id: idNumber.optional(),
   farmId: idNumber.optional().nullable(),
   customerId: idNumber.optional().nullable(),
+  walkInCustomerName: z.string().optional().nullable(),
   invoiceNumber: z.string().min(1),
   saleDate: isoDateString,
   dueDate: isoDateString.optional().nullable(),

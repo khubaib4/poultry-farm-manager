@@ -4650,22 +4650,24 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "sales:create",
     wrapHandler(async (_e: unknown, data: {
-      farmId: number; customerId: number; saleDate: string; dueDate?: string;
+      farmId: number; customerId: number | null; walkInCustomerName?: string; saleDate: string; dueDate?: string;
       items: { itemType: string; grade: string; unitType?: string; totalEggs?: number; quantity: number; unitPrice: number; lineTotal: number }[];
       discountType?: string; discountValue?: number; amountPaid?: number;
       paymentMethod?: string; notes?: string;
     }) => {
       requireFarmAccess(data.farmId);
-      if (!data.customerId) throw new Error("Customer is required");
       if (!data.items || data.items.length === 0) throw new Error("At least one item is required");
 
       const validItems = data.items.filter(i => i.quantity > 0 && i.unitPrice > 0);
       if (validItems.length === 0) throw new Error("At least one item with quantity > 0 is required");
 
-      const customer = db.select().from(schema.customers)
-        .where(eq(schema.customers.id, data.customerId)).get();
-      if (!customer) throw new Error("Customer not found");
-      requireFarmAccess(customer.farmId);
+      const walkInCustomerName = (data.walkInCustomerName || "").trim();
+      const customerId = data.customerId ?? null;
+      const customer = customerId
+        ? db.select().from(schema.customers).where(eq(schema.customers.id, customerId)).get()
+        : null;
+      if (customerId && !customer) throw new Error("Customer not found");
+      if (customer) requireFarmAccess(customer.farmId);
 
       const year = new Date().getFullYear();
       const prefix = `INV-${year}-`;
@@ -4700,13 +4702,14 @@ export function registerIpcHandlers(): void {
       const balanceDue = Math.max(0, Math.round((totalAmount - paidAmount) * 100) / 100);
       const paymentStatus = paidAmount >= totalAmount ? "paid" : paidAmount > 0 ? "partial" : "unpaid";
 
-      const dueDate = data.dueDate || (customer.paymentTermsDays
+      const dueDate = data.dueDate || (customer?.paymentTermsDays
         ? (() => { const d = new Date(data.saleDate); d.setDate(d.getDate() + (customer.paymentTermsDays || 0)); return d.toISOString().split("T")[0]; })()
         : data.saleDate);
 
       const result = db.insert(schema.sales).values({
         farmId: data.farmId,
-        customerId: data.customerId,
+        customerId,
+        walkInCustomerName,
         invoiceNumber,
         saleDate: data.saleDate,
         dueDate,
@@ -4778,6 +4781,7 @@ export function registerIpcHandlers(): void {
         id: schema.sales.id,
         farmId: schema.sales.farmId,
         customerId: schema.sales.customerId,
+        walkInCustomerName: schema.sales.walkInCustomerName,
         invoiceNumber: schema.sales.invoiceNumber,
         saleDate: schema.sales.saleDate,
         dueDate: schema.sales.dueDate,
@@ -4798,17 +4802,24 @@ export function registerIpcHandlers(): void {
         customerBusinessName: schema.customers.businessName,
       })
         .from(schema.sales)
-        .innerJoin(schema.customers, eq(schema.sales.customerId, schema.customers.id))
+        .leftJoin(schema.customers, eq(schema.sales.customerId, schema.customers.id))
         .where(and(...conditions))
         .orderBy(desc(schema.sales.saleDate), desc(schema.sales.id))
         .all();
 
-      let results = salesRows;
+      let results = salesRows.map((s) => ({
+        ...s,
+        customerName:
+          (s.customerName && s.customerName.trim()) ||
+          (s.walkInCustomerName && s.walkInCustomerName.trim()) ||
+          "Walk-in Customer",
+      }));
       if (filters?.search) {
         const q = filters.search.toLowerCase().trim();
         results = results.filter(s =>
           s.invoiceNumber.toLowerCase().includes(q) ||
-          s.customerName.toLowerCase().includes(q)
+          (s.customerName || "").toLowerCase().includes(q) ||
+          (s.walkInCustomerName || "").toLowerCase().includes(q)
         );
       }
 
@@ -4842,8 +4853,9 @@ export function registerIpcHandlers(): void {
       if (!sale) throw new Error("Sale not found");
       requireFarmAccess(sale.farmId);
 
-      const customer = db.select().from(schema.customers)
-        .where(eq(schema.customers.id, sale.customerId)).get();
+      const customer = sale.customerId
+        ? db.select().from(schema.customers).where(eq(schema.customers.id, sale.customerId)).get()
+        : null;
       const items = db.select().from(schema.saleItems)
         .where(eq(schema.saleItems.saleId, saleId)).all();
       const payments = db.select().from(schema.salePayments)
@@ -4858,7 +4870,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     "sales:update",
     wrapHandler(async (_e: unknown, saleId: number, data: {
-      farmId: number; customerId: number; saleDate: string; dueDate?: string;
+      farmId: number; customerId: number | null; walkInCustomerName?: string; saleDate: string; dueDate?: string;
       items: { itemType: string; grade: string; unitType?: string; totalEggs?: number; quantity: number; unitPrice: number; lineTotal: number }[];
       discountType?: string; discountValue?: number; notes?: string;
     }) => {
@@ -4874,11 +4886,16 @@ export function registerIpcHandlers(): void {
       const validItems = data.items.filter(i => i.quantity > 0 && i.unitPrice > 0);
       if (validItems.length === 0) throw new Error("At least one item with quantity > 0 is required");
 
-      const updCustomer = db.select().from(schema.customers)
-        .where(eq(schema.customers.id, data.customerId)).get();
-      if (!updCustomer) throw new Error("Customer not found");
-      requireFarmAccess(updCustomer.farmId);
-      if (updCustomer.farmId !== existing.farmId) throw new Error("Customer does not belong to this farm");
+      const walkInCustomerName = (data.walkInCustomerName || "").trim();
+      const customerId = data.customerId ?? null;
+      const updCustomer = customerId
+        ? db.select().from(schema.customers).where(eq(schema.customers.id, customerId)).get()
+        : null;
+      if (customerId && !updCustomer) throw new Error("Customer not found");
+      if (updCustomer) {
+        requireFarmAccess(updCustomer.farmId);
+        if (updCustomer.farmId !== existing.farmId) throw new Error("Customer does not belong to this farm");
+      }
 
       const subtotal = validItems.reduce((s, i) => s + (i.quantity * i.unitPrice), 0);
       const discountType = data.discountType || "none";
@@ -4892,7 +4909,8 @@ export function registerIpcHandlers(): void {
       const totalAmount = Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100);
 
       db.update(schema.sales).set({
-        customerId: data.customerId,
+        customerId,
+        walkInCustomerName,
         saleDate: data.saleDate,
         dueDate: data.dueDate || existing.dueDate,
         subtotal,

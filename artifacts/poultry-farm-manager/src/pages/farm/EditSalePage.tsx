@@ -31,6 +31,8 @@ export default function EditSalePage(): React.ReactElement {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [customerId, setCustomerId] = useState<number | "">("");
+  const [customerType, setCustomerType] = useState<"existing" | "walkin">("existing");
+  const [walkInName, setWalkInName] = useState("");
   const [saleDate, setSaleDate] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [items, setItems] = useState<SaleItemRow[]>([]);
@@ -56,7 +58,15 @@ export default function EditSalePage(): React.ReactElement {
       setCustomers(customerData);
       // Egg categories are optional; keep the sale's stored names even if a category was later deleted.
       setCategories(cats);
-      setCustomerId(saleData.customerId);
+      if (saleData.customerId) {
+        setCustomerType("existing");
+        setCustomerId(saleData.customerId);
+        setWalkInName("");
+      } else {
+        setCustomerType("walkin");
+        setCustomerId("");
+        setWalkInName((saleData as any).walkInCustomerName || "");
+      }
       setSaleDate(saleData.saleDate);
       setDueDate(saleData.dueDate || "");
       setNotes(saleData.notes || "");
@@ -98,7 +108,7 @@ export default function EditSalePage(): React.ReactElement {
 
   function validate(): boolean {
     const errs: Record<string, string> = {};
-    if (!customerId) errs.customer = "Customer is required";
+    if (customerType === "existing" && !customerId) errs.customer = "Customer is required";
     if (!saleDate) errs.saleDate = "Sale date is required";
     const validItems = parsedItems.filter(i => i.grade && i.quantity > 0 && i.unitPrice > 0);
     if (validItems.length === 0) errs.items = "At least one item with quantity and price is required";
@@ -116,7 +126,9 @@ export default function EditSalePage(): React.ReactElement {
       const validItems = parsedItems.filter(i => i.grade && i.quantity > 0 && i.unitPrice > 0);
       await salesApi.update(sale.id, {
         farmId,
-        customerId: customerId as number,
+        customerId: customerType === "existing" ? (customerId as number) : null,
+        walkInCustomerName:
+          customerType === "walkin" ? (walkInName.trim() || "Walk-in Customer") : "",
         saleDate,
         dueDate: dueDate || undefined,
         items: validItems.map(i => ({
@@ -159,19 +171,68 @@ export default function EditSalePage(): React.ReactElement {
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
           <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Customer</h3>
-          <select
-            value={customerId}
-            onChange={(e) => setCustomerId(e.target.value ? parseInt(e.target.value, 10) : "")}
-            className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white ${errors.customer ? "border-red-300" : "border-gray-300"}`}
-          >
-            <option value="">Select Customer</option>
-            {customers.map(c => (
-              <option key={c.id} value={c.id}>
-                {c.name}{c.businessName ? ` (${c.businessName})` : ""}
-              </option>
-            ))}
-          </select>
-          {errors.customer && <p className="text-xs text-red-500">{errors.customer}</p>}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setCustomerType("existing");
+                setWalkInName("");
+              }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                customerType === "existing"
+                  ? "bg-emerald-600 text-white"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              Existing Customer
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCustomerType("walkin");
+                setCustomerId("");
+              }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                customerType === "walkin"
+                  ? "bg-emerald-600 text-white"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              Walk-in Customer
+            </button>
+          </div>
+
+          {customerType === "existing" ? (
+            <>
+              <select
+                value={customerId}
+                onChange={(e) => setCustomerId(e.target.value ? parseInt(e.target.value, 10) : "")}
+                className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white ${errors.customer ? "border-red-300" : "border-gray-300"}`}
+              >
+                <option value="">Select Customer</option>
+                {customers.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}{c.businessName ? ` (${c.businessName})` : ""}
+                  </option>
+                ))}
+              </select>
+              {errors.customer && <p className="text-xs text-red-500">{errors.customer}</p>}
+            </>
+          ) : (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Customer Name (Optional)</label>
+              <input
+                type="text"
+                value={walkInName}
+                onChange={(e) => setWalkInName(e.target.value)}
+                placeholder="Enter customer name or leave blank for anonymous"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Walk-in customers are not added to your customer list.
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
