@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { cn, convertTraysToEggs, convertBagsToKg, calculateProductionRate, calculateFeedPerBird } from "@/lib/utils";
+import { cn, convertBagsToKg, calculateProductionRate, calculateFeedPerBird } from "@/lib/utils";
 import { Skull, Egg, Wheat, Droplets, AlertTriangle, ChevronDown, ChevronUp, Save, RotateCcw } from "lucide-react";
 
 interface EntryData {
@@ -8,9 +8,7 @@ interface EntryData {
   entryDate: string;
   deaths: number;
   deathCause?: string | null;
-  eggsGradeA: number;
-  eggsGradeB: number;
-  eggsCracked: number;
+  totalEggs: number;
   feedConsumedKg: number;
   waterConsumedLiters?: number | null;
   notes?: string | null;
@@ -33,9 +31,7 @@ export interface FormPayload {
   entryDate: string;
   deaths: number;
   deathCause: string;
-  eggsGradeA: number;
-  eggsGradeB: number;
-  eggsCracked: number;
+  totalEggs: number;
   feedConsumedKg: number;
   waterConsumedLiters: number | null;
   notes: string;
@@ -49,14 +45,7 @@ export default function DailyEntryForm({
   const [deaths, setDeaths] = useState(existingEntry?.deaths ?? 0);
   const [deathCause, setDeathCause] = useState(existingEntry?.deathCause || "");
   const [otherCause, setOtherCause] = useState("");
-  const [eggUnit, setEggUnit] = useState<"eggs" | "trays">(() => {
-    try {
-      return (localStorage.getItem("pfm_egg_unit") as "eggs" | "trays") || "eggs";
-    } catch { return "eggs"; }
-  });
-  const [eggsACanonical, setEggsACanonical] = useState(existingEntry?.eggsGradeA ?? 0);
-  const [eggsBCanonical, setEggsBCanonical] = useState(existingEntry?.eggsGradeB ?? 0);
-  const [eggsCrackedCanonical, setEggsCrackedCanonical] = useState(existingEntry?.eggsCracked ?? 0);
+  const [totalEggs, setTotalEggs] = useState(existingEntry?.totalEggs ?? 0);
   const [feedValue, setFeedValue] = useState(existingEntry?.feedConsumedKg ?? 0);
   const [feedUnit, setFeedUnit] = useState<"kg" | "bags">("kg");
   const [bagWeight, setBagWeight] = useState(50);
@@ -70,9 +59,7 @@ export default function DailyEntryForm({
     setDeaths(existingEntry?.deaths ?? 0);
     setDeathCause(existingEntry?.deathCause || "");
     setOtherCause("");
-    setEggsACanonical(existingEntry?.eggsGradeA ?? 0);
-    setEggsBCanonical(existingEntry?.eggsGradeB ?? 0);
-    setEggsCrackedCanonical(existingEntry?.eggsCracked ?? 0);
+    setTotalEggs(existingEntry?.totalEggs ?? 0);
     setFeedValue(existingEntry?.feedConsumedKg ?? 0);
     setFeedUnit("kg");
     setWaterLiters(existingEntry?.waterConsumedLiters ?? 0);
@@ -83,20 +70,7 @@ export default function DailyEntryForm({
     }
   }, [existingEntry, flockId, date]);
 
-  useEffect(() => {
-    try { localStorage.setItem("pfm_egg_unit", eggUnit); } catch {}
-  }, [eggUnit]);
-
   const closingStock = Math.max(0, openingStock - deaths);
-
-  const displayA = eggUnit === "trays" ? Math.round(eggsACanonical / 30 * 100) / 100 : eggsACanonical;
-  const displayB = eggUnit === "trays" ? Math.round(eggsBCanonical / 30 * 100) / 100 : eggsBCanonical;
-  const displayCracked = eggUnit === "trays" ? Math.round(eggsCrackedCanonical / 30 * 100) / 100 : eggsCrackedCanonical;
-  const totalEggs = eggsACanonical + eggsBCanonical + eggsCrackedCanonical;
-
-  const setEggsADisplay = (v: number) => setEggsACanonical(eggUnit === "trays" ? convertTraysToEggs(v) : v);
-  const setEggsBDisplay = (v: number) => setEggsBCanonical(eggUnit === "trays" ? convertTraysToEggs(v) : v);
-  const setEggsCrackedDisplay = (v: number) => setEggsCrackedCanonical(eggUnit === "trays" ? convertTraysToEggs(v) : v);
 
   const feedKg = feedUnit === "bags" ? convertBagsToKg(feedValue, bagWeight) : feedValue;
   const prodRate = calculateProductionRate(totalEggs, closingStock);
@@ -112,9 +86,7 @@ export default function DailyEntryForm({
     setDeaths(0);
     setDeathCause("");
     setOtherCause("");
-    setEggsACanonical(0);
-    setEggsBCanonical(0);
-    setEggsCrackedCanonical(0);
+    setTotalEggs(0);
     setFeedValue(0);
     setWaterLiters(0);
     setNotes("");
@@ -128,9 +100,7 @@ export default function DailyEntryForm({
       entryDate: date,
       deaths,
       deathCause: deaths > 0 ? cause : "",
-      eggsGradeA: eggsACanonical,
-      eggsGradeB: eggsBCanonical,
-      eggsCracked: eggsCrackedCanonical,
+      totalEggs,
       feedConsumedKg: Math.round(feedKg * 100) / 100,
       waterConsumedLiters: waterLiters > 0 ? waterLiters : null,
       notes: notes.trim(),
@@ -208,20 +178,8 @@ export default function DailyEntryForm({
             <Egg className="w-5 h-5 text-amber-500" />
             <span>Egg Production</span>
           </div>
-          <div className="flex rounded-lg border border-gray-300 overflow-hidden">
-            <button type="button" onClick={() => setEggUnit("eggs")} className={cn("px-3 py-1.5 text-sm font-medium transition-colors", eggUnit === "eggs" ? "bg-green-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50")}>
-              Eggs
-            </button>
-            <button type="button" onClick={() => setEggUnit("trays")} className={cn("px-3 py-1.5 text-sm font-medium transition-colors", eggUnit === "trays" ? "bg-green-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50")}>
-              Trays (30)
-            </button>
-          </div>
         </div>
-        <div className="grid grid-cols-3 gap-4">
-          {numInput(`Grade A`, displayA, setEggsADisplay, { suffix: eggUnit, step: eggUnit === "trays" ? "0.1" : "1" })}
-          {numInput(`Grade B`, displayB, setEggsBDisplay, { suffix: eggUnit, step: eggUnit === "trays" ? "0.1" : "1" })}
-          {numInput(`Cracked`, displayCracked, setEggsCrackedDisplay, { suffix: eggUnit, step: eggUnit === "trays" ? "0.1" : "1" })}
-        </div>
+        {numInput("Total Eggs Collected", totalEggs, (v) => setTotalEggs(v), { suffix: "eggs" })}
         <div className="flex items-center justify-between text-sm bg-gray-50 rounded-lg px-4 py-2">
           <span className="text-gray-600">Total: <span className="font-bold text-gray-900">{totalEggs.toLocaleString()} eggs</span></span>
           <span className="text-gray-600">Rate: <span className={cn("font-bold", prodRate >= 70 ? "text-green-700" : prodRate > 0 ? "text-amber-600" : "text-gray-400")}>{prodRate}%</span></span>

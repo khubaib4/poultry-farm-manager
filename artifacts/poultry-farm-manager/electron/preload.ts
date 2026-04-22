@@ -75,6 +75,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getPriceOnDate: (farmId: number, date: string) =>
       ipcRenderer.invoke("eggPrices:getPriceOnDate", farmId, date),
   },
+  eggCategories: {
+    getAll: (farmId: number) => ipcRenderer.invoke("eggCategories:getAll", farmId),
+    create: (data: unknown) => ipcRenderer.invoke("eggCategories:create", data),
+    update: (id: number, data: unknown) =>
+      ipcRenderer.invoke("eggCategories:update", id, data),
+    delete: (id: number) => ipcRenderer.invoke("eggCategories:delete", id),
+    seedDefaults: (farmId: number) =>
+      ipcRenderer.invoke("eggCategories:seedDefaults", farmId),
+  },
   expenses: {
     create: (data: unknown) => ipcRenderer.invoke("expenses:create", data),
     getByFarm: (farmId: number, filters?: unknown) =>
@@ -283,6 +292,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   sales: {
     create: (data: unknown) => ipcRenderer.invoke("sales:create", data),
+    getByCustomer: (customerId: number) =>
+      ipcRenderer.invoke("sales:getByCustomer", customerId),
     getByFarm: (farmId: number, filters?: unknown) =>
       ipcRenderer.invoke("sales:getByFarm", farmId, filters),
     getById: (id: number) => ipcRenderer.invoke("sales:getById", id),

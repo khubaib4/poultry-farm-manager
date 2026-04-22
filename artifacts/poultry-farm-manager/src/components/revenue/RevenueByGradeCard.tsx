@@ -22,9 +22,8 @@ interface RevenueBreakdownProps {
 }
 
 function gradeLabel(itemType: string, grade: string): string {
-  const prefix = itemType === "tray" ? "Tray" : "Egg";
-  if (grade === "cracked") return `${prefix} - Cracked`;
-  return `${prefix} - Grade ${grade}`;
+  const prefix = itemType === "peti" ? "Peti" : itemType === "tray" ? "Tray" : "Egg";
+  return `${prefix} - ${grade}`;
 }
 
 export default function RevenueBreakdownCard({ byCustomer, byType, totalRevenue }: RevenueBreakdownProps): React.ReactElement {
@@ -76,7 +75,8 @@ export default function RevenueBreakdownCard({ byCustomer, byType, totalRevenue 
                       <div className="h-full rounded-full bg-blue-500" style={{ width: `${pct}%` }} />
                     </div>
                     <span className="text-xs text-gray-500 w-20 text-right">
-                      {Number(t.quantity ?? 0).toLocaleString()} {t.itemType === "tray" ? "trays" : "eggs"} · {pct.toFixed(0)}%
+                      {Number(t.quantity ?? 0).toLocaleString()}{" "}
+                      {t.itemType === "peti" ? "peti" : t.itemType === "tray" ? "trays" : "eggs"} · {pct.toFixed(0)}%
                     </span>
                   </div>
                 </div>

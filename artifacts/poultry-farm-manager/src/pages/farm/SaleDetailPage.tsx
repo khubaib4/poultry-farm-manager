@@ -16,8 +16,8 @@ import InvoicePreview from "@/components/invoices/InvoicePreview";
 import type { SaleDetail } from "@/types/electron";
 import type { InvoiceFarmInfo } from "@/lib/invoicePdf";
 
-const ITEM_TYPE_LABELS: Record<string, string> = { egg: "Eggs", tray: "Trays" };
-const GRADE_LABELS: Record<string, string> = { A: "Grade A", B: "Grade B", cracked: "Cracked" };
+const UNIT_LABELS: Record<string, string> = { egg: "Egg", tray: "Tray", peti: "Peti" };
+const UNIT_MULTIPLIER: Record<string, number> = { egg: 1, tray: 30, peti: 360 };
 const METHOD_LABELS: Record<string, string> = {
   cash: "Cash", bank_transfer: "Bank Transfer", cheque: "Cheque", online: "Online", other: "Other",
 };
@@ -224,21 +224,40 @@ export default function SaleDetailPage(): React.ReactElement {
             <table className="w-full">
               <thead>
                 <tr className="bg-gray-50">
-                  <th className="text-left px-4 py-2 text-xs font-medium text-gray-500 uppercase">Item</th>
-                  <th className="text-left px-4 py-2 text-xs font-medium text-gray-500 uppercase">Grade</th>
+                  <th className="text-left px-4 py-2 text-xs font-medium text-gray-500 uppercase">Category</th>
+                  <th className="text-left px-4 py-2 text-xs font-medium text-gray-500 uppercase">Unit</th>
                   <th className="text-right px-4 py-2 text-xs font-medium text-gray-500 uppercase">Qty</th>
-                  <th className="text-right px-4 py-2 text-xs font-medium text-gray-500 uppercase">Unit Price</th>
+                  <th className="text-right px-4 py-2 text-xs font-medium text-gray-500 uppercase">Price</th>
                   <th className="text-right px-4 py-2 text-xs font-medium text-gray-500 uppercase">Total</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {sale.items?.map((item, i) => (
                   <tr key={i}>
-                    <td className="px-4 py-3 text-sm text-gray-900">{ITEM_TYPE_LABELS[item.itemType] || item.itemType}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{GRADE_LABELS[item.grade] || item.grade}</td>
-                    <td className="px-4 py-3 text-sm text-right text-gray-900">{item.quantity?.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-sm text-right text-gray-600">{formatCurrency(item.unitPrice ?? 0)}</td>
-                    <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">{formatCurrency(item.lineTotal ?? 0)}</td>
+                    {(() => {
+                      const unitType = (item as any).unitType || (item.itemType === "tray" ? "tray" : "egg");
+                      const multiplier = UNIT_MULTIPLIER[unitType] ?? 1;
+                      const qty = Number(item.quantity ?? 0);
+                      const totalEggs = Number.isFinite(Number((item as any).totalEggs))
+                        ? Number((item as any).totalEggs)
+                        : Math.trunc(qty * multiplier);
+                      return (
+                        <>
+                          <td className="px-4 py-3 text-sm text-gray-900">{item.grade}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{UNIT_LABELS[unitType] || unitType}</td>
+                          <td className="px-4 py-3 text-sm text-right text-gray-900">
+                            {qty.toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-right text-gray-600">{formatCurrency(item.unitPrice ?? 0)}</td>
+                          <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">
+                            <div>{formatCurrency(item.lineTotal ?? 0)}</div>
+                            <div className="text-xs font-normal text-gray-500">
+                              ({totalEggs.toLocaleString()} eggs)
+                            </div>
+                          </td>
+                        </>
+                      );
+                    })()}
                   </tr>
                 ))}
               </tbody>

@@ -111,10 +111,9 @@ export function exportDailyReportPDF(data: DailyReportData, farmName: string) {
 
   y = addSectionTitle(doc, y, "Flock Breakdown");
   y = addAutoTable(doc, y,
-    [["Flock", "Breed", "Birds", "Grade A", "Grade B", "Cracked", "Total Eggs", "Deaths", "Feed (kg)"]],
+    [["Flock", "Breed", "Birds", "Eggs", "Deaths", "Feed (kg)"]],
     data.flocks.map(f => [
-      f.batchName, f.breed || "—", f.currentCount, f.eggsGradeA, f.eggsGradeB, f.eggsCracked,
-      f.eggsGradeA + f.eggsGradeB + f.eggsCracked, f.deaths, f.feedConsumedKg,
+      f.batchName, f.breed || "—", f.currentCount, f.totalEggs ?? 0, f.deaths, f.feedConsumedKg,
     ])
   );
 
@@ -157,9 +156,9 @@ export function exportWeeklyReportPDF(data: WeeklyReportData, farmName: string) 
   y = addSectionTitle(doc, y, "Daily Breakdown");
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   y = addAutoTable(doc, y,
-    [["Day", "Date", "Grade A", "Grade B", "Cracked", "Total", "Deaths", "Feed (kg)"]],
+    [["Day", "Date", "Eggs", "Deaths", "Feed (kg)"]],
     data.dailyData.map(d => [
-      dayNames[new Date(d.date).getDay()], d.date, d.eggsGradeA, d.eggsGradeB, d.eggsCracked, d.eggsTotal, d.deaths, Number(d.feedKg ?? 0).toFixed(1),
+      dayNames[new Date(d.date).getDay()], d.date, d.eggs ?? 0, d.deaths, Number(d.feedKg ?? 0).toFixed(1),
     ])
   );
 
@@ -205,17 +204,6 @@ export function exportMonthlyReportPDF(data: MonthlyReportData, farmName: string
     data.weeklyData.map(w => [
       `${w.weekStart} — ${w.weekEnd}`, Number(w.eggsTotal ?? 0).toLocaleString(), w.deaths, Number(w.feedKg ?? 0).toFixed(1), fmt(w.expenses),
     ])
-  );
-
-  y = addSectionTitle(doc, y, "Egg Production by Grade");
-  y = addAutoTable(doc, y,
-    [["Grade", "Quantity"]],
-    [
-      ["Grade A", Number(data.totals.eggsGradeA ?? 0).toLocaleString()],
-      ["Grade B", Number(data.totals.eggsGradeB ?? 0).toLocaleString()],
-      ["Cracked", Number(data.totals.eggsCracked ?? 0).toLocaleString()],
-      ["Total", Number(data.totals.eggsTotal ?? 0).toLocaleString()],
-    ]
   );
 
   y = addSectionTitle(doc, y, "Financial Summary");

@@ -5,6 +5,7 @@ import type {
   FarmData,
   FlockData,
   DailyEntryData,
+  EggCategory,
   ExpenseData,
   ExpenseFilters,
   ExpenseSummary,
@@ -200,6 +201,23 @@ export const dailyEntries = {
 
   getPreviousDayStock: (flockId: number, date: string) =>
     invoke(() => getApi()!.dailyEntries.getPreviousDayStock(flockId, date)),
+};
+
+export const eggCategories = {
+  getAll: (farmId: number) =>
+    invoke<EggCategory[]>(() => getApi()!.eggCategories.getAll(farmId)),
+
+  create: (data: Partial<EggCategory> & { farmId: number; name: string }) =>
+    invoke<EggCategory>(() => getApi()!.eggCategories.create(data)),
+
+  update: (id: number, data: Partial<EggCategory>) =>
+    invoke<EggCategory>(() => getApi()!.eggCategories.update(id, data)),
+
+  delete: (id: number) =>
+    invoke<EggCategory>(() => getApi()!.eggCategories.delete(id)),
+
+  seedDefaults: (farmId: number) =>
+    invoke<{ seeded: number; skipped: boolean }>(() => getApi()!.eggCategories.seedDefaults(farmId)),
 };
 
 export const expenses = {
@@ -551,6 +569,9 @@ export const customers = {
 export const sales = {
   create: (data: SaleData) =>
     invoke<Sale>(() => getApi()!.sales.create(data)),
+
+  getByCustomer: (customerId: number) =>
+    invoke<Sale[]>(() => getApi()!.sales.getByCustomer(customerId)),
 
   getByFarm: (farmId: number, filters?: SaleFilters) =>
     invoke<SaleWithCustomer[]>(() => getApi()!.sales.getByFarm(farmId, filters)),

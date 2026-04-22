@@ -39,6 +39,7 @@ const AddInventoryItemPage = lazy(() => import("@/pages/farm/AddInventoryItemPag
 const EditInventoryItemPage = lazy(() => import("@/pages/farm/EditInventoryItemPage"));
 const AlertsPage = lazy(() => import("@/pages/farm/AlertsPage"));
 const VaccineSettingsPage = lazy(() => import("@/pages/farm/VaccineSettingsPage"));
+const EggCategoriesSettings = lazy(() => import("@/pages/settings/EggCategoriesSettings"));
 const VaccinationSchedulePage = lazy(() => import("@/pages/farm/VaccinationSchedulePage"));
 const VaccinationTemplatePage = lazy(() => import("@/pages/farm/VaccinationTemplatePage"));
 const VaccinationHistoryPage = lazy(() => import("@/pages/farm/VaccinationHistoryPage"));
@@ -123,6 +124,7 @@ export default function App(): React.ReactElement {
                   <Route path="vaccinations" element={<VaccinationSchedulePage />} />
                   <Route path="vaccinations/new" element={<AddVaccinationPage />} />
                   <Route path="settings/vaccines" element={<VaccineSettingsPage />} />
+                  <Route path="settings/egg-categories" element={<EggCategoriesSettings />} />
                   <Route path="vaccinations/template" element={<VaccinationTemplatePage />} />
                   <Route path="vaccinations/history" element={<VaccinationHistoryPage />} />
                   <Route path="vaccinations/:vaccinationId/edit" element={<EditVaccinationPage />} />
@@ -169,6 +171,7 @@ export default function App(): React.ReactElement {
                 <Route path="/farm/vaccinations" element={<FarmLayout><VaccinationSchedulePage /></FarmLayout>} />
                 <Route path="/farm/vaccinations/new" element={<FarmLayout><AddVaccinationPage /></FarmLayout>} />
                 <Route path="/farm/settings/vaccines" element={<FarmLayout><VaccineSettingsPage /></FarmLayout>} />
+                <Route path="/farm/settings/egg-categories" element={<FarmLayout><EggCategoriesSettings /></FarmLayout>} />
                 <Route path="/farm/vaccinations/template" element={<FarmLayout><VaccinationTemplatePage /></FarmLayout>} />
                 <Route path="/farm/vaccinations/history" element={<FarmLayout><VaccinationHistoryPage /></FarmLayout>} />
                 <Route path="/farm/vaccinations/:vaccinationId/edit" element={<FarmLayout><EditVaccinationPage /></FarmLayout>} />

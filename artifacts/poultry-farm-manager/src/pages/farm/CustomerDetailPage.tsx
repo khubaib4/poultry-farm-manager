@@ -6,7 +6,7 @@ import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/ui/Toast";
 import {
   Users, Edit, Phone, MapPin, Building2, CreditCard, Clock,
-  DollarSign, ShoppingCart, CalendarDays,
+  DollarSign, ShoppingCart, CalendarDays, FileDown,
 } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
@@ -14,6 +14,7 @@ import CategoryBadge from "@/components/customers/CategoryBadge";
 import PaymentHistoryTable from "@/components/payments/PaymentHistoryTable";
 import RecordPaymentModal from "@/components/payments/RecordPaymentModal";
 import CustomerPaymentAlert from "@/components/alerts/CustomerPaymentAlert";
+import CustomerExportModal from "@/components/customers/CustomerExportModal";
 import type { CustomerWithStats, CustomerPayment, ReceivableItem, PaymentAlert } from "@/types/electron";
 import { useFarmId } from "@/hooks/useFarmId";
 
@@ -37,6 +38,7 @@ export default function CustomerDetailPage(): React.ReactElement {
   const [paymentTarget, setPaymentTarget] = useState<ReceivableItem | null>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "payments" | "outstanding">("overview");
   const [customerAlerts, setCustomerAlerts] = useState<PaymentAlert[]>([]);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   async function loadData() {
     if (!isElectron() || !id) return;
@@ -92,6 +94,13 @@ export default function CustomerDetailPage(): React.ReactElement {
                 Record Payment
               </button>
             )}
+            <button
+              onClick={() => setShowExportModal(true)}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors"
+            >
+              <FileDown className="h-4 w-4" />
+              Export PDF
+            </button>
             <button
               onClick={() => navigate(`/farm/customers/${id}/edit`)}
               className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors"
@@ -365,6 +374,14 @@ export default function CustomerDetailPage(): React.ReactElement {
           paidAmount={paymentTarget.paidAmount}
           onClose={() => setPaymentTarget(null)}
           onSuccess={loadData}
+        />
+      )}
+
+      {showExportModal && (
+        <CustomerExportModal
+          customerId={customer.id}
+          customerName={customer.name}
+          onClose={() => setShowExportModal(false)}
         />
       )}
     </div>

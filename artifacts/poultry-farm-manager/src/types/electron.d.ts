@@ -33,9 +33,7 @@ export interface DailyEntryData {
   entryDate: string;
   deaths?: number;
   deathCause?: string;
-  eggsGradeA?: number;
-  eggsGradeB?: number;
-  eggsCracked?: number;
+  totalEggs?: number;
   feedConsumedKg?: number;
   waterConsumedLiters?: number;
   notes?: string;
@@ -388,9 +386,7 @@ export interface DailyReportData {
     batchName: string;
     breed: string | null;
     currentCount: number;
-    eggsGradeA: number;
-    eggsGradeB: number;
-    eggsCracked: number;
+    totalEggs: number;
     deaths: number;
     deathCause: string | null;
     feedConsumedKg: number;
@@ -399,9 +395,6 @@ export interface DailyReportData {
   }[];
   totals: {
     birds: number;
-    eggsGradeA: number;
-    eggsGradeB: number;
-    eggsCracked: number;
     eggsTotal: number;
     deaths: number;
     feedKg: number;
@@ -417,19 +410,13 @@ export interface WeeklyReportData {
   farm: FarmInfo;
   dailyData: {
     date: string;
-    eggsGradeA: number;
-    eggsGradeB: number;
-    eggsCracked: number;
-    eggsTotal: number;
+    eggs: number;
     deaths: number;
     feedKg: number;
   }[];
   weeklyTotals: {
     birds: number;
-    eggsGradeA: number;
-    eggsGradeB: number;
-    eggsCracked: number;
-    eggsTotal: number;
+    eggs: number;
     deaths: number;
     feedKg: number;
   };
@@ -462,9 +449,6 @@ export interface MonthlyReportData {
   }[];
   totals: {
     birds: number;
-    eggsGradeA: number;
-    eggsGradeB: number;
-    eggsCracked: number;
     eggsTotal: number;
     deaths: number;
     feedKg: number;
@@ -828,11 +812,26 @@ export interface CustomerWithStats extends Customer {
   stats: CustomerStats;
 }
 
+export interface EggCategory {
+  id: number;
+  farmId: number;
+  name: string;
+  description?: string;
+  defaultPrice: number;
+  unit: "tray" | "dozen" | "piece" | "crate";
+  isActive: number;
+  sortOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface SaleItemData {
   itemType: string;
   grade: string;
+  unitType: "egg" | "tray" | "peti";
   quantity: number;
   unitPrice: number;
+  totalEggs: number;
   lineTotal: number;
 }
 
@@ -881,8 +880,10 @@ export interface SaleItem {
   saleId: number;
   itemType: string;
   grade: string;
+  unitType: "egg" | "tray" | "peti";
   quantity: number | null;
   unitPrice: number | null;
+  totalEggs: number | null;
   lineTotal: number | null;
 }
 
@@ -1084,7 +1085,7 @@ export interface CustomerHistoryReport {
     paidAmount: number;
     balanceDue: number;
     paymentStatus: string;
-    items: { itemType: string; grade: string; quantity: number; unitPrice: number; lineTotal: number }[];
+    items: { itemType: string; grade: string; unitType?: "egg" | "tray" | "peti"; totalEggs?: number; quantity: number; unitPrice: number; lineTotal: number }[];
   }[];
   payments: {
     id: number;
@@ -1236,6 +1237,13 @@ export interface ElectronAPI {
     getByFarm: (farmId: number, date: string) => Promise<IpcResponse>;
     getPreviousDayStock: (flockId: number, date: string) => Promise<IpcResponse>;
   };
+  eggCategories: {
+    getAll: (farmId: number) => Promise<IpcResponse<EggCategory[]>>;
+    create: (data: Partial<EggCategory> & { farmId: number; name: string }) => Promise<IpcResponse<EggCategory>>;
+    update: (id: number, data: Partial<EggCategory>) => Promise<IpcResponse<EggCategory>>;
+    delete: (id: number) => Promise<IpcResponse<EggCategory>>;
+    seedDefaults: (farmId: number) => Promise<IpcResponse<{ seeded: number; skipped: boolean }>>;
+  };
   expenses: {
     create: (data: ExpenseData) => Promise<IpcResponse>;
     getByFarm: (farmId: number, filters?: ExpenseFilters) => Promise<IpcResponse>;
@@ -1372,6 +1380,7 @@ export interface ElectronAPI {
   };
   sales: {
     create: (data: SaleData) => Promise<IpcResponse<Sale>>;
+    getByCustomer: (customerId: number) => Promise<IpcResponse<Sale[]>>;
     getByFarm: (farmId: number, filters?: SaleFilters) => Promise<IpcResponse<SaleWithCustomer[]>>;
     getById: (id: number) => Promise<IpcResponse<SaleDetail>>;
     update: (id: number, data: SaleData) => Promise<IpcResponse<Sale>>;

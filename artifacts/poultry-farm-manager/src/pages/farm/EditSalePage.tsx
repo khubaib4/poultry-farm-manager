@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { isElectron, customers as customersApi, sales as salesApi } from "@/lib/api";
+import { eggCategories as eggCategoriesApi, isElectron, customers as customersApi, sales as salesApi } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { ArrowLeft, Edit2 } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
@@ -15,7 +15,7 @@ import {
   calculateDiscount,
   calculateTotal,
 } from "@/lib/salesCalculations";
-import type { Customer, SaleDetail } from "@/types/electron";
+import type { Customer, EggCategory, SaleDetail } from "@/types/electron";
 import { useFarmId } from "@/hooks/useFarmId";
 
 export default function EditSalePage(): React.ReactElement {
@@ -27,6 +27,7 @@ export default function EditSalePage(): React.ReactElement {
 
   const [sale, setSale] = useState<SaleDetail | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [categories, setCategories] = useState<EggCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [customerId, setCustomerId] = useState<number | "">("");
@@ -44,7 +45,8 @@ export default function EditSalePage(): React.ReactElement {
     Promise.all([
       salesApi.getById(parseInt(id, 10)),
       customersApi.getByFarm(farmId, { status: "active" }),
-    ]).then(([saleData, customerData]) => {
+      eggCategoriesApi.getAll(farmId),
+    ]).then(([saleData, customerData, cats]) => {
       if (saleData.payments && saleData.payments.length > 0) {
         setError("Cannot edit a sale that has payments recorded");
         setIsLoading(false);
@@ -52,6 +54,8 @@ export default function EditSalePage(): React.ReactElement {
       }
       setSale(saleData);
       setCustomers(customerData);
+      // Egg categories are optional; keep the sale's stored names even if a category was later deleted.
+      setCategories(cats);
       setCustomerId(saleData.customerId);
       setSaleDate(saleData.saleDate);
       setDueDate(saleData.dueDate || "");
@@ -61,8 +65,8 @@ export default function EditSalePage(): React.ReactElement {
 
       if (saleData.items && saleData.items.length > 0) {
         setItems(saleData.items.map(i => ({
-          itemType: i.itemType as "egg" | "tray",
-          grade: i.grade as "A" | "B" | "cracked",
+          category: i.grade,
+          unitType: ((i as any).unitType as any) || (i.itemType as any) || "tray",
           quantity: String(i.quantity ?? ""),
           unitPrice: String(i.unitPrice ?? ""),
         })));
@@ -74,10 +78,14 @@ export default function EditSalePage(): React.ReactElement {
 
   const parsedItems = useMemo(() =>
     items.map(i => ({
-      itemType: i.itemType as "egg" | "tray",
-      grade: i.grade as "A" | "B" | "cracked",
+      itemType: i.unitType,
+      grade: i.category,
+      unitType: i.unitType,
       quantity: parseFloat(i.quantity) || 0,
       unitPrice: parseFloat(i.unitPrice) || 0,
+      totalEggs:
+        (i.unitType === "peti" ? 360 : i.unitType === "tray" ? 30 : 1) *
+        (parseFloat(i.quantity) || 0),
     })),
   [items]);
 
@@ -92,7 +100,7 @@ export default function EditSalePage(): React.ReactElement {
     const errs: Record<string, string> = {};
     if (!customerId) errs.customer = "Customer is required";
     if (!saleDate) errs.saleDate = "Sale date is required";
-    const validItems = parsedItems.filter(i => i.quantity > 0 && i.unitPrice > 0);
+    const validItems = parsedItems.filter(i => i.grade && i.quantity > 0 && i.unitPrice > 0);
     if (validItems.length === 0) errs.items = "At least one item with quantity and price is required";
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -105,7 +113,7 @@ export default function EditSalePage(): React.ReactElement {
 
     try {
       setIsSubmitting(true);
-      const validItems = parsedItems.filter(i => i.quantity > 0 && i.unitPrice > 0);
+      const validItems = parsedItems.filter(i => i.grade && i.quantity > 0 && i.unitPrice > 0);
       await salesApi.update(sale.id, {
         farmId,
         customerId: customerId as number,
@@ -113,6 +121,7 @@ export default function EditSalePage(): React.ReactElement {
         dueDate: dueDate || undefined,
         items: validItems.map(i => ({
           ...i,
+          totalEggs: Math.max(0, Math.trunc(Number(i.totalEggs) || 0)),
           lineTotal: Math.round(i.quantity * i.unitPrice * 100) / 100,
         })),
         discountType: discountType !== "none" ? discountType : undefined,
@@ -182,7 +191,7 @@ export default function EditSalePage(): React.ReactElement {
         </div>
 
         <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <SaleItemsInput items={items} onChange={setItems} />
+          <SaleItemsInput items={items} onChange={setItems} categories={categories} />
           {errors.items && <p className="text-xs text-red-500 mt-2">{errors.items}</p>}
         </div>
 

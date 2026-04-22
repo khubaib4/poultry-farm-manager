@@ -11,11 +11,9 @@ function ownerFmtPkr(n: number): string {
 }
 
 function eggSum(e: {
-  eggsGradeA: number | null;
-  eggsGradeB: number | null;
-  eggsCracked: number | null;
+  totalEggs: number | null;
 }): number {
-  return (e.eggsGradeA || 0) + (e.eggsGradeB || 0) + (e.eggsCracked || 0);
+  return e.totalEggs || 0;
 }
 
 export function generateOwnerReportSqlite(

@@ -38,9 +38,6 @@ export function exportDailyReportExcel(data: DailyReportData, farmName: string) 
     [],
     ["Metric", "Value"],
     ["Total Birds", data.totals.birds],
-    ["Total Eggs (Grade A)", data.totals.eggsGradeA],
-    ["Total Eggs (Grade B)", data.totals.eggsGradeB],
-    ["Total Eggs (Cracked)", data.totals.eggsCracked],
     ["Total Eggs", data.totals.eggsTotal],
     ["Deaths", data.totals.deaths],
     ["Feed (kg)", data.totals.feedKg],
@@ -50,12 +47,11 @@ export function exportDailyReportExcel(data: DailyReportData, farmName: string) 
   ], [25, 20]);
 
   addSheet(wb, "Flock Breakdown", [
-    ["Flock", "Breed", "Birds", "Grade A", "Grade B", "Cracked", "Total Eggs", "Deaths", "Feed (kg)", "Death Cause", "Notes"],
+    ["Flock", "Breed", "Birds", "Eggs", "Deaths", "Feed (kg)", "Death Cause", "Notes"],
     ...data.flocks.map(f => [
-      f.batchName, f.breed || "", f.currentCount, f.eggsGradeA, f.eggsGradeB, f.eggsCracked,
-      f.eggsGradeA + f.eggsGradeB + f.eggsCracked, f.deaths, f.feedConsumedKg, f.deathCause || "", f.notes || "",
+      f.batchName, f.breed || "", f.currentCount, f.totalEggs ?? 0, f.deaths, f.feedConsumedKg, f.deathCause || "", f.notes || "",
     ]),
-  ], [18, 15, 10, 10, 10, 10, 12, 10, 12, 15, 25]);
+  ], [18, 15, 10, 10, 10, 12, 15, 25]);
 
   downloadWB(wb, sanitize(`${farmName}_Daily_${data.date}.xlsx`));
 }
@@ -86,11 +82,11 @@ export function exportWeeklyReportExcel(data: WeeklyReportData, farmName: string
   ], [25, 20]);
 
   addSheet(wb, "Daily Data", [
-    ["Day", "Date", "Grade A", "Grade B", "Cracked", "Total Eggs", "Deaths", "Feed (kg)"],
+    ["Day", "Date", "Eggs", "Deaths", "Feed (kg)"],
     ...data.dailyData.map(d => [
-      dayNames[new Date(d.date).getDay()], d.date, d.eggsGradeA, d.eggsGradeB, d.eggsCracked, d.eggsTotal, d.deaths, d.feedKg,
+      dayNames[new Date(d.date).getDay()], d.date, d.eggs ?? 0, d.deaths, d.feedKg,
     ]),
-  ], [8, 12, 10, 10, 10, 12, 10, 12]);
+  ], [8, 12, 12, 10, 12]);
 
   downloadWB(wb, sanitize(`${farmName}_Weekly_${data.startDate}_to_${data.endDate}.xlsx`));
 }
@@ -108,9 +104,6 @@ export function exportMonthlyReportExcel(data: MonthlyReportData, farmName: stri
     ["Production Summary"],
     ["Total Birds", data.totals.birds],
     ["Total Eggs", data.totals.eggsTotal],
-    ["Grade A", data.totals.eggsGradeA],
-    ["Grade B", data.totals.eggsGradeB],
-    ["Cracked", data.totals.eggsCracked],
     ["Deaths", data.totals.deaths],
     ["Feed (kg)", data.totals.feedKg],
     ["Avg Eggs/Day", data.averages.eggsPerDay],
@@ -159,9 +152,6 @@ export function exportFlockReportExcel(data: FlockReportData, farmName: string) 
     [],
     ["Lifetime Statistics"],
     ["Total Eggs", data.stats.totalEggs],
-    ["Grade A Eggs", data.stats.totalEggsA],
-    ["Grade B Eggs", data.stats.totalEggsB],
-    ["Cracked Eggs", data.stats.totalCracked],
     ["Total Deaths", data.stats.totalDeaths],
     ["Total Feed (kg)", data.stats.totalFeed],
     ["Mortality Rate (%)", data.stats.mortalityRate],

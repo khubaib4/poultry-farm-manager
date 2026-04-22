@@ -8,8 +8,10 @@ const SaleItemMongooseSchema = new mongoose.Schema(
     saleId: { type: Number, index: true, required: true },
     itemType: { type: String, required: true, index: true },
     grade: { type: String, required: true, index: true },
+    unitType: { type: String, default: "tray" }, // egg, tray, peti
     quantity: { type: Number, default: 0 },
     unitPrice: { type: Number, default: 0 },
+    totalEggs: { type: Number, default: 0 },
     lineTotal: { type: Number, default: 0 },
   },
   { timestamps: true }

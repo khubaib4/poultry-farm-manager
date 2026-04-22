@@ -27,9 +27,7 @@ interface EntryData {
   entryDate: string;
   deaths: number;
   deathCause?: string | null;
-  eggsGradeA: number;
-  eggsGradeB: number;
-  eggsCracked: number;
+  totalEggs: number;
   feedConsumedKg: number;
   waterConsumedLiters?: number | null;
   notes?: string | null;
@@ -160,9 +158,7 @@ export default function DailyEntryPage(): React.ReactElement {
         const result = await window.electronAPI.dailyEntries.update(currentEntry.id, {
           deaths: data.deaths,
           deathCause: data.deathCause || undefined,
-          eggsGradeA: data.eggsGradeA,
-          eggsGradeB: data.eggsGradeB,
-          eggsCracked: data.eggsCracked,
+          totalEggs: data.totalEggs,
           feedConsumedKg: data.feedConsumedKg,
           waterConsumedLiters: data.waterConsumedLiters || undefined,
           notes: data.notes || undefined,

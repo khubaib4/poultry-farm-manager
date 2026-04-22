@@ -43,10 +43,7 @@ export default function DailySummaryReport({ data }: Props) {
             <tr className="bg-gray-100">
               <th className="px-3 py-2 text-left font-medium text-gray-700 border border-gray-200">Flock</th>
               <th className="px-3 py-2 text-right font-medium text-gray-700 border border-gray-200">Birds</th>
-              <th className="px-3 py-2 text-right font-medium text-gray-700 border border-gray-200">Grade A</th>
-              <th className="px-3 py-2 text-right font-medium text-gray-700 border border-gray-200">Grade B</th>
-              <th className="px-3 py-2 text-right font-medium text-gray-700 border border-gray-200">Cracked</th>
-              <th className="px-3 py-2 text-right font-medium text-gray-700 border border-gray-200">Total Eggs</th>
+              <th className="px-3 py-2 text-right font-medium text-gray-700 border border-gray-200">Eggs</th>
               <th className="px-3 py-2 text-right font-medium text-gray-700 border border-gray-200">Deaths</th>
               <th className="px-3 py-2 text-right font-medium text-gray-700 border border-gray-200">Feed (kg)</th>
             </tr>
@@ -59,10 +56,7 @@ export default function DailySummaryReport({ data }: Props) {
                   {f.breed && <div className="text-xs text-gray-500">{f.breed}</div>}
                 </td>
                 <td className="px-3 py-2 text-right border border-gray-200">{f.currentCount}</td>
-                <td className="px-3 py-2 text-right border border-gray-200">{f.eggsGradeA}</td>
-                <td className="px-3 py-2 text-right border border-gray-200">{f.eggsGradeB}</td>
-                <td className="px-3 py-2 text-right border border-gray-200">{f.eggsCracked}</td>
-                <td className="px-3 py-2 text-right border border-gray-200 font-medium">{f.eggsGradeA + f.eggsGradeB + f.eggsCracked}</td>
+                <td className="px-3 py-2 text-right border border-gray-200 font-medium">{Number(f.totalEggs ?? 0)}</td>
                 <td className="px-3 py-2 text-right border border-gray-200">{f.deaths > 0 ? <span className="text-red-600">{f.deaths}</span> : "0"}</td>
                 <td className="px-3 py-2 text-right border border-gray-200">{f.feedConsumedKg}</td>
               </tr>
@@ -70,9 +64,6 @@ export default function DailySummaryReport({ data }: Props) {
             <tr className="bg-gray-100 font-semibold">
               <td className="px-3 py-2 border border-gray-200">Totals</td>
               <td className="px-3 py-2 text-right border border-gray-200">{data.totals.birds}</td>
-              <td className="px-3 py-2 text-right border border-gray-200">{data.totals.eggsGradeA}</td>
-              <td className="px-3 py-2 text-right border border-gray-200">{data.totals.eggsGradeB}</td>
-              <td className="px-3 py-2 text-right border border-gray-200">{data.totals.eggsCracked}</td>
               <td className="px-3 py-2 text-right border border-gray-200">{data.totals.eggsTotal}</td>
               <td className="px-3 py-2 text-right border border-gray-200">{data.totals.deaths}</td>
               <td className="px-3 py-2 text-right border border-gray-200">{data.totals.feedKg}</td>
@@ -81,15 +72,7 @@ export default function DailySummaryReport({ data }: Props) {
         </table>
       </div>
 
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="border border-gray-200 rounded-lg p-3">
-          <h4 className="text-xs font-medium text-gray-500 mb-1">Eggs by Grade</h4>
-          <div className="space-y-1">
-            <div className="flex justify-between text-sm"><span>Grade A</span><span className="font-medium">{data.totals.eggsGradeA}</span></div>
-            <div className="flex justify-between text-sm"><span>Grade B</span><span className="font-medium">{data.totals.eggsGradeB}</span></div>
-            <div className="flex justify-between text-sm"><span>Cracked</span><span className="font-medium">{data.totals.eggsCracked}</span></div>
-          </div>
-        </div>
+      <div className="grid grid-cols-2 gap-4 mb-6">
         <div className="border border-gray-200 rounded-lg p-3">
           <h4 className="text-xs font-medium text-gray-500 mb-1">Feed</h4>
           <div className="text-lg font-bold text-gray-900">{data.totals.feedKg} kg</div>

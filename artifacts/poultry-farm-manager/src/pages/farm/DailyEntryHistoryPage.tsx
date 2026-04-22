@@ -20,9 +20,7 @@ interface EntryData {
   entryDate: string;
   deaths: number;
   deathCause?: string | null;
-  eggsGradeA: number;
-  eggsGradeB: number;
-  eggsCracked: number;
+  totalEggs: number;
   feedConsumedKg: number;
   waterConsumedLiters?: number | null;
   notes?: string | null;
@@ -92,16 +90,13 @@ export default function DailyEntryHistoryPage(): React.ReactElement {
   }, [flocks, loadEntries]);
 
   const exportCSV = () => {
-    const headers = ["Date", "Flock", "Deaths", "Cause", "Grade A", "Grade B", "Cracked", "Total Eggs", "Feed (kg)", "Water (L)", "Notes"];
+    const headers = ["Date", "Flock", "Deaths", "Cause", "Total Eggs", "Feed (kg)", "Water (L)", "Notes"];
     const rows = entries.map(e => [
       e.entryDate,
       flockMap[e.flockId] || `Flock ${e.flockId}`,
       e.deaths,
       e.deathCause || "",
-      e.eggsGradeA,
-      e.eggsGradeB,
-      e.eggsCracked,
-      (e.eggsGradeA || 0) + (e.eggsGradeB || 0) + (e.eggsCracked || 0),
+      e.totalEggs || 0,
       e.feedConsumedKg,
       e.waterConsumedLiters || "",
       (e.notes || "").replace(/,/g, ";"),
@@ -117,7 +112,7 @@ export default function DailyEntryHistoryPage(): React.ReactElement {
   };
 
   const totalDeaths = entries.reduce((s, e) => s + (e.deaths || 0), 0);
-  const totalEggs = entries.reduce((s, e) => s + (e.eggsGradeA || 0) + (e.eggsGradeB || 0) + (e.eggsCracked || 0), 0);
+  const totalEggs = entries.reduce((s, e) => s + (e.totalEggs || 0), 0);
   const totalFeed = entries.reduce((s, e) => s + (e.feedConsumedKg || 0), 0);
 
   return (
@@ -202,17 +197,14 @@ export default function DailyEntryHistoryPage(): React.ReactElement {
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Date</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Flock</th>
                   <th className="px-4 py-3 text-right font-semibold text-gray-700">Deaths</th>
-                  <th className="px-4 py-3 text-right font-semibold text-gray-700">Grade A</th>
-                  <th className="px-4 py-3 text-right font-semibold text-gray-700">Grade B</th>
-                  <th className="px-4 py-3 text-right font-semibold text-gray-700">Cracked</th>
-                  <th className="px-4 py-3 text-right font-semibold text-gray-700">Total</th>
+                  <th className="px-4 py-3 text-right font-semibold text-gray-700">Eggs</th>
                   <th className="px-4 py-3 text-right font-semibold text-gray-700">Feed</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Notes</th>
                 </tr>
               </thead>
               <tbody>
                 {entries.map(e => {
-                  const total = (e.eggsGradeA || 0) + (e.eggsGradeB || 0) + (e.eggsCracked || 0);
+                  const total = e.totalEggs || 0;
                   return (
                     <tr
                       key={e.id}
@@ -224,9 +216,6 @@ export default function DailyEntryHistoryPage(): React.ReactElement {
                       <td className="px-4 py-3 text-right tabular-nums">
                         <span className={e.deaths > 0 ? "text-red-600 font-medium" : "text-gray-400"}>{e.deaths || 0}</span>
                       </td>
-                      <td className="px-4 py-3 text-right tabular-nums text-gray-700">{e.eggsGradeA || 0}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-gray-700">{e.eggsGradeB || 0}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-gray-700">{e.eggsCracked || 0}</td>
                       <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900">{total}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-gray-700">{e.feedConsumedKg || 0} kg</td>
                       <td className="px-4 py-3 text-gray-500 truncate max-w-[150px]">{e.notes || "-"}</td>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { isElectron, customers as customersApi, sales as salesApi } from "@/lib/api";
+import { eggCategories as eggCategoriesApi, isElectron, customers as customersApi, sales as salesApi } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { ArrowLeft, ShoppingCart } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
@@ -15,7 +15,7 @@ import {
   calculateBalanceDue,
   calculateDueDate,
 } from "@/lib/salesCalculations";
-import type { Customer } from "@/types/electron";
+import type { Customer, EggCategory } from "@/types/electron";
 import { useFarmId } from "@/hooks/useFarmId";
 
 export default function NewSalePage(): React.ReactElement {
@@ -25,15 +25,14 @@ export default function NewSalePage(): React.ReactElement {
   const farmId = useFarmId();
 
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [categories, setCategories] = useState<EggCategory[]>([]);
   const [customerId, setCustomerId] = useState<number | "">("");
   const [customerSearch, setCustomerSearch] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [saleDate, setSaleDate] = useState(new Date().toISOString().split("T")[0]);
   const [dueDate, setDueDate] = useState("");
   const [items, setItems] = useState<SaleItemRow[]>([
-    { itemType: "egg", grade: "A", quantity: "", unitPrice: "" },
-    { itemType: "egg", grade: "B", quantity: "", unitPrice: "" },
-    { itemType: "egg", grade: "cracked", quantity: "", unitPrice: "" },
+    { category: "", unitType: "tray", quantity: "", unitPrice: "" },
   ]);
   const [discountType, setDiscountType] = useState<"none" | "percentage" | "fixed">("none");
   const [discountValue, setDiscountValue] = useState("");
@@ -51,6 +50,17 @@ export default function NewSalePage(): React.ReactElement {
   }, [farmId]);
 
   useEffect(() => {
+    if (!farmId || !isElectron()) return;
+    eggCategoriesApi.getAll(farmId).then((cats) => {
+      setCategories(cats);
+      const active = cats.filter(c => (c.isActive ?? 1) !== 0).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+      if (active.length > 0) {
+        setItems((prev) => prev.map((i) => (i.category ? i : { ...i, category: active[0].name })));
+      }
+    }).catch(() => {});
+  }, [farmId]);
+
+  useEffect(() => {
     if (selectedCustomer) {
       const terms = selectedCustomer.paymentTermsDays ?? 0;
       setDueDate(calculateDueDate(saleDate, terms));
@@ -58,10 +68,10 @@ export default function NewSalePage(): React.ReactElement {
       if (selectedCustomer.defaultPricePerEgg != null || selectedCustomer.defaultPricePerTray != null) {
         setItems(prev => prev.map(item => {
           if (item.unitPrice) return item;
-          if (item.itemType === "egg" && selectedCustomer.defaultPricePerEgg != null) {
+          if (item.unitType === "egg" && selectedCustomer.defaultPricePerEgg != null) {
             return { ...item, unitPrice: String(selectedCustomer.defaultPricePerEgg) };
           }
-          if (item.itemType === "tray" && selectedCustomer.defaultPricePerTray != null) {
+          if (item.unitType === "tray" && selectedCustomer.defaultPricePerTray != null) {
             return { ...item, unitPrice: String(selectedCustomer.defaultPricePerTray) };
           }
           return item;
@@ -72,10 +82,14 @@ export default function NewSalePage(): React.ReactElement {
 
   const parsedItems = useMemo(() =>
     items.map(i => ({
-      itemType: i.itemType as "egg" | "tray",
-      grade: i.grade as "A" | "B" | "cracked",
+      itemType: i.unitType,
+      grade: i.category,
+      unitType: i.unitType,
       quantity: parseFloat(i.quantity) || 0,
       unitPrice: parseFloat(i.unitPrice) || 0,
+      totalEggs:
+        (i.unitType === "peti" ? 360 : i.unitType === "tray" ? 30 : 1) *
+        (parseFloat(i.quantity) || 0),
     })),
   [items]);
 
@@ -100,7 +114,7 @@ export default function NewSalePage(): React.ReactElement {
     const errs: Record<string, string> = {};
     if (!customerId) errs.customer = "Customer is required";
     if (!saleDate) errs.saleDate = "Sale date is required";
-    const validItems = parsedItems.filter(i => i.quantity > 0 && i.unitPrice > 0);
+    const validItems = parsedItems.filter(i => i.grade && i.quantity > 0 && i.unitPrice > 0);
     if (validItems.length === 0) errs.items = "At least one item with quantity and price is required";
     if (discountAmount > subtotal) errs.discount = "Discount cannot exceed subtotal";
     if (paid < 0) errs.amountPaid = "Amount paid cannot be negative";
@@ -116,7 +130,7 @@ export default function NewSalePage(): React.ReactElement {
 
     try {
       setIsSubmitting(true);
-      const validItems = parsedItems.filter(i => i.quantity > 0 && i.unitPrice > 0);
+      const validItems = parsedItems.filter(i => i.grade && i.quantity > 0 && i.unitPrice > 0);
       const result = await salesApi.create({
         farmId,
         customerId: customerId as number,
@@ -124,6 +138,7 @@ export default function NewSalePage(): React.ReactElement {
         dueDate: dueDate || undefined,
         items: validItems.map(i => ({
           ...i,
+          totalEggs: Math.max(0, Math.trunc(Number(i.totalEggs) || 0)),
           lineTotal: Math.round(i.quantity * i.unitPrice * 100) / 100,
         })),
         discountType: discountType !== "none" ? discountType : undefined,
@@ -232,7 +247,20 @@ export default function NewSalePage(): React.ReactElement {
         </div>
 
         <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <SaleItemsInput items={items} onChange={setItems} />
+          {categories.filter(c => (c.isActive ?? 1) !== 0).length === 0 && (
+            <div className="mb-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+              No egg categories found. Add or load defaults in{" "}
+              <button
+                type="button"
+                onClick={() => navigate("/farm/settings/egg-categories")}
+                className="underline font-medium"
+              >
+                Settings → Egg Categories
+              </button>
+              .
+            </div>
+          )}
+          <SaleItemsInput items={items} onChange={setItems} categories={categories} />
           {errors.items && <p className="text-xs text-red-500 mt-2">{errors.items}</p>}
         </div>
 

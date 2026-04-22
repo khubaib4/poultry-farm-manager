@@ -14,8 +14,8 @@ const COLORS = {
   lightBg: [248, 249, 250] as [number, number, number],
 };
 
-const ITEM_TYPE_LABELS: Record<string, string> = { egg: "Eggs", tray: "Trays" };
-const GRADE_LABELS: Record<string, string> = { A: "Grade A", B: "Grade B", cracked: "Cracked" };
+const UNIT_LABELS: Record<string, string> = { egg: "Eggs", tray: "Tray", peti: "Peti" };
+const UNIT_MULTIPLIER: Record<string, number> = { egg: 1, tray: 30, peti: 360 };
 const METHOD_LABELS: Record<string, string> = {
   cash: "Cash", bank_transfer: "Bank Transfer", cheque: "Cheque",
   mobile_payment: "Mobile Payment", online: "Online", other: "Other",
@@ -112,12 +112,20 @@ export function generateInvoicePDF(
 
   y = Math.max(billY + 4, y + (sale.customer.address ? 32 : 26));
 
-  const itemRows = sale.items.map(item => [
-    `${ITEM_TYPE_LABELS[item.itemType] || item.itemType} - ${GRADE_LABELS[item.grade] || item.grade}`,
-    String(item.quantity ?? 0),
-    fmt(item.unitPrice ?? 0),
-    fmt(item.lineTotal ?? 0),
-  ]);
+  const itemRows = sale.items.map(item => {
+    const unitType = (item as any).unitType || (item.itemType === "tray" ? "tray" : "egg");
+    const multiplier = UNIT_MULTIPLIER[unitType] ?? 1;
+    const qty = Number(item.quantity ?? 0);
+    const eggs = Number.isFinite(Number((item as any).totalEggs))
+      ? Number((item as any).totalEggs)
+      : Math.trunc(qty * multiplier);
+    return [
+      `${item.grade} - ${qty.toLocaleString()} ${UNIT_LABELS[unitType] || unitType} (${eggs.toLocaleString()} eggs)`,
+      String(item.quantity ?? 0),
+      fmt(item.unitPrice ?? 0),
+      fmt(item.lineTotal ?? 0),
+    ];
+  });
 
   autoTable(doc, {
     startY: y,

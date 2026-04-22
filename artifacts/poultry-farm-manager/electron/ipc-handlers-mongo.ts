@@ -26,6 +26,7 @@ import {
   FlockModel,
   DailyEntryModel,
   EggPriceModel,
+  EggCategoryModel,
   ExpenseModel,
   InventoryModel,
   InventoryTransactionModel,
@@ -48,6 +49,7 @@ import {
   flockSchema,
   dailyEntrySchema,
   eggPriceSchema,
+  eggCategorySchema,
   expenseSchema,
   inventorySchema,
   inventoryTransactionSchema,
@@ -199,11 +201,7 @@ async function getOwnerFarmStatsMongo(
     }).lean();
   }
 
-  const eggsToday = todayEntries.reduce(
-    (s: number, e: any) =>
-      s + Number(e.eggsGradeA ?? 0) + Number(e.eggsGradeB ?? 0) + Number(e.eggsCracked ?? 0),
-    0
-  );
+  const eggsToday = todayEntries.reduce((s: number, e: any) => s + Number(e.totalEggs ?? 0), 0);
   const flocksWithEntriesToday = new Set(todayEntries.map((e: any) => e.flockId)).size;
 
   let allEntries: any[] = [];
@@ -218,14 +216,7 @@ async function getOwnerFarmStatsMongo(
   const mortalityRate =
     initialBirds > 0 ? Math.round((totalDeaths / initialBirds) * 10000) / 100 : 0;
 
-  const totalEggsMonth = allEntries.reduce(
-    (s: number, e: any) =>
-      s +
-      Number(e.eggsGradeA ?? 0) +
-      Number(e.eggsGradeB ?? 0) +
-      Number(e.eggsCracked ?? 0),
-    0
-  );
+  const totalEggsMonth = allEntries.reduce((s: number, e: any) => s + Number(e.totalEggs ?? 0), 0);
   const distinctDays = new Set(allEntries.map((e: any) => e.entryDate)).size;
   const avgEggsPerDay = distinctDays > 0 ? Math.round(totalEggsMonth / distinctDays) : 0;
   const productionRate =
@@ -296,13 +287,7 @@ async function sumEggsForFlockIdsInDateRange(
       $group: {
         _id: null,
         total: {
-          $sum: {
-            $add: [
-              { $ifNull: ["$eggsGradeA", 0] },
-              { $ifNull: ["$eggsGradeB", 0] },
-              { $ifNull: ["$eggsCracked", 0] },
-            ],
-          },
+          $sum: { $ifNull: ["$totalEggs", 0] },
         },
       },
     },
@@ -399,10 +384,7 @@ async function aggregateOwnerStatHistory(
       const ds = String((e as any).entryDate);
       if (!byDate[ds]) byDate[ds] = 0;
       if (statType === "eggs") {
-        byDate[ds] +=
-          Number((e as any).eggsGradeA ?? 0) +
-          Number((e as any).eggsGradeB ?? 0) +
-          Number((e as any).eggsCracked ?? 0);
+        byDate[ds] += Number((e as any).totalEggs ?? 0);
       } else if (statType === "deaths") {
         byDate[ds] += Number((e as any).deaths ?? 0);
       } else if (statType === "feed") {
@@ -621,7 +603,7 @@ export function registerIpcHandlers(): void {
         const updated = await OwnerModel.findOneAndUpdate(
           { id },
           updates,
-          { new: true }
+          { returnDocument: "after" }
         ).lean();
         if (!updated) throw new Error("Owner not found");
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -743,7 +725,7 @@ export function registerIpcHandlers(): void {
         if (data.isActive !== undefined) updates.isActive = data.isActive;
 
         const updated = await FarmModel.findOneAndUpdate({ id }, updates, {
-          new: true,
+          returnDocument: "after",
         }).lean();
         if (!updated) throw new Error("Farm not found");
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -770,7 +752,7 @@ export function registerIpcHandlers(): void {
       const updated = await FarmModel.findOneAndUpdate(
         { id },
         { loginPasswordHash: hash },
-        { new: true }
+        { returnDocument: "after" }
       ).lean();
       if (!updated) throw new Error("Farm not found");
       return { success: true };
@@ -857,7 +839,7 @@ export function registerIpcHandlers(): void {
       if (data.isActive !== undefined) updates.isActive = data.isActive;
       if (data.password !== undefined) updates.passwordHash = bcrypt.hashSync(data.password, 10);
 
-      const updated = await UserModel.findOneAndUpdate({ id }, updates, { new: true }).lean();
+      const updated = await UserModel.findOneAndUpdate({ id }, updates, { returnDocument: "after" }).lean();
       if (!updated) throw new Error("User not found");
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { passwordHash: _ph, _id, __v, ...safe } = updated as any;
@@ -946,9 +928,7 @@ export function registerIpcHandlers(): void {
           $group: {
             _id: null,
             totalDeaths: { $sum: { $ifNull: ["$deaths", 0] } },
-            totalEggsA: { $sum: { $ifNull: ["$eggsGradeA", 0] } },
-            totalEggsB: { $sum: { $ifNull: ["$eggsGradeB", 0] } },
-            totalEggsCracked: { $sum: { $ifNull: ["$eggsCracked", 0] } },
+            totalEggs: { $sum: { $ifNull: ["$totalEggs", 0] } },
             totalFeed: { $sum: { $ifNull: ["$feedConsumedKg", 0] } },
             daysTracked: { $sum: 1 },
           },
@@ -956,13 +936,11 @@ export function registerIpcHandlers(): void {
       ]);
       const s = statsAgg[0] ?? {
         totalDeaths: 0,
-        totalEggsA: 0,
-        totalEggsB: 0,
-        totalEggsCracked: 0,
+        totalEggs: 0,
         totalFeed: 0,
         daysTracked: 0,
       };
-      const totalEggs = Number(s.totalEggsA ?? 0) + Number(s.totalEggsB ?? 0) + Number(s.totalEggsCracked ?? 0);
+      const totalEggs = Number(s.totalEggs ?? 0);
 
       // Last 7 days stats for production rate and UI cards.
       const sevenDaysAgo = new Date();
@@ -975,15 +953,7 @@ export function registerIpcHandlers(): void {
         {
           $group: {
             _id: null,
-            eggs: {
-              $sum: {
-                $add: [
-                  { $ifNull: ["$eggsGradeA", 0] },
-                  { $ifNull: ["$eggsGradeB", 0] },
-                  { $ifNull: ["$eggsCracked", 0] },
-                ],
-              },
-            },
+            eggs: { $sum: { $ifNull: ["$totalEggs", 0] } },
             feedKg: { $sum: { $ifNull: ["$feedConsumedKg", 0] } },
             daysCount: { $sum: 1 },
           },
@@ -1040,7 +1010,7 @@ export function registerIpcHandlers(): void {
       if (data.batchName !== undefined) updates.batchName = data.batchName;
       if (data.breed !== undefined) updates.breed = data.breed;
       if (data.notes !== undefined) updates.notes = data.notes;
-      const updated = await FlockModel.findOneAndUpdate({ id }, updates, { new: true }).lean();
+      const updated = await FlockModel.findOneAndUpdate({ id }, updates, { returnDocument: "after" }).lean();
       return updated;
     })
   );
@@ -1054,7 +1024,7 @@ export function registerIpcHandlers(): void {
       const updated = await FlockModel.findOneAndUpdate(
         { id },
         { status, statusChangedDate: date, statusNotes: notes ?? null },
-        { new: true }
+        { returnDocument: "after" }
       ).lean();
       return updated;
     })
@@ -1085,9 +1055,7 @@ export function registerIpcHandlers(): void {
         {
           $group: {
             _id: null,
-            totalEggsA: { $sum: { $ifNull: ["$eggsGradeA", 0] } },
-            totalEggsB: { $sum: { $ifNull: ["$eggsGradeB", 0] } },
-            totalCracked: { $sum: { $ifNull: ["$eggsCracked", 0] } },
+            totalEggs: { $sum: { $ifNull: ["$totalEggs", 0] } },
             totalDeaths: { $sum: { $ifNull: ["$deaths", 0] } },
             totalFeed: { $sum: { $ifNull: ["$feedConsumedKg", 0] } },
             daysTracked: { $sum: 1 },
@@ -1095,16 +1063,13 @@ export function registerIpcHandlers(): void {
         },
       ]);
       const s = agg[0] ?? {
-        totalEggsA: 0,
-        totalEggsB: 0,
-        totalCracked: 0,
+        totalEggs: 0,
         totalDeaths: 0,
         totalFeed: 0,
         daysTracked: 0,
       };
       return {
         ...s,
-        totalEggs: s.totalEggsA + s.totalEggsB + s.totalCracked,
       };
     })
   );
@@ -1129,12 +1094,12 @@ export function registerIpcHandlers(): void {
       }).lean();
       if (existing) throw new Error("Entry already exists for this date");
 
+      const totalEggs = Math.max(0, Number(data.totalEggs ?? 0));
+
       const created = await createWithId("daily_entries", DailyEntryModel as any, {
         ...data,
         deaths: data.deaths ?? 0,
-        eggsGradeA: data.eggsGradeA ?? 0,
-        eggsGradeB: data.eggsGradeB ?? 0,
-        eggsCracked: data.eggsCracked ?? 0,
+        totalEggs,
         feedConsumedKg: data.feedConsumedKg ?? 0,
       });
 
@@ -1159,8 +1124,15 @@ export function registerIpcHandlers(): void {
       const flock = await FlockModel.findOne({ id: existing.flockId }).lean();
       if (!flock) throw new Error("Flock not found");
       await requireFarmAccess(flock.farmId!);
-      const updated = await DailyEntryModel.findOneAndUpdate({ id }, data, {
-        new: true,
+
+      const normalizedTotalEggs =
+        data.totalEggs != null ? Math.max(0, Number(data.totalEggs)) : undefined;
+
+      const updates: any = { ...data };
+      if (normalizedTotalEggs !== undefined) updates.totalEggs = normalizedTotalEggs;
+
+      const updated = await DailyEntryModel.findOneAndUpdate({ id }, updates, {
+        returnDocument: "after",
       }).lean();
       return updated;
     })
@@ -1286,6 +1258,107 @@ export function registerIpcHandlers(): void {
   );
 
   // --------------------
+  // Egg categories (sales)
+  // --------------------
+  ipcMain.handle(
+    "eggCategories:getAll",
+    wrapHandler(async (_e: unknown, farmId: number) => {
+      await requireFarmAccess(farmId);
+      return await EggCategoryModel.find({ farmId })
+        .sort({ sortOrder: 1, name: 1, id: 1 })
+        .lean();
+    })
+  );
+
+  ipcMain.handle(
+    "eggCategories:create",
+    wrapHandler(async (_e: unknown, data: any) => {
+      const parsed = eggCategorySchema.omit({ id: true }).safeParse(data);
+      if (!parsed.success) throw new Error(parsed.error.message);
+      await requireFarmAccess(parsed.data.farmId!);
+
+      const payload = {
+        ...parsed.data,
+        description: parsed.data.description ?? "",
+        defaultPrice: parsed.data.defaultPrice ?? 0,
+        unit: parsed.data.unit ?? "tray",
+        isActive: parsed.data.isActive ?? 1,
+        sortOrder: parsed.data.sortOrder ?? 0,
+      };
+
+      const created = await createWithId("egg_categories", EggCategoryModel as any, payload as any);
+      return toPlain<any>(created);
+    })
+  );
+
+  ipcMain.handle(
+    "eggCategories:update",
+    wrapHandler(async (_e: unknown, id: number, data: any) => {
+      requireAuth();
+      const existing = await EggCategoryModel.findOne({ id }).lean();
+      if (!existing) throw new Error("Egg category not found");
+      await requireFarmAccess(Number((existing as any).farmId));
+
+      const updates: any = { ...data };
+      if (updates.defaultPrice !== undefined) updates.defaultPrice = Math.max(0, Number(updates.defaultPrice));
+      if (updates.sortOrder !== undefined) updates.sortOrder = Math.trunc(Number(updates.sortOrder));
+      if (updates.isActive !== undefined) updates.isActive = Number(updates.isActive) ? 1 : 0;
+
+      const updated = await EggCategoryModel.findOneAndUpdate({ id }, updates, { returnDocument: "after" }).lean();
+      if (!updated) throw new Error("Egg category not found");
+      return updated;
+    })
+  );
+
+  ipcMain.handle(
+    "eggCategories:delete",
+    wrapHandler(async (_e: unknown, id: number) => {
+      requireAuth();
+      const existing = await EggCategoryModel.findOne({ id }).lean();
+      if (!existing) throw new Error("Egg category not found");
+      await requireFarmAccess(Number((existing as any).farmId));
+      const updated = await EggCategoryModel.findOneAndUpdate({ id }, { isActive: 0 }, { returnDocument: "after" }).lean();
+      return updated;
+    })
+  );
+
+  const DEFAULT_EGG_CATEGORIES: Array<{ name: string; unit: "tray" | "dozen" | "piece" | "crate"; sortOrder: number }> = [
+    { name: "Double", unit: "tray", sortOrder: 10 },
+    { name: "Large", unit: "tray", sortOrder: 20 },
+    { name: "Medium", unit: "tray", sortOrder: 30 },
+    { name: "Small", unit: "tray", sortOrder: 40 },
+    { name: "Pullat", unit: "tray", sortOrder: 50 },
+    { name: "Starter", unit: "tray", sortOrder: 60 },
+    { name: "Mela", unit: "tray", sortOrder: 70 },
+    { name: "Broken", unit: "tray", sortOrder: 80 },
+    { name: "Mixed", unit: "tray", sortOrder: 90 },
+  ];
+
+  ipcMain.handle(
+    "eggCategories:seedDefaults",
+    wrapHandler(async (_e: unknown, farmId: number) => {
+      await requireFarmAccess(farmId);
+      const existingCount = await EggCategoryModel.countDocuments({ farmId });
+      if (existingCount > 0) return { seeded: 0, skipped: true };
+
+      let seeded = 0;
+      for (const c of DEFAULT_EGG_CATEGORIES) {
+        await createWithId("egg_categories", EggCategoryModel as any, {
+          farmId,
+          name: c.name,
+          description: "",
+          defaultPrice: 0,
+          unit: c.unit,
+          isActive: 1,
+          sortOrder: c.sortOrder,
+        });
+        seeded += 1;
+      }
+      return { seeded, skipped: false };
+    })
+  );
+
+  // --------------------
   // Expenses
   // --------------------
   ipcMain.handle(
@@ -1335,7 +1408,7 @@ export function registerIpcHandlers(): void {
     "expenses:update",
     wrapHandler(async (_e: unknown, id: number, data: any) => {
       requireAuth();
-      const updated = await ExpenseModel.findOneAndUpdate({ id }, data, { new: true }).lean();
+      const updated = await ExpenseModel.findOneAndUpdate({ id }, data, { returnDocument: "after" }).lean();
       if (!updated) throw new Error("Expense not found");
       return updated;
     })
@@ -1433,7 +1506,7 @@ export function registerIpcHandlers(): void {
       const item = await InventoryModel.findOne({ id }).lean();
       if (!item) throw new Error("Inventory item not found");
       await requireFarmAccess(item.farmId!);
-      const updated = await InventoryModel.findOneAndUpdate({ id }, data, { new: true }).lean();
+      const updated = await InventoryModel.findOneAndUpdate({ id }, data, { returnDocument: "after" }).lean();
       return updated;
     })
   );
@@ -1633,7 +1706,7 @@ export function registerIpcHandlers(): void {
       const flock = await FlockModel.findOne({ id: v.flockId }).lean();
       if (!flock) throw new Error("Flock not found");
       await requireFarmAccess(flock.farmId!);
-      const updated = await VaccinationModel.findOneAndUpdate({ id }, data, { new: true }).lean();
+      const updated = await VaccinationModel.findOneAndUpdate({ id }, data, { returnDocument: "after" }).lean();
       return updated;
     })
   );
@@ -1659,7 +1732,7 @@ export function registerIpcHandlers(): void {
       const updated = await VaccinationModel.findOneAndUpdate(
         { id },
         { ...data, status: "completed" },
-        { new: true }
+        { returnDocument: "after" }
       ).lean();
       if (!updated) throw new Error("Vaccination not found");
       return updated;
@@ -1673,7 +1746,7 @@ export function registerIpcHandlers(): void {
       const updated = await VaccinationModel.findOneAndUpdate(
         { id },
         { notes: data?.notes ?? null, status: "skipped" },
-        { new: true }
+        { returnDocument: "after" }
       ).lean();
       if (!updated) throw new Error("Vaccination not found");
       return updated;
@@ -1687,7 +1760,7 @@ export function registerIpcHandlers(): void {
       const updated = await VaccinationModel.findOneAndUpdate(
         { id },
         { scheduledDate: newDate, status: "pending" },
-        { new: true }
+        { returnDocument: "after" }
       ).lean();
       if (!updated) throw new Error("Vaccination not found");
       return updated;
@@ -1881,7 +1954,7 @@ export function registerIpcHandlers(): void {
     "vaccinationSchedule:update",
     wrapHandler(async (_e: unknown, id: number, data: any) => {
       requireAuth();
-      const updated = await VaccinationScheduleModel.findOneAndUpdate({ id }, data, { new: true }).lean();
+      const updated = await VaccinationScheduleModel.findOneAndUpdate({ id }, data, { returnDocument: "after" }).lean();
       if (!updated) throw new Error("Schedule item not found");
       return updated;
     })
@@ -1979,7 +2052,7 @@ export function registerIpcHandlers(): void {
     "vaccines:update",
     wrapHandler(async (_e: unknown, id: number, data: any) => {
       requireAuth();
-      const updated = await VaccineModel.findOneAndUpdate({ id }, data, { new: true }).lean();
+      const updated = await VaccineModel.findOneAndUpdate({ id }, data, { returnDocument: "after" }).lean();
       if (!updated) throw new Error("Vaccine not found");
       return updated;
     })
@@ -2071,7 +2144,7 @@ export function registerIpcHandlers(): void {
       const cust = await CustomerModel.findOne({ id }).lean();
       if (!cust) throw new Error("Customer not found");
       await requireFarmAccess(cust.farmId!);
-      const updated = await CustomerModel.findOneAndUpdate({ id }, data, { new: true }).lean();
+      const updated = await CustomerModel.findOneAndUpdate({ id }, data, { returnDocument: "after" }).lean();
       return updated;
     })
   );
@@ -2251,12 +2324,20 @@ export function registerIpcHandlers(): void {
         const qty = Number(item.quantity ?? 0);
         const unit = Number(item.unitPrice ?? 0);
         const lineTotal = Number.isFinite(Number(item.lineTotal)) ? Number(item.lineTotal) : qty * unit;
+        const unitTypeRaw = String(item.unitType ?? "tray");
+        const unitType = unitTypeRaw === "peti" ? "peti" : unitTypeRaw === "egg" ? "egg" : "tray";
+        const multiplier = unitType === "peti" ? 360 : unitType === "tray" ? 30 : 1;
+        const totalEggs = Number.isFinite(Number(item.totalEggs))
+          ? Math.max(0, Math.trunc(Number(item.totalEggs)))
+          : Math.max(0, Math.trunc(qty * multiplier));
         const itemParsed = saleItemSchema.omit({ id: true }).safeParse({
           saleId: sale.id,
           itemType: item.itemType,
           grade: item.grade,
+          unitType,
           quantity: qty,
           unitPrice: unit,
+          totalEggs,
           lineTotal,
         });
         if (!itemParsed.success) throw new Error(itemParsed.error.message);
@@ -2278,6 +2359,27 @@ export function registerIpcHandlers(): void {
 
       // Return the sale with correct calculated totals (UI expects these for summary cards)
       return { ...sale, ...computed };
+    })
+  );
+
+  ipcMain.handle(
+    "sales:getByCustomer",
+    wrapHandler(async (_e: unknown, customerId: number) => {
+      const cid = Number(customerId);
+      if (!Number.isFinite(cid)) throw new Error("Invalid customerId");
+
+      const customer = await CustomerModel.findOne({ id: cid }).lean();
+      if (!customer) throw new Error("Customer not found");
+
+      await requireFarmAccess(Number((customer as any).farmId));
+
+      return await SaleModel.find({
+        farmId: (customer as any).farmId,
+        customerId: cid,
+        isDeleted: { $ne: 1 },
+      })
+        .sort({ saleDate: -1, id: -1 })
+        .lean();
     })
   );
 
@@ -2367,7 +2469,65 @@ export function registerIpcHandlers(): void {
       const sale = await SaleModel.findOne({ id }).lean();
       if (!sale) throw new Error("Sale not found");
       await requireFarmAccess(sale.farmId!);
-      const updated = await SaleModel.findOneAndUpdate({ id }, data, { new: true }).lean();
+
+      const payments = await SalePaymentModel.find({ saleId: id }).lean();
+      if (payments.length > 0) throw new Error("Cannot edit a sale that has payments recorded");
+
+      const computed = computeSaleTotals({
+        items: data.items ?? [],
+        discountType: data.discountType ?? sale.discountType,
+        discountValue: data.discountValue ?? sale.discountValue,
+        paidAmount: 0,
+      });
+
+      // Replace items if provided
+      if (Array.isArray(data.items)) {
+        await SaleItemModel.deleteMany({ saleId: id });
+        for (const item of data.items ?? []) {
+          const qty = Number(item.quantity ?? 0);
+          const unit = Number(item.unitPrice ?? 0);
+          const lineTotal = Number.isFinite(Number(item.lineTotal)) ? Number(item.lineTotal) : qty * unit;
+          const unitTypeRaw = String(item.unitType ?? item.itemType ?? "tray");
+          const unitType = unitTypeRaw === "peti" ? "peti" : unitTypeRaw === "egg" ? "egg" : "tray";
+          const multiplier = unitType === "peti" ? 360 : unitType === "tray" ? 30 : 1;
+          const totalEggs = Number.isFinite(Number(item.totalEggs))
+            ? Math.max(0, Math.trunc(Number(item.totalEggs)))
+            : Math.max(0, Math.trunc(qty * multiplier));
+
+          const itemParsed = saleItemSchema.omit({ id: true }).safeParse({
+            saleId: id,
+            itemType: String(item.itemType ?? unitType),
+            grade: String(item.grade ?? ""),
+            unitType,
+            quantity: qty,
+            unitPrice: unit,
+            totalEggs,
+            lineTotal,
+          });
+          if (!itemParsed.success) throw new Error(itemParsed.error.message);
+          await createWithId("sale_items", SaleItemModel as any, itemParsed.data as any);
+        }
+      }
+
+      const updated = await SaleModel.findOneAndUpdate(
+        { id },
+        {
+          customerId: data.customerId ?? sale.customerId,
+          saleDate: data.saleDate ?? sale.saleDate,
+          dueDate: data.dueDate ?? sale.dueDate,
+          subtotal: computed.subtotal,
+          discountType: computed.discountType,
+          discountValue: computed.discountValue,
+          discountAmount: computed.discountAmount,
+          totalAmount: computed.totalAmount,
+          paidAmount: 0,
+          balanceDue: computed.totalAmount,
+          paymentStatus: "unpaid",
+          notes: data.notes ?? sale.notes,
+        },
+        { returnDocument: "after" }
+      ).lean();
+
       return updated;
     })
   );
@@ -2812,7 +2972,7 @@ export function registerIpcHandlers(): void {
       const flocks = await FlockModel.find({ farmId }).lean();
       const flockIds = flocks.map((f: any) => f.id);
       const entries = await DailyEntryModel.find({ flockId: { $in: flockIds }, entryDate: { $gte: startDate, $lte: endDate } }).lean();
-      const totalEggs = entries.reduce((s: number, e: any) => s + Number(e.eggsGradeA ?? 0) + Number(e.eggsGradeB ?? 0) + Number(e.eggsCracked ?? 0), 0);
+      const totalEggs = entries.reduce((s: number, e: any) => s + Number(e.totalEggs ?? 0), 0);
       const revAgg = await SaleModel.aggregate([
         { $match: { farmId, isDeleted: { $ne: 1 }, saleDate: { $gte: startDate, $lte: endDate } } },
         { $group: { _id: null, revenue: { $sum: "$totalAmount" } } },
@@ -2977,10 +3137,7 @@ export function registerIpcHandlers(): void {
 
       const todayEggs = todayEntries.reduce(
         (s: number, e: any) =>
-          s +
-          Number(e.eggsGradeA ?? 0) +
-          Number(e.eggsGradeB ?? 0) +
-          Number(e.eggsCracked ?? 0),
+          s + Number(e.totalEggs ?? 0),
         0
       );
       const todayDeaths = todayEntries.reduce((s: number, e: any) => s + Number(e.deaths ?? 0), 0);
@@ -3098,11 +3255,7 @@ export function registerIpcHandlers(): void {
             }).lean()
           : [];
         const eggs = entries.reduce(
-          (s: number, e: any) =>
-            s +
-            Number(e.eggsGradeA ?? 0) +
-            Number(e.eggsGradeB ?? 0) +
-            Number(e.eggsCracked ?? 0),
+          (s: number, e: any) => s + Number(e.totalEggs ?? 0),
           0
         );
         const deaths = entries.reduce((s: number, e: any) => s + Number(e.deaths ?? 0), 0);
@@ -3328,10 +3481,7 @@ export function registerIpcHandlers(): void {
         const ds = String((e as any).entryDate);
         if (!byDate[ds]) byDate[ds] = 0;
         if (statType === "eggs") {
-          byDate[ds] +=
-            Number((e as any).eggsGradeA ?? 0) +
-            Number((e as any).eggsGradeB ?? 0) +
-            Number((e as any).eggsCracked ?? 0);
+          byDate[ds] += Number((e as any).totalEggs ?? 0);
         } else if (statType === "deaths") {
           byDate[ds] += Number((e as any).deaths ?? 0);
         } else if (statType === "feed") {
@@ -3366,9 +3516,7 @@ export function registerIpcHandlers(): void {
           batchName: f?.batchName ?? "",
           breed: f?.breed ?? null,
           currentCount: f?.currentCount ?? 0,
-          eggsGradeA: Number(e.eggsGradeA ?? 0),
-          eggsGradeB: Number(e.eggsGradeB ?? 0),
-          eggsCracked: Number(e.eggsCracked ?? 0),
+          totalEggs: Number(e.totalEggs ?? 0),
           deaths: Number(e.deaths ?? 0),
           deathCause: e.deathCause ?? null,
           feedConsumedKg: Number(e.feedConsumedKg ?? 0),
@@ -3379,15 +3527,12 @@ export function registerIpcHandlers(): void {
       const totals = flocksOut.reduce(
         (acc: any, r: any) => {
           acc.birds += Number(r.currentCount ?? 0);
-          acc.eggsGradeA += r.eggsGradeA;
-          acc.eggsGradeB += r.eggsGradeB;
-          acc.eggsCracked += r.eggsCracked;
-          acc.eggsTotal += r.eggsGradeA + r.eggsGradeB + r.eggsCracked;
+          acc.eggsTotal += Number(r.totalEggs ?? 0);
           acc.deaths += r.deaths;
           acc.feedKg += r.feedConsumedKg;
           return acc;
         },
-        { birds: 0, eggsGradeA: 0, eggsGradeB: 0, eggsCracked: 0, eggsTotal: 0, deaths: 0, feedKg: 0, revenue: 0, expenses: 0 }
+        { birds: 0, eggsTotal: 0, deaths: 0, feedKg: 0, revenue: 0, expenses: 0 }
       );
       return { date, farm: { id: farmId, name: farm?.name ?? "", location: farm?.location ?? null }, flocks: flocksOut, totals, notes: [] };
     })
@@ -3404,27 +3549,21 @@ export function registerIpcHandlers(): void {
       const byDate = new Map<string, any>();
       for (const e of entries) {
         const d = e.entryDate;
-        const cur = byDate.get(d) ?? { date: d, eggsGradeA: 0, eggsGradeB: 0, eggsCracked: 0, eggsTotal: 0, deaths: 0, feedKg: 0 };
-        cur.eggsGradeA += Number(e.eggsGradeA ?? 0);
-        cur.eggsGradeB += Number(e.eggsGradeB ?? 0);
-        cur.eggsCracked += Number(e.eggsCracked ?? 0);
-        cur.eggsTotal += Number(e.eggsGradeA ?? 0) + Number(e.eggsGradeB ?? 0) + Number(e.eggsCracked ?? 0);
+        const cur = byDate.get(d) ?? { date: d, eggs: 0, deaths: 0, feedKg: 0 };
+        cur.eggs += Number(e.totalEggs ?? 0);
         cur.deaths += Number(e.deaths ?? 0);
         cur.feedKg += Number(e.feedConsumedKg ?? 0);
         byDate.set(d, cur);
       }
       const dailyData = Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
       const weeklyTotals = dailyData.reduce((a: any, d: any) => {
-        a.eggsGradeA += d.eggsGradeA;
-        a.eggsGradeB += d.eggsGradeB;
-        a.eggsCracked += d.eggsCracked;
-        a.eggsTotal += d.eggsTotal;
+        a.eggs += d.eggs;
         a.deaths += d.deaths;
         a.feedKg += d.feedKg;
         return a;
-      }, { birds: 0, eggsGradeA: 0, eggsGradeB: 0, eggsCracked: 0, eggsTotal: 0, deaths: 0, feedKg: 0 });
+      }, { birds: 0, eggs: 0, deaths: 0, feedKg: 0 });
       const averages = {
-        eggsPerDay: dailyData.length ? weeklyTotals.eggsTotal / dailyData.length : 0,
+        eggsPerDay: dailyData.length ? weeklyTotals.eggs / dailyData.length : 0,
         mortalityRate: weeklyTotals.birds ? weeklyTotals.deaths / weeklyTotals.birds : 0,
         feedPerBird: weeklyTotals.birds ? weeklyTotals.feedKg / weeklyTotals.birds : 0,
       };
@@ -3447,7 +3586,7 @@ export function registerIpcHandlers(): void {
         endDate,
         farm: { id: farmId, name: farm?.name ?? "", location: farm?.location ?? null },
         weeklyData: [],
-        totals: { birds: 0, eggsGradeA: 0, eggsGradeB: 0, eggsCracked: 0, eggsTotal: 0, deaths: 0, feedKg: 0 },
+        totals: { birds: 0, eggsTotal: 0, deaths: 0, feedKg: 0 },
         averages: { eggsPerDay: 0, productionRate: 0 },
         financial: { revenue: 0, expenses: 0, profit: 0, expensesByCategory: [] },
         inventory: { totalItems: 0, lowStock: 0, expiringSoon: 0 },
@@ -3465,18 +3604,15 @@ export function registerIpcHandlers(): void {
       const farm = await FarmModel.findOne({ id: flock.farmId }).lean();
       const entries = await DailyEntryModel.find({ flockId }).sort({ entryDate: 1 }).lean();
       const stats = entries.reduce((a: any, e: any) => {
-        a.totalEggsA += Number(e.eggsGradeA ?? 0);
-        a.totalEggsB += Number(e.eggsGradeB ?? 0);
-        a.totalCracked += Number(e.eggsCracked ?? 0);
+        a.totalEggs += Number(e.totalEggs ?? 0);
         a.totalDeaths += Number(e.deaths ?? 0);
         a.totalFeed += Number(e.feedConsumedKg ?? 0);
         a.daysTracked += 1;
         return a;
-      }, { totalEggs: 0, totalEggsA: 0, totalEggsB: 0, totalCracked: 0, totalDeaths: 0, totalFeed: 0, mortalityRate: 0, productionRate: 0, feedConversionRatio: 0, daysTracked: 0 });
-      stats.totalEggs = stats.totalEggsA + stats.totalEggsB + stats.totalCracked;
+      }, { totalEggs: 0, totalDeaths: 0, totalFeed: 0, mortalityRate: 0, productionRate: 0, feedConversionRatio: 0, daysTracked: 0 });
       const productionCurve = entries.map((e: any) => ({
         date: e.entryDate,
-        eggs: Number(e.eggsGradeA ?? 0) + Number(e.eggsGradeB ?? 0) + Number(e.eggsCracked ?? 0),
+        eggs: Number(e.totalEggs ?? 0),
         deaths: Number(e.deaths ?? 0),
         feedKg: Number(e.feedConsumedKg ?? 0),
       }));

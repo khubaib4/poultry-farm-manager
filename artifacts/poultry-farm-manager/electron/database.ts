@@ -104,9 +104,7 @@ function createTablesManually(): void {
       entry_date TEXT NOT NULL,
       deaths INTEGER DEFAULT 0,
       death_cause TEXT,
-      eggs_grade_a INTEGER DEFAULT 0,
-      eggs_grade_b INTEGER DEFAULT 0,
-      eggs_cracked INTEGER DEFAULT 0,
+      total_eggs INTEGER DEFAULT 0,
       feed_consumed_kg REAL DEFAULT 0,
       water_consumed_liters REAL,
       notes TEXT,
@@ -123,6 +121,20 @@ function createTablesManually(): void {
       price_per_tray REAL NOT NULL,
       effective_date TEXT NOT NULL,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS egg_categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      farm_id INTEGER NOT NULL REFERENCES farms(id),
+      name TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      default_price REAL DEFAULT 0,
+      unit TEXT DEFAULT 'tray',
+      is_active INTEGER DEFAULT 1,
+      sort_order INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(farm_id, name)
     );
 
     CREATE TABLE IF NOT EXISTS expenses (
@@ -149,6 +161,31 @@ function createTablesManually(): void {
   safeAlter("ALTER TABLE expenses ADD COLUMN notes TEXT");
   safeAlter("ALTER TABLE vaccinations ADD COLUMN dosage TEXT");
   safeAlter("ALTER TABLE vaccinations ADD COLUMN route TEXT");
+  safeAlter("ALTER TABLE daily_entries ADD COLUMN total_eggs INTEGER DEFAULT 0");
+  safeAlter("ALTER TABLE egg_categories ADD COLUMN description TEXT DEFAULT ''");
+  safeAlter("ALTER TABLE egg_categories ADD COLUMN default_price REAL DEFAULT 0");
+  safeAlter("ALTER TABLE egg_categories ADD COLUMN unit TEXT DEFAULT 'tray'");
+  safeAlter("ALTER TABLE egg_categories ADD COLUMN is_active INTEGER DEFAULT 1");
+  safeAlter("ALTER TABLE egg_categories ADD COLUMN sort_order INTEGER DEFAULT 0");
+  safeAlter("ALTER TABLE egg_categories ADD COLUMN created_at TEXT DEFAULT CURRENT_TIMESTAMP");
+  safeAlter("ALTER TABLE egg_categories ADD COLUMN updated_at TEXT DEFAULT CURRENT_TIMESTAMP");
+  safeAlter("ALTER TABLE sale_items ADD COLUMN unit_type TEXT DEFAULT 'tray'");
+  safeAlter("ALTER TABLE sale_items ADD COLUMN total_eggs INTEGER DEFAULT 0");
+
+  // Backfill total_eggs for older databases if egg grade columns exist
+  try {
+    sqlite.exec(`
+      UPDATE daily_entries
+      SET total_eggs =
+        COALESCE(total_eggs, 0) +
+        COALESCE(eggs_grade_a, 0) +
+        COALESCE(eggs_grade_b, 0) +
+        COALESCE(eggs_cracked, 0)
+      WHERE total_eggs IS NULL OR total_eggs = 0;
+    `);
+  } catch {
+    // Older/newer schemas may not have the grade columns; ignore.
+  }
 
   sqlite.exec(`
 

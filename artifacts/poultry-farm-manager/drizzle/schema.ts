@@ -57,9 +57,7 @@ export const dailyEntries = sqliteTable(
     entryDate: text("entry_date").notNull(),
     deaths: integer("deaths").default(0),
     deathCause: text("death_cause"),
-    eggsGradeA: integer("eggs_grade_a").default(0),
-    eggsGradeB: integer("eggs_grade_b").default(0),
-    eggsCracked: integer("eggs_cracked").default(0),
+    totalEggs: integer("total_eggs").default(0),
     feedConsumedKg: real("feed_consumed_kg").default(0),
     waterConsumedLiters: real("water_consumed_liters"),
     notes: text("notes"),
@@ -83,6 +81,25 @@ export const eggPrices = sqliteTable("egg_prices", {
   effectiveDate: text("effective_date").notNull(),
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 });
+
+export const eggCategories = sqliteTable(
+  "egg_categories",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    farmId: integer("farm_id").notNull().references(() => farms.id),
+    name: text("name").notNull(),
+    description: text("description").default(""),
+    defaultPrice: real("default_price").notNull().default(0),
+    unit: text("unit").notNull().default("tray"),
+    isActive: integer("is_active").notNull().default(1),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    uniqueIndex("egg_categories_farm_name_unique").on(table.farmId, table.name),
+  ]
+);
 
 export const expenses = sqliteTable("expenses", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -188,8 +205,10 @@ export const saleItems = sqliteTable("sale_items", {
   saleId: integer("sale_id").notNull().references(() => sales.id, { onDelete: "cascade" }),
   itemType: text("item_type").notNull(),
   grade: text("grade").notNull(),
+  unitType: text("unit_type").notNull().default("tray"),
   quantity: real("quantity").notNull().default(0),
   unitPrice: real("unit_price").notNull().default(0),
+  totalEggs: integer("total_eggs").notNull().default(0),
   lineTotal: real("line_total").notNull().default(0),
 });
 

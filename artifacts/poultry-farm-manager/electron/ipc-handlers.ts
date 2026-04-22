@@ -431,31 +431,24 @@ export function registerIpcHandlers(): void {
     const totalDeaths = Number(deathsResult?.total || 0);
 
     const eggsResult = db
-      .select({
-        gradeA: sum(schema.dailyEntries.eggsGradeA),
-        gradeB: sum(schema.dailyEntries.eggsGradeB),
-        cracked: sum(schema.dailyEntries.eggsCracked),
-      })
+      .select({ total: sum(schema.dailyEntries.totalEggs) })
       .from(schema.dailyEntries)
       .where(eq(schema.dailyEntries.flockId, flockId))
       .get();
-    const totalEggs = Number(eggsResult?.gradeA || 0) + Number(eggsResult?.gradeB || 0) + Number(eggsResult?.cracked || 0);
+    const totalEggs = Number(eggsResult?.total || 0);
 
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     const sevenDaysAgoStr = sevenDaysAgo.toISOString().split("T")[0];
     const recentEggsResult = db
-      .select({
-        gradeA: sum(schema.dailyEntries.eggsGradeA),
-        gradeB: sum(schema.dailyEntries.eggsGradeB),
-      })
+      .select({ total: sum(schema.dailyEntries.totalEggs) })
       .from(schema.dailyEntries)
       .where(and(
         eq(schema.dailyEntries.flockId, flockId),
         gte(schema.dailyEntries.entryDate, sevenDaysAgoStr)
       ))
       .get();
-    const eggsLast7Days = Number(recentEggsResult?.gradeA || 0) + Number(recentEggsResult?.gradeB || 0);
+    const eggsLast7Days = Number(recentEggsResult?.total || 0);
 
     return { totalDeaths, totalEggs, eggsLast7Days };
   }
@@ -621,7 +614,7 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(
     "dailyEntries:create",
-    wrapHandler((_e: unknown, data: { flockId: number; entryDate: string; deaths?: number; deathCause?: string; eggsGradeA?: number; eggsGradeB?: number; eggsCracked?: number; feedConsumedKg?: number; waterConsumedLiters?: number; notes?: string }) => {
+    wrapHandler((_e: unknown, data: { flockId: number; entryDate: string; deaths?: number; deathCause?: string; totalEggs?: number; feedConsumedKg?: number; waterConsumedLiters?: number; notes?: string }) => {
       const flock = requireFlockAccess(data.flockId);
       if (flock.status !== "active") throw new Error("Cannot add entries to a non-active flock");
       const entryDate = data.entryDate;
@@ -634,14 +627,13 @@ export function registerIpcHandlers(): void {
       const deaths = data.deaths || 0;
       if (deaths < 0) throw new Error("Deaths cannot be negative");
       if (deaths > flock.currentCount) throw new Error("Deaths cannot exceed current stock count");
+      const totalEggs = Math.max(0, Number(data.totalEggs ?? 0));
       const entry = db.insert(schema.dailyEntries).values({
         flockId: data.flockId,
         entryDate: data.entryDate,
         deaths: deaths,
         deathCause: deaths > 0 ? (data.deathCause || null) : null,
-        eggsGradeA: data.eggsGradeA || 0,
-        eggsGradeB: data.eggsGradeB || 0,
-        eggsCracked: data.eggsCracked || 0,
+        totalEggs,
         feedConsumedKg: data.feedConsumedKg || 0,
         waterConsumedLiters: data.waterConsumedLiters || null,
         notes: data.notes || null,
@@ -655,7 +647,7 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(
     "dailyEntries:update",
-    wrapHandler((_e: unknown, id: number, data: Partial<{ deaths: number; deathCause: string; eggsGradeA: number; eggsGradeB: number; eggsCracked: number; feedConsumedKg: number; waterConsumedLiters: number; notes: string }>) => {
+    wrapHandler((_e: unknown, id: number, data: Partial<{ deaths: number; deathCause: string; totalEggs: number; feedConsumedKg: number; waterConsumedLiters: number; notes: string }>) => {
       const { entry, flock } = requireDailyEntryAccess(id);
       const oldDeaths = entry.deaths || 0;
       const newDeaths = data.deaths !== undefined ? data.deaths : oldDeaths;
@@ -665,9 +657,7 @@ export function registerIpcHandlers(): void {
       const updates: Record<string, unknown> = {};
       if (data.deaths !== undefined) updates.deaths = data.deaths;
       if (data.deathCause !== undefined) updates.deathCause = data.deathCause;
-      if (data.eggsGradeA !== undefined) updates.eggsGradeA = data.eggsGradeA;
-      if (data.eggsGradeB !== undefined) updates.eggsGradeB = data.eggsGradeB;
-      if (data.eggsCracked !== undefined) updates.eggsCracked = data.eggsCracked;
+      if (data.totalEggs !== undefined) updates.totalEggs = Math.max(0, Number(data.totalEggs));
       if (data.feedConsumedKg !== undefined) updates.feedConsumedKg = data.feedConsumedKg;
       if (data.waterConsumedLiters !== undefined) updates.waterConsumedLiters = data.waterConsumedLiters;
       if (data.notes !== undefined) updates.notes = data.notes;
@@ -822,6 +812,124 @@ export function registerIpcHandlers(): void {
         prices[grade] = row || null;
       }
       return prices;
+    })
+  );
+
+  // --------------------
+  // Egg categories (sales)
+  // --------------------
+  const DEFAULT_EGG_CATEGORIES: Array<{ name: string; unit: "tray" | "dozen" | "piece" | "crate"; sortOrder: number }> = [
+    { name: "Double", unit: "tray", sortOrder: 10 },
+    { name: "Large", unit: "tray", sortOrder: 20 },
+    { name: "Medium", unit: "tray", sortOrder: 30 },
+    { name: "Small", unit: "tray", sortOrder: 40 },
+    { name: "Pullat", unit: "tray", sortOrder: 50 },
+    { name: "Starter", unit: "tray", sortOrder: 60 },
+    { name: "Mela", unit: "tray", sortOrder: 70 },
+    { name: "Broken", unit: "tray", sortOrder: 80 },
+    { name: "Mixed", unit: "tray", sortOrder: 90 },
+  ];
+
+  ipcMain.handle(
+    "eggCategories:getAll",
+    wrapHandler((_e: unknown, farmId: number) => {
+      requireFarmAccess(farmId);
+      return db
+        .select()
+        .from(schema.eggCategories)
+        .where(eq(schema.eggCategories.farmId, farmId))
+        .orderBy(schema.eggCategories.sortOrder, schema.eggCategories.name, schema.eggCategories.id)
+        .all();
+    })
+  );
+
+  ipcMain.handle(
+    "eggCategories:create",
+    wrapHandler((_e: unknown, data: { farmId: number; name: string; description?: string; defaultPrice?: number; unit?: string; isActive?: number; sortOrder?: number }) => {
+      requireFarmAccess(data.farmId);
+      if (!data.name?.trim()) throw new Error("Name is required");
+      const unit = (data.unit ?? "tray") as "tray" | "dozen" | "piece" | "crate";
+      if (!["tray", "dozen", "piece", "crate"].includes(unit)) throw new Error("Invalid unit");
+      const row = db
+        .insert(schema.eggCategories)
+        .values({
+          farmId: data.farmId,
+          name: data.name.trim(),
+          description: data.description ?? "",
+          defaultPrice: Math.max(0, Number(data.defaultPrice ?? 0)),
+          unit,
+          isActive: data.isActive ?? 1,
+          sortOrder: Math.trunc(Number(data.sortOrder ?? 0)),
+          updatedAt: new Date().toISOString(),
+        })
+        .returning()
+        .get();
+      return row;
+    })
+  );
+
+  ipcMain.handle(
+    "eggCategories:update",
+    wrapHandler((_e: unknown, id: number, data: Partial<{ name: string; description: string; defaultPrice: number; unit: string; isActive: number; sortOrder: number }>) => {
+      requireAuth();
+      const existing = db.select().from(schema.eggCategories).where(eq(schema.eggCategories.id, id)).get();
+      if (!existing) throw new Error("Egg category not found");
+      requireFarmAccess(existing.farmId);
+      const updates: Record<string, unknown> = {};
+      if (data.name !== undefined) updates.name = String(data.name).trim();
+      if (data.description !== undefined) updates.description = data.description ?? "";
+      if (data.defaultPrice !== undefined) updates.defaultPrice = Math.max(0, Number(data.defaultPrice));
+      if (data.unit !== undefined) {
+        if (!["tray", "dozen", "piece", "crate"].includes(data.unit)) throw new Error("Invalid unit");
+        updates.unit = data.unit;
+      }
+      if (data.isActive !== undefined) updates.isActive = Number(data.isActive) ? 1 : 0;
+      if (data.sortOrder !== undefined) updates.sortOrder = Math.trunc(Number(data.sortOrder));
+      updates.updatedAt = new Date().toISOString();
+      if (Object.keys(updates).length === 0) throw new Error("No valid fields to update");
+      const row = db.update(schema.eggCategories).set(updates).where(eq(schema.eggCategories.id, id)).returning().get();
+      return row;
+    })
+  );
+
+  ipcMain.handle(
+    "eggCategories:delete",
+    wrapHandler((_e: unknown, id: number) => {
+      requireAuth();
+      const existing = db.select().from(schema.eggCategories).where(eq(schema.eggCategories.id, id)).get();
+      if (!existing) throw new Error("Egg category not found");
+      requireFarmAccess(existing.farmId);
+      const row = db
+        .update(schema.eggCategories)
+        .set({ isActive: 0, updatedAt: new Date().toISOString() })
+        .where(eq(schema.eggCategories.id, id))
+        .returning()
+        .get();
+      return row;
+    })
+  );
+
+  ipcMain.handle(
+    "eggCategories:seedDefaults",
+    wrapHandler((_e: unknown, farmId: number) => {
+      requireFarmAccess(farmId);
+      const existing = db.select().from(schema.eggCategories).where(eq(schema.eggCategories.farmId, farmId)).limit(1).get();
+      if (existing) return { seeded: 0, skipped: true };
+      let seeded = 0;
+      for (const c of DEFAULT_EGG_CATEGORIES) {
+        db.insert(schema.eggCategories).values({
+          farmId,
+          name: c.name,
+          description: "",
+          defaultPrice: 0,
+          unit: c.unit,
+          isActive: 1,
+          sortOrder: c.sortOrder,
+          updatedAt: new Date().toISOString(),
+        }).run();
+        seeded += 1;
+      }
+      return { seeded, skipped: false };
     })
   );
 
@@ -1352,9 +1460,7 @@ export function registerIpcHandlers(): void {
       requireFarmAccess(farmId);
 
       const entries = db.select({
-        eggsGradeA: schema.dailyEntries.eggsGradeA,
-        eggsGradeB: schema.dailyEntries.eggsGradeB,
-        eggsCracked: schema.dailyEntries.eggsCracked,
+        totalEggs: schema.dailyEntries.totalEggs,
       })
         .from(schema.dailyEntries)
         .innerJoin(schema.flocks, eq(schema.dailyEntries.flockId, schema.flocks.id))
@@ -1367,7 +1473,7 @@ export function registerIpcHandlers(): void {
 
       let totalEggs = 0;
       for (const entry of entries) {
-        totalEggs += (entry.eggsGradeA ?? 0) + (entry.eggsGradeB ?? 0) + (entry.eggsCracked ?? 0);
+        totalEggs += Number((entry as any).totalEggs ?? 0);
       }
 
       const salesRows = db.select({ totalAmount: schema.sales.totalAmount })
@@ -2304,7 +2410,7 @@ export function registerIpcHandlers(): void {
         .innerJoin(schema.flocks, eq(schema.dailyEntries.flockId, schema.flocks.id))
         .where(and(eq(schema.flocks.farmId, farmId), eq(schema.dailyEntries.entryDate, today), eq(schema.flocks.status, "active")))
         .all();
-      const todayEggs = todayEntries.reduce((s, r) => s + (r.daily_entries.eggsGradeA || 0) + (r.daily_entries.eggsGradeB || 0) + (r.daily_entries.eggsCracked || 0), 0);
+      const todayEggs = todayEntries.reduce((s, r) => s + (r.daily_entries.totalEggs || 0), 0);
       const todayDeaths = todayEntries.reduce((s, r) => s + (r.daily_entries.deaths || 0), 0);
       const todayFeed = todayEntries.reduce((s, r) => s + (r.daily_entries.feedConsumedKg || 0), 0);
       const flocksWithEntry = new Set(todayEntries.map(r => r.daily_entries.flockId));
@@ -2439,7 +2545,7 @@ export function registerIpcHandlers(): void {
             lte(schema.dailyEntries.entryDate, endDate)
           ))
           .all();
-        const eggs = entries.reduce((s, r) => s + (r.daily_entries.eggsGradeA || 0) + (r.daily_entries.eggsGradeB || 0) + (r.daily_entries.eggsCracked || 0), 0);
+        const eggs = entries.reduce((s, r) => s + (r.daily_entries.totalEggs || 0), 0);
         const deaths = entries.reduce((s, r) => s + (r.daily_entries.deaths || 0), 0);
         const feed = entries.reduce((s, r) => s + (r.daily_entries.feedConsumedKg || 0), 0);
         const daysWithData = new Set(entries.map(r => r.daily_entries.entryDate)).size;
@@ -2671,9 +2777,7 @@ export function registerIpcHandlers(): void {
       if (statType === "eggs") {
         const rows = db.select({
           date: schema.dailyEntries.entryDate,
-          gradeA: schema.dailyEntries.eggsGradeA,
-          gradeB: schema.dailyEntries.eggsGradeB,
-          cracked: schema.dailyEntries.eggsCracked,
+          eggs: schema.dailyEntries.totalEggs,
         })
           .from(schema.dailyEntries)
           .innerJoin(schema.flocks, eq(schema.dailyEntries.flockId, schema.flocks.id))
@@ -2685,7 +2789,7 @@ export function registerIpcHandlers(): void {
           .all();
         const byDate: Record<string, number> = {};
         for (const r of rows) {
-          byDate[r.date] = (byDate[r.date] || 0) + (r.gradeA || 0) + (r.gradeB || 0) + (r.cracked || 0);
+          byDate[r.date] = (byDate[r.date] || 0) + (r.eggs || 0);
         }
         const result: { date: string; value: number }[] = [];
         const d = new Date(startDate);
@@ -3201,9 +3305,7 @@ export function registerIpcHandlers(): void {
           batchName: flock.batchName,
           breed: flock.breed,
           currentCount: flock.currentCount,
-          eggsGradeA: entry?.eggsGradeA || 0,
-          eggsGradeB: entry?.eggsGradeB || 0,
-          eggsCracked: entry?.eggsCracked || 0,
+          totalEggs: entry?.totalEggs || 0,
           deaths: entry?.deaths || 0,
           deathCause: entry?.deathCause || null,
           feedConsumedKg: entry?.feedConsumedKg || 0,
@@ -3213,9 +3315,7 @@ export function registerIpcHandlers(): void {
       });
 
       const totalBirds = farmFlocks.reduce((s, f) => s + (f.currentCount || 0), 0);
-      const totalEggsA = flockSummaries.reduce((s, f) => s + f.eggsGradeA, 0);
-      const totalEggsB = flockSummaries.reduce((s, f) => s + f.eggsGradeB, 0);
-      const totalCracked = flockSummaries.reduce((s, f) => s + f.eggsCracked, 0);
+      const totalEggs = flockSummaries.reduce((s, f) => s + Number((f as any).totalEggs ?? 0), 0);
       const totalDeaths = flockSummaries.reduce((s, f) => s + f.deaths, 0);
       const totalFeed = flockSummaries.reduce((s, f) => s + f.feedConsumedKg, 0);
 
@@ -3240,7 +3340,7 @@ export function registerIpcHandlers(): void {
         date,
         farm: { id: farm!.id, name: farm!.name, location: farm!.location },
         flocks: flockSummaries,
-        totals: { birds: totalBirds, eggsGradeA: totalEggsA, eggsGradeB: totalEggsB, eggsCracked: totalCracked, eggsTotal: totalEggsA + totalEggsB + totalCracked, deaths: totalDeaths, feedKg: Math.round(totalFeed * 100) / 100, revenue: Math.round(revenue * 100) / 100, expenses: Math.round(totalExpenses * 100) / 100 },
+        totals: { birds: totalBirds, eggsTotal: totalEggs, deaths: totalDeaths, feedKg: Math.round(totalFeed * 100) / 100, revenue: Math.round(revenue * 100) / 100, expenses: Math.round(totalExpenses * 100) / 100 },
         notes,
       };
     })
@@ -3259,38 +3359,36 @@ export function registerIpcHandlers(): void {
         .all()
         .filter(e => e.flockId && flockIds.includes(e.flockId)) : [];
 
-      const dateMap: Record<string, { eggsGradeA: number; eggsGradeB: number; eggsCracked: number; deaths: number; feedKg: number }> = {};
+      const dateMap: Record<string, { eggs: number; deaths: number; feedKg: number }> = {};
       const d = new Date(startDate);
       const end = new Date(endDate);
       while (d <= end) {
         const ds = d.toISOString().split("T")[0];
-        dateMap[ds] = { eggsGradeA: 0, eggsGradeB: 0, eggsCracked: 0, deaths: 0, feedKg: 0 };
+        dateMap[ds] = { eggs: 0, deaths: 0, feedKg: 0 };
         d.setDate(d.getDate() + 1);
       }
 
       for (const e of entries) {
         const dm = dateMap[e.entryDate];
         if (dm) {
-          dm.eggsGradeA += e.eggsGradeA || 0;
-          dm.eggsGradeB += e.eggsGradeB || 0;
-          dm.eggsCracked += e.eggsCracked || 0;
+          dm.eggs += e.totalEggs || 0;
           dm.deaths += e.deaths || 0;
           dm.feedKg += e.feedConsumedKg || 0;
         }
       }
 
-      const dailyData = Object.entries(dateMap).sort(([a], [b]) => a.localeCompare(b)).map(([date, data]) => ({
-        date, ...data, eggsTotal: data.eggsGradeA + data.eggsGradeB + data.eggsCracked,
-      }));
+      const dailyData = Object.entries(dateMap)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, data]) => ({ date, ...data }));
 
       const totalBirds = farmFlocks.reduce((s, f) => s + (f.currentCount || 0), 0);
-      const weeklyTotals = dailyData.reduce((acc, d) => ({
-        eggsGradeA: acc.eggsGradeA + d.eggsGradeA, eggsGradeB: acc.eggsGradeB + d.eggsGradeB,
-        eggsCracked: acc.eggsCracked + d.eggsCracked, eggsTotal: acc.eggsTotal + d.eggsTotal,
-        deaths: acc.deaths + d.deaths, feedKg: acc.feedKg + d.feedKg,
-      }), { eggsGradeA: 0, eggsGradeB: 0, eggsCracked: 0, eggsTotal: 0, deaths: 0, feedKg: 0 });
+      const weeklyTotals = dailyData.reduce((acc, d: any) => ({
+        eggs: acc.eggs + (d.eggs || 0),
+        deaths: acc.deaths + (d.deaths || 0),
+        feedKg: acc.feedKg + (d.feedKg || 0),
+      }), { eggs: 0, deaths: 0, feedKg: 0 });
 
-      const daysWithData = dailyData.filter(d => d.eggsTotal > 0 || d.deaths > 0 || d.feedKg > 0).length || 1;
+      const daysWithData = dailyData.filter((d: any) => d.eggs > 0 || d.deaths > 0 || d.feedKg > 0).length || 1;
       const totalInitial = farmFlocks.reduce((s, f) => s + (f.initialCount || 0), 0);
 
       const exps = db.select().from(schema.expenses)
@@ -3315,7 +3413,7 @@ export function registerIpcHandlers(): void {
         dailyData,
         weeklyTotals: { ...weeklyTotals, birds: totalBirds, feedKg: Math.round(weeklyTotals.feedKg * 100) / 100 },
         averages: {
-          eggsPerDay: Math.round(weeklyTotals.eggsTotal / daysWithData),
+          eggsPerDay: Math.round(weeklyTotals.eggs / daysWithData),
           mortalityRate: totalInitial > 0 ? Math.round((weeklyTotals.deaths / totalInitial) * 10000) / 100 : 0,
           feedPerBird: totalBirds > 0 ? Math.round((weeklyTotals.feedKg / daysWithData / totalBirds) * 1000) / 1000 : 0,
         },
@@ -3350,7 +3448,7 @@ export function registerIpcHandlers(): void {
         const ws = wStart.toISOString().split("T")[0];
         const we = wEnd.toISOString().split("T")[0];
         const weekEntries = entries.filter(e => e.entryDate >= ws && e.entryDate <= we);
-        const eggs = weekEntries.reduce((s, e) => s + (e.eggsGradeA || 0) + (e.eggsGradeB || 0) + (e.eggsCracked || 0), 0);
+        const eggs = weekEntries.reduce((s, e) => s + (e.totalEggs || 0), 0);
         const deaths = weekEntries.reduce((s, e) => s + (e.deaths || 0), 0);
         const feed = weekEntries.reduce((s, e) => s + (e.feedConsumedKg || 0), 0);
 
@@ -3363,10 +3461,7 @@ export function registerIpcHandlers(): void {
         wStart.setDate(wStart.getDate() + 1);
       }
 
-      const totalEggsA = entries.reduce((s, e) => s + (e.eggsGradeA || 0), 0);
-      const totalEggsB = entries.reduce((s, e) => s + (e.eggsGradeB || 0), 0);
-      const totalCracked = entries.reduce((s, e) => s + (e.eggsCracked || 0), 0);
-      const totalEggs = totalEggsA + totalEggsB + totalCracked;
+      const totalEggs = entries.reduce((s, e) => s + (e.totalEggs || 0), 0);
       const totalDeaths = entries.reduce((s, e) => s + (e.deaths || 0), 0);
       const totalFeed = entries.reduce((s, e) => s + (e.feedConsumedKg || 0), 0);
       const totalBirds = farmFlocks.reduce((s, f) => s + (f.currentCount || 0), 0);
@@ -3410,7 +3505,7 @@ export function registerIpcHandlers(): void {
         month, year, startDate, endDate,
         farm: { id: farm!.id, name: farm!.name, location: farm!.location },
         weeklyData,
-        totals: { birds: totalBirds, eggsGradeA: totalEggsA, eggsGradeB: totalEggsB, eggsCracked: totalCracked, eggsTotal: totalEggs, deaths: totalDeaths, feedKg: Math.round(totalFeed * 100) / 100 },
+        totals: { birds: totalBirds, eggsTotal: totalEggs, deaths: totalDeaths, feedKg: Math.round(totalFeed * 100) / 100 },
         averages: { eggsPerDay: Math.round(totalEggs / daysWithData), productionRate: totalBirds > 0 ? Math.round((totalEggs / daysWithData / totalBirds) * 10000) / 100 : 0 },
         financial: { revenue: Math.round(totalRevenue * 100) / 100, expenses: Math.round(totalExpenses * 100) / 100, profit: Math.round((totalRevenue - totalExpenses) * 100) / 100, expensesByCategory: Object.entries(expByCategory).map(([category, amount]) => ({ category, amount: Math.round(amount * 100) / 100 })) },
         inventory: { totalItems: inventoryItems.length, lowStock: lowStockCount, expiringSoon: expiringCount },
@@ -3433,10 +3528,7 @@ export function registerIpcHandlers(): void {
         .all()
         .sort((a, b) => a.entryDate.localeCompare(b.entryDate));
 
-      const totalEggsA = entries.reduce((s, e) => s + (e.eggsGradeA || 0), 0);
-      const totalEggsB = entries.reduce((s, e) => s + (e.eggsGradeB || 0), 0);
-      const totalCracked = entries.reduce((s, e) => s + (e.eggsCracked || 0), 0);
-      const totalEggs = totalEggsA + totalEggsB + totalCracked;
+      const totalEggs = entries.reduce((s, e) => s + (e.totalEggs || 0), 0);
       const totalDeaths = entries.reduce((s, e) => s + (e.deaths || 0), 0);
       const totalFeed = entries.reduce((s, e) => s + (e.feedConsumedKg || 0), 0);
 
@@ -3449,7 +3541,7 @@ export function registerIpcHandlers(): void {
 
       const productionCurve = entries.map(e => ({
         date: e.entryDate,
-        eggs: (e.eggsGradeA || 0) + (e.eggsGradeB || 0) + (e.eggsCracked || 0),
+        eggs: e.totalEggs || 0,
         deaths: e.deaths || 0,
         feedKg: e.feedConsumedKg || 0,
       }));
@@ -3463,7 +3555,7 @@ export function registerIpcHandlers(): void {
       return {
         farm: { id: farm!.id, name: farm!.name, location: farm!.location },
         flock: { id: flock.id, batchName: flock.batchName, breed: flock.breed, initialCount: flock.initialCount, currentCount: flock.currentCount, arrivalDate: flock.arrivalDate, ageAtArrivalDays: flock.ageAtArrivalDays, ageDays, status: flock.status },
-        stats: { totalEggs, totalEggsA, totalEggsB, totalCracked, totalDeaths, totalFeed: Math.round(totalFeed * 100) / 100, mortalityRate, productionRate, feedConversionRatio, daysTracked: entries.length },
+        stats: { totalEggs, totalDeaths, totalFeed: Math.round(totalFeed * 100) / 100, mortalityRate, productionRate, feedConversionRatio, daysTracked: entries.length },
         productionCurve,
         vaccinations: { total: vaccs.length, completed: vaccCompleted, complianceRate: vaccDenom > 0 ? Math.round((vaccCompleted / vaccDenom) * 100) : 100, records: vaccs.map(v => ({ vaccineName: v.vaccineName, scheduledDate: v.scheduledDate, administeredDate: v.administeredDate, status: v.status })) },
       };
@@ -3482,7 +3574,7 @@ export function registerIpcHandlers(): void {
       const entries = flockIds.length > 0 ? db.select().from(schema.dailyEntries)
         .where(and(gte(schema.dailyEntries.entryDate, startDate), lte(schema.dailyEntries.entryDate, endDate)))
         .all().filter(e => e.flockId && flockIds.includes(e.flockId)) : [];
-      const totalEggs = entries.reduce((s, e) => s + (e.eggsGradeA || 0) + (e.eggsGradeB || 0) + (e.eggsCracked || 0), 0);
+      const totalEggs = entries.reduce((s, e) => s + (e.totalEggs || 0), 0);
 
       const salesRows = db.select({
         totalAmount: schema.sales.totalAmount,
@@ -3628,9 +3720,7 @@ export function registerIpcHandlers(): void {
       .where(and(gte(schema.dailyEntries.entryDate, startStr), lte(schema.dailyEntries.entryDate, endStr)))
       .all()
       .filter((e) => flockSet.has(e.flockId));
-    return Math.round(
-      entries.reduce((s, e) => s + (e.eggsGradeA || 0) + (e.eggsGradeB || 0) + (e.eggsCracked || 0), 0)
-    );
+    return Math.round(entries.reduce((s, e) => s + (e.totalEggs || 0), 0));
   }
 
   function getFarmStats(farmId: number, today: string, monthStart: string, monthEnd: string) {
@@ -3644,7 +3734,7 @@ export function registerIpcHandlers(): void {
       .all()
       .filter(e => activeFlocks.some(f => f.id === e.flockId));
 
-    const eggsToday = todayEntries.reduce((s, e) => s + (e.eggsGradeA || 0) + (e.eggsGradeB || 0) + (e.eggsCracked || 0), 0);
+    const eggsToday = todayEntries.reduce((s, e) => s + (e.totalEggs || 0), 0);
     const flocksWithEntriesToday = new Set(todayEntries.map(e => e.flockId)).size;
 
     const allEntries = db.select().from(schema.dailyEntries)
@@ -3655,10 +3745,7 @@ export function registerIpcHandlers(): void {
     const totalDeaths = allEntries.reduce((s, e) => s + (e.deaths || 0), 0);
     const mortalityRate = initialBirds > 0 ? Math.round((totalDeaths / initialBirds) * 10000) / 100 : 0;
 
-    const totalEggsA = allEntries.reduce((s, e) => s + (e.eggsGradeA || 0), 0);
-    const totalEggsB = allEntries.reduce((s, e) => s + (e.eggsGradeB || 0), 0);
-    const totalCracked = allEntries.reduce((s, e) => s + (e.eggsCracked || 0), 0);
-    const totalEggsMonth = totalEggsA + totalEggsB + totalCracked;
+    const totalEggsMonth = allEntries.reduce((s, e) => s + (e.totalEggs || 0), 0);
     const daysInMonth = allEntries.length > 0 ? new Set(allEntries.map(e => e.entryDate)).size : 1;
     const avgEggsPerDay = Math.round(totalEggsMonth / daysInMonth);
     const productionRate = totalBirds > 0 ? Math.round((avgEggsPerDay / totalBirds) * 10000) / 100 : 0;
@@ -3691,7 +3778,7 @@ export function registerIpcHandlers(): void {
     return {
       totalBirds, totalFlocks, eggsToday, flocksWithEntriesToday, productionRate, mortalityRate,
       profitMargin, revenueMonth, expensesMonth, profitMonth, performance, avgEggsPerDay,
-      totalEggsA, totalEggsB, totalCracked, initialBirds,
+      initialBirds,
     };
   }
 
@@ -3945,9 +4032,7 @@ export function registerIpcHandlers(): void {
         id: schema.dailyEntries.id,
         flockId: schema.dailyEntries.flockId,
         entryDate: schema.dailyEntries.entryDate,
-        eggsA: schema.dailyEntries.eggsGradeA,
-        eggsB: schema.dailyEntries.eggsGradeB,
-        cracked: schema.dailyEntries.eggsCracked,
+        eggs: schema.dailyEntries.totalEggs,
         deaths: schema.dailyEntries.deaths,
         farmId: schema.flocks.farmId,
         batchName: schema.flocks.batchName,
@@ -3960,7 +4045,7 @@ export function registerIpcHandlers(): void {
         .all();
 
       for (const e of recentEntries) {
-        const eggs = (e.eggsA || 0) + (e.eggsB || 0) + (e.cracked || 0);
+        const eggs = (e as any).eggs ?? 0;
         activities.push({
           id: e.id,
           farmId: e.farmId!,
@@ -4566,7 +4651,7 @@ export function registerIpcHandlers(): void {
     "sales:create",
     wrapHandler(async (_e: unknown, data: {
       farmId: number; customerId: number; saleDate: string; dueDate?: string;
-      items: { itemType: string; grade: string; quantity: number; unitPrice: number; lineTotal: number }[];
+      items: { itemType: string; grade: string; unitType?: string; totalEggs?: number; quantity: number; unitPrice: number; lineTotal: number }[];
       discountType?: string; discountValue?: number; amountPaid?: number;
       paymentMethod?: string; notes?: string;
     }) => {
@@ -4639,12 +4724,19 @@ export function registerIpcHandlers(): void {
       const saleId = Number(result.lastInsertRowid);
 
       for (const item of validItems) {
+        const unitType = (item.unitType || "tray");
+        const multiplier = unitType === "peti" ? 360 : unitType === "tray" ? 30 : 1;
+        const totalEggs = Number.isFinite(Number(item.totalEggs))
+          ? Math.max(0, Math.trunc(Number(item.totalEggs)))
+          : Math.max(0, Math.trunc(Number(item.quantity) * multiplier));
         db.insert(schema.saleItems).values({
           saleId,
           itemType: item.itemType,
           grade: item.grade,
+          unitType,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
+          totalEggs,
           lineTotal: Math.round(item.quantity * item.unitPrice * 100) / 100,
         }).run();
       }
@@ -4725,6 +4817,24 @@ export function registerIpcHandlers(): void {
   );
 
   ipcMain.handle(
+    "sales:getByCustomer",
+    wrapHandler(async (_e: unknown, customerId: number) => {
+      requireAuth();
+      const cid = Number(customerId);
+      if (!Number.isFinite(cid)) throw new Error("Invalid customerId");
+
+      const customer = db.select().from(schema.customers).where(eq(schema.customers.id, cid)).get();
+      if (!customer) throw new Error("Customer not found");
+      requireFarmAccess(customer.farmId);
+
+      return db.select().from(schema.sales)
+        .where(and(eq(schema.sales.customerId, cid), eq(schema.sales.farmId, customer.farmId), eq(schema.sales.isDeleted, 0)))
+        .orderBy(desc(schema.sales.saleDate), desc(schema.sales.id))
+        .all();
+    })
+  );
+
+  ipcMain.handle(
     "sales:getById",
     wrapHandler(async (_e: unknown, saleId: number) => {
       requireAuth();
@@ -4749,7 +4859,7 @@ export function registerIpcHandlers(): void {
     "sales:update",
     wrapHandler(async (_e: unknown, saleId: number, data: {
       farmId: number; customerId: number; saleDate: string; dueDate?: string;
-      items: { itemType: string; grade: string; quantity: number; unitPrice: number; lineTotal: number }[];
+      items: { itemType: string; grade: string; unitType?: string; totalEggs?: number; quantity: number; unitPrice: number; lineTotal: number }[];
       discountType?: string; discountValue?: number; notes?: string;
     }) => {
       requireAuth();
@@ -4799,12 +4909,19 @@ export function registerIpcHandlers(): void {
 
       db.delete(schema.saleItems).where(eq(schema.saleItems.saleId, saleId)).run();
       for (const item of validItems) {
+        const unitType = (item.unitType || "tray");
+        const multiplier = unitType === "peti" ? 360 : unitType === "tray" ? 30 : 1;
+        const totalEggs = Number.isFinite(Number(item.totalEggs))
+          ? Math.max(0, Math.trunc(Number(item.totalEggs)))
+          : Math.max(0, Math.trunc(Number(item.quantity) * multiplier));
         db.insert(schema.saleItems).values({
           saleId,
           itemType: item.itemType,
           grade: item.grade,
+          unitType,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
+          totalEggs,
           lineTotal: Math.round(item.quantity * item.unitPrice * 100) / 100,
         }).run();
       }

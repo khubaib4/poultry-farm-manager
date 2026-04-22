@@ -5,6 +5,7 @@ export * from "./user.model";
 export * from "./flock.model";
 export * from "./dailyEntry.model";
 export * from "./eggPrice.model";
+export * from "./eggCategory.model";
 export * from "./expense.model";
 export * from "./inventory.model";
 export * from "./inventoryTransaction.model";

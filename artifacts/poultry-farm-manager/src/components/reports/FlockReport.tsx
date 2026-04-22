@@ -80,10 +80,7 @@ export default function FlockReport({ data }: Props) {
         <div className="border border-gray-200 rounded-lg p-4">
           <h4 className="text-sm font-medium text-gray-500 mb-3">Lifetime Statistics</h4>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span>Grade A Eggs</span><span className="font-medium">{Number(data.stats.totalEggsA ?? 0).toLocaleString()}</span></div>
-            <div className="flex justify-between"><span>Grade B Eggs</span><span className="font-medium">{Number(data.stats.totalEggsB ?? 0).toLocaleString()}</span></div>
-            <div className="flex justify-between"><span>Cracked Eggs</span><span className="font-medium">{Number(data.stats.totalCracked ?? 0).toLocaleString()}</span></div>
-            <div className="flex justify-between border-t pt-1"><span className="font-medium">Total Eggs</span><span className="font-bold">{Number(data.stats.totalEggs ?? 0).toLocaleString()}</span></div>
+            <div className="flex justify-between"><span>Total Eggs</span><span className="font-bold">{Number(data.stats.totalEggs ?? 0).toLocaleString()}</span></div>
             <div className="flex justify-between mt-2"><span>Total Deaths</span><span className="font-medium text-red-600">{data.stats.totalDeaths}</span></div>
             <div className="flex justify-between"><span>Total Feed</span><span className="font-medium">{data.stats.totalFeed} kg</span></div>
           </div>

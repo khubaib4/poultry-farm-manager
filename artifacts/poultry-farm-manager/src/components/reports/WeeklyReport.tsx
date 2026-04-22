@@ -44,10 +44,7 @@ export default function WeeklyReport({ data }: Props) {
           <thead>
             <tr className="bg-gray-100">
               <th className="px-3 py-2 text-left font-medium text-gray-700 border border-gray-200">Day</th>
-              <th className="px-3 py-2 text-right font-medium text-gray-700 border border-gray-200">Grade A</th>
-              <th className="px-3 py-2 text-right font-medium text-gray-700 border border-gray-200">Grade B</th>
-              <th className="px-3 py-2 text-right font-medium text-gray-700 border border-gray-200">Cracked</th>
-              <th className="px-3 py-2 text-right font-medium text-gray-700 border border-gray-200">Total Eggs</th>
+              <th className="px-3 py-2 text-right font-medium text-gray-700 border border-gray-200">Eggs</th>
               <th className="px-3 py-2 text-right font-medium text-gray-700 border border-gray-200">Deaths</th>
               <th className="px-3 py-2 text-right font-medium text-gray-700 border border-gray-200">Feed (kg)</th>
             </tr>
@@ -61,10 +58,7 @@ export default function WeeklyReport({ data }: Props) {
                     <span className="font-medium">{dayName}</span>
                     <span className="text-gray-500 ml-1">{d.date}</span>
                   </td>
-                  <td className="px-3 py-2 text-right border border-gray-200">{d.eggsGradeA}</td>
-                  <td className="px-3 py-2 text-right border border-gray-200">{d.eggsGradeB}</td>
-                  <td className="px-3 py-2 text-right border border-gray-200">{d.eggsCracked}</td>
-                  <td className="px-3 py-2 text-right border border-gray-200 font-medium">{d.eggsTotal}</td>
+                  <td className="px-3 py-2 text-right border border-gray-200 font-medium">{Number(d.eggs ?? 0).toLocaleString()}</td>
                   <td className="px-3 py-2 text-right border border-gray-200">{d.deaths > 0 ? <span className="text-red-600">{d.deaths}</span> : "0"}</td>
                   <td className="px-3 py-2 text-right border border-gray-200">{Number(d.feedKg ?? 0).toFixed(1)}</td>
                 </tr>
@@ -72,10 +66,7 @@ export default function WeeklyReport({ data }: Props) {
             })}
             <tr className="bg-gray-100 font-semibold">
               <td className="px-3 py-2 border border-gray-200">Totals</td>
-              <td className="px-3 py-2 text-right border border-gray-200">{data.weeklyTotals.eggsGradeA}</td>
-              <td className="px-3 py-2 text-right border border-gray-200">{data.weeklyTotals.eggsGradeB}</td>
-              <td className="px-3 py-2 text-right border border-gray-200">{data.weeklyTotals.eggsCracked}</td>
-              <td className="px-3 py-2 text-right border border-gray-200">{data.weeklyTotals.eggsTotal}</td>
+              <td className="px-3 py-2 text-right border border-gray-200">{Number(data.weeklyTotals.eggs ?? 0).toLocaleString()}</td>
               <td className="px-3 py-2 text-right border border-gray-200">{data.weeklyTotals.deaths}</td>
               <td className="px-3 py-2 text-right border border-gray-200">{Number(data.weeklyTotals.feedKg ?? 0).toFixed(1)}</td>
             </tr>

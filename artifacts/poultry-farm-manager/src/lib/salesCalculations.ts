@@ -1,6 +1,6 @@
 export interface SaleItemInput {
   itemType: "egg" | "tray";
-  grade: "A" | "B" | "cracked";
+  grade: string;
   quantity: number;
   unitPrice: number;
 }

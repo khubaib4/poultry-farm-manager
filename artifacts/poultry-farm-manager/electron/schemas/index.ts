@@ -58,9 +58,7 @@ export const dailyEntrySchema = z.object({
   entryDate: isoDateString,
   deaths: z.number().int().optional().nullable(),
   deathCause: z.string().optional().nullable(),
-  eggsGradeA: z.number().int().optional().nullable(),
-  eggsGradeB: z.number().int().optional().nullable(),
-  eggsCracked: z.number().int().optional().nullable(),
+  totalEggs: z.number().int().optional().nullable(),
   feedConsumedKg: z.number().optional().nullable(),
   waterConsumedLiters: z.number().optional().nullable(),
   notes: z.string().optional().nullable(),
@@ -75,6 +73,20 @@ export const eggPriceSchema = z.object({
   pricePerEgg: z.number(),
   pricePerTray: z.number(),
   effectiveDate: isoDateString,
+});
+
+// Egg categories (sales)
+export const eggCategorySchema = z.object({
+  id: idNumber.optional(),
+  farmId: idNumber.optional().nullable(),
+  name: z.string().min(1),
+  description: z.string().optional().nullable(),
+  defaultPrice: z.number().optional().nullable(),
+  unit: z.enum(["tray", "dozen", "piece", "crate"]).optional().nullable(),
+  isActive: z.number().int().optional().nullable(),
+  sortOrder: z.number().int().optional().nullable(),
+  createdAt: isoDateString.optional().nullable(),
+  updatedAt: isoDateString.optional().nullable(),
 });
 
 // Expenses
@@ -190,8 +202,10 @@ export const saleItemSchema = z.object({
   saleId: idNumber.optional().nullable(),
   itemType: z.string().min(1),
   grade: z.string().min(1),
+  unitType: z.enum(["egg", "tray", "peti"]).optional().nullable(),
   quantity: z.number().optional().nullable(),
   unitPrice: z.number().optional().nullable(),
+  totalEggs: z.number().optional().nullable(),
   lineTotal: z.number().optional().nullable(),
 });
 

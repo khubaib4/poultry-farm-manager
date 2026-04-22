@@ -43,8 +43,8 @@ function ownerFmtPkr(n: number): string {
   return `PKR ${v.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
-function eggSum(e: { eggsGradeA?: number | null; eggsGradeB?: number | null; eggsCracked?: number | null }): number {
-  return Number(e.eggsGradeA ?? 0) + Number(e.eggsGradeB ?? 0) + Number(e.eggsCracked ?? 0);
+function eggSum(e: { totalEggs?: number | null }): number {
+  return Number(e.totalEggs ?? 0);
 }
 
 export async function generateOwnerReportMongo(
@@ -116,7 +116,7 @@ export async function generateOwnerReportMongo(
   switch (type) {
     case "summary": {
       const totalBirds = activeFlocksAny.reduce((s, f) => s + Number(f.currentCount ?? 0), 0);
-      const totalEggs = entries.reduce((s, e) => s + eggSum(e as { eggsGradeA?: number; eggsGradeB?: number; eggsCracked?: number }), 0);
+      const totalEggs = entries.reduce((s, e) => s + eggSum(e as { totalEggs?: number | null }), 0);
       const totalDeaths = entries.reduce((s, e) => s + Number((e as { deaths?: number }).deaths ?? 0), 0);
       const totalRevenue = sales.reduce((s, x) => s + Number((x as { totalAmount?: number }).totalAmount ?? 0), 0);
       const totalExpenses = expenses.reduce((s, x) => s + Number((x as { amount?: number }).amount ?? 0), 0);
@@ -137,7 +137,7 @@ export async function generateOwnerReportMongo(
         const birds = farmActive.reduce((s, f) => s + Number(f.currentCount ?? 0), 0);
         const ff = allFlocksAny.filter((f) => f.farmId === farm.id).map((f) => f.id as number);
         const farmEntries = entries.filter((e: { flockId?: number }) => ff.includes(e.flockId!));
-        const eggs = farmEntries.reduce((s, e) => s + eggSum(e as { eggsGradeA?: number; eggsGradeB?: number; eggsCracked?: number }), 0);
+        const eggs = farmEntries.reduce((s, e) => s + eggSum(e as { totalEggs?: number | null }), 0);
         const deaths = farmEntries.reduce((s, e) => s + Number((e as { deaths?: number }).deaths ?? 0), 0);
         const rev = sales
           .filter((s: { farmId?: number }) => (s as { farmId: number }).farmId === farm.id)
@@ -226,7 +226,7 @@ export async function generateOwnerReportMongo(
     }
 
     case "production": {
-      const totalEggs = entries.reduce((s, e) => s + eggSum(e as { eggsGradeA?: number; eggsGradeB?: number; eggsCracked?: number }), 0);
+      const totalEggs = entries.reduce((s, e) => s + eggSum(e as { totalEggs?: number | null }), 0);
       const totalDeaths = entries.reduce((s, e) => s + Number((e as { deaths?: number }).deaths ?? 0), 0);
       const totalFeed = entries.reduce((s, e) => s + Number((e as { feedConsumedKg?: number }).feedConsumedKg ?? 0), 0);
       const totalBirds = activeFlocksAny.reduce((s, f) => s + Number(f.currentCount ?? 0), 0);
@@ -242,7 +242,7 @@ export async function generateOwnerReportMongo(
       const rows: Record<string, string>[] = farmRows.map((farm) => {
         const ff = allFlocksAny.filter((f) => f.farmId === farm.id).map((f) => f.id as number);
         const fe = entries.filter((e: { flockId?: number }) => ff.includes(e.flockId!));
-        const eggs = fe.reduce((s, e) => s + eggSum(e as { eggsGradeA?: number; eggsGradeB?: number; eggsCracked?: number }), 0);
+        const eggs = fe.reduce((s, e) => s + eggSum(e as { totalEggs?: number | null }), 0);
         const deaths = fe.reduce((s, e) => s + Number((e as { deaths?: number }).deaths ?? 0), 0);
         const feed = fe.reduce((s, e) => s + Number((e as { feedConsumedKg?: number }).feedConsumedKg ?? 0), 0);
         return {
@@ -256,7 +256,7 @@ export async function generateOwnerReportMongo(
       const dayMap = new Map<string, number>();
       for (const e of entries) {
         const d = String((e as { entryDate: string }).entryDate);
-        dayMap.set(d, (dayMap.get(d) ?? 0) + eggSum(e as { eggsGradeA?: number; eggsGradeB?: number; eggsCracked?: number }));
+        dayMap.set(d, (dayMap.get(d) ?? 0) + eggSum(e as { totalEggs?: number | null }));
       }
       const dailyRows = [...dayMap.entries()]
         .sort((a, b) => a[0].localeCompare(b[0]))

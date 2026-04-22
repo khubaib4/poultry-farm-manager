@@ -107,6 +107,7 @@ export interface SyncFromCloudStats {
   inventoryTransactions: number;
   vaccines: number;
   eggPrices: number;
+  eggCategories: number;
   dismissedAlerts: number;
   schedules: number;
   counters: number;
@@ -133,7 +134,7 @@ async function mergeCloudDocument(
   await LocalModel.findOneAndUpdate(
     { _id: cloudDoc._id as mongoose.Types.ObjectId },
     { ...cloudDoc },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
+    { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
   );
   return true;
 }
@@ -159,6 +160,7 @@ function emptyCloudPullStats(): SyncFromCloudStats {
     inventoryTransactions: 0,
     vaccines: 0,
     eggPrices: 0,
+      eggCategories: 0,
     dismissedAlerts: 0,
     schedules: 0,
     counters: 0,
@@ -213,7 +215,7 @@ async function mergeCountersFromCloud(stats: SyncFromCloudStats): Promise<void> 
       await Models.CounterModel.findOneAndUpdate(
         { _id: c._id },
         { ...c },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
       );
       bump("counters", 1);
     }
@@ -242,6 +244,7 @@ async function mergeSingleFarmSubtreeFromCloud(farm: Record<string, unknown>, st
     { local: Models.ExpenseModel as mongoose.Model<unknown>, collection: "expenses", stat: "expenses" },
     { local: Models.VaccineModel as mongoose.Model<unknown>, collection: "vaccines", stat: "vaccines" },
     { local: Models.EggPriceModel as mongoose.Model<unknown>, collection: "eggprices", stat: "eggPrices" },
+    { local: Models.EggCategoryModel as mongoose.Model<unknown>, collection: "eggcategories", stat: "eggCategories" },
     { local: Models.DismissedAlertModel as mongoose.Model<unknown>, collection: "dismissedalerts", stat: "dismissedAlerts" },
   ];
 
@@ -426,6 +429,7 @@ export async function syncToCloud(): Promise<{ success: boolean; error?: string 
       { model: Models.VaccinationScheduleModel, collectionName: "vaccinationschedules" },
       { model: Models.VaccineModel, collectionName: "vaccines" },
       { model: Models.EggPriceModel, collectionName: "eggprices" },
+      { model: Models.EggCategoryModel, collectionName: "eggcategories" },
       { model: Models.DismissedAlertModel, collectionName: "dismissedalerts" },
       { model: Models.CounterModel, collectionName: "counters" },
     ];
@@ -446,7 +450,7 @@ export async function syncToCloud(): Promise<{ success: boolean; error?: string 
             _syncDeviceId: deviceId,
             _syncUpdatedAt: new Date(),
           },
-          { upsert: true, new: true, setDefaultsOnInsert: true }
+          { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
         );
       }
 

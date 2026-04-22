@@ -4,8 +4,8 @@ import PaymentStatusBadge from "@/components/sales/PaymentStatusBadge";
 import type { SaleDetail } from "@/types/electron";
 import type { InvoiceFarmInfo } from "@/lib/invoicePdf";
 
-const ITEM_TYPE_LABELS: Record<string, string> = { egg: "Eggs", tray: "Trays" };
-const GRADE_LABELS: Record<string, string> = { A: "Grade A", B: "Grade B", cracked: "Cracked" };
+const UNIT_LABELS: Record<string, string> = { egg: "Eggs", tray: "Tray", peti: "Peti" };
+const UNIT_MULTIPLIER: Record<string, number> = { egg: 1, tray: 30, peti: 360 };
 const METHOD_LABELS: Record<string, string> = {
   cash: "Cash", bank_transfer: "Bank Transfer", cheque: "Cheque",
   mobile_payment: "Mobile Payment", online: "Online", other: "Other",
@@ -72,7 +72,15 @@ export default function InvoicePreview({ sale, farm }: Props): React.ReactElemen
           {sale.items.map((item, i) => (
             <tr key={item.id} className={i % 2 === 1 ? "bg-gray-50" : ""}>
               <td className="py-2 px-3 text-gray-900">
-                {ITEM_TYPE_LABELS[item.itemType] || item.itemType} - {GRADE_LABELS[item.grade] || item.grade}
+                {(() => {
+                  const unitType = (item as any).unitType || (item.itemType === "tray" ? "tray" : "egg");
+                  const multiplier = UNIT_MULTIPLIER[unitType] ?? 1;
+                  const qty = Number(item.quantity ?? 0);
+                  const eggs = Number.isFinite(Number((item as any).totalEggs))
+                    ? Number((item as any).totalEggs)
+                    : Math.trunc(qty * multiplier);
+                  return `${item.grade} — ${qty.toLocaleString()} ${UNIT_LABELS[unitType] || unitType} @ ${formatCurrency(item.unitPrice ?? 0)} (${eggs.toLocaleString()} eggs)`;
+                })()}
               </td>
               <td className="py-2 px-3 text-center text-gray-600">{item.quantity ?? 0}</td>
               <td className="py-2 px-3 text-right text-gray-600">{formatCurrency(item.unitPrice ?? 0)}</td>

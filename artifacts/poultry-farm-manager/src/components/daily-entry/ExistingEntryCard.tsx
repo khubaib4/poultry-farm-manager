@@ -7,9 +7,7 @@ interface EntryData {
   entryDate: string;
   deaths: number;
   deathCause?: string | null;
-  eggsGradeA: number;
-  eggsGradeB: number;
-  eggsCracked: number;
+  totalEggs: number;
   feedConsumedKg: number;
   waterConsumedLiters?: number | null;
   notes?: string | null;
@@ -34,7 +32,7 @@ export default function ExistingEntryCard({
   readOnly,
 }: ExistingEntryCardProps): React.ReactElement {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const totalEggs = (entry.eggsGradeA || 0) + (entry.eggsGradeB || 0) + (entry.eggsCracked || 0);
+  const totalEggs = Number(entry.totalEggs ?? 0);
   const closingStock = openingStock - (entry.deaths || 0);
   const productionRate = closingStock > 0 ? ((totalEggs / closingStock) * 100).toFixed(1) : "0.0";
   const mortalityPct = openingStock > 0 ? (((entry.deaths || 0) / openingStock) * 100) : 0;
@@ -89,9 +87,6 @@ export default function ExistingEntryCard({
             <Egg className="w-3.5 h-3.5" /> Eggs
           </div>
           <div className="text-lg font-bold text-gray-900">{totalEggs}</div>
-          <div className="text-xs text-gray-500 mt-0.5">
-            A:{entry.eggsGradeA || 0} B:{entry.eggsGradeB || 0} C:{entry.eggsCracked || 0}
-          </div>
           <div className="text-xs text-green-600 mt-0.5">{productionRate}% rate</div>
         </div>
 

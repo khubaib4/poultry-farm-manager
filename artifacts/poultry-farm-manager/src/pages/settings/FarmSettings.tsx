@@ -5,7 +5,7 @@ import { profile as profileApi, farms, isElectron } from "@/lib/api";
 import type { FarmProfile } from "@/types/electron";
 import SettingSection from "@/components/settings/SettingSection";
 import SettingRow from "@/components/settings/SettingRow";
-import { CheckCircle, AlertTriangle, Syringe, X, Plus } from "lucide-react";
+import { CheckCircle, AlertTriangle, Syringe, X, Plus, Egg } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useFarmId } from "@/hooks/useFarmId";
 
@@ -167,6 +167,12 @@ export default function FarmSettings(): React.ReactElement {
             className="text-sm text-emerald-600 hover:text-emerald-700 flex items-center gap-1.5"
           >
             <Syringe className="h-4 w-4" /> Manage Vaccine Names
+          </button>
+          <button
+            onClick={() => navigate("/farm/settings/egg-categories")}
+            className="text-sm text-emerald-600 hover:text-emerald-700 flex items-center gap-1.5"
+          >
+            <Egg className="h-4 w-4" /> Manage Egg Categories (Sales)
           </button>
           <button
             onClick={() => navigate("/farm/vaccinations/template")}

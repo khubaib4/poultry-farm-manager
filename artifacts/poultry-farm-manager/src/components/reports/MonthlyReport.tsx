@@ -112,11 +112,7 @@ export default function MonthlyReport({ data }: Props) {
         <div className="space-y-4">
           <div className="border border-gray-200 rounded-lg p-4">
             <h4 className="text-sm font-medium text-gray-500 mb-2">Production Summary</h4>
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div><div className="text-lg font-bold">{Number(data.totals.eggsGradeA ?? 0).toLocaleString()}</div><div className="text-xs text-gray-500">Grade A</div></div>
-              <div><div className="text-lg font-bold">{Number(data.totals.eggsGradeB ?? 0).toLocaleString()}</div><div className="text-xs text-gray-500">Grade B</div></div>
-              <div><div className="text-lg font-bold">{Number(data.totals.eggsCracked ?? 0).toLocaleString()}</div><div className="text-xs text-gray-500">Cracked</div></div>
-            </div>
+            <div className="text-lg font-bold text-gray-900">{Number(data.totals.eggsTotal ?? 0).toLocaleString()} eggs</div>
             <div className="text-sm mt-2 text-gray-600">
               Avg {data.averages.eggsPerDay} eggs/day | {data.averages.productionRate}% production rate
             </div>
