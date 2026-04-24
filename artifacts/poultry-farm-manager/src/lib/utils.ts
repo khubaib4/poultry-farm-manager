@@ -102,13 +102,24 @@ export function formatDateForDisplay(dateStr: string): string {
 }
 
 export function getTodayString(): string {
-  return new Date().toISOString().split("T")[0];
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 export function addDays(dateStr: string, days: number): string {
-  const d = new Date(dateStr + "T00:00:00");
-  d.setDate(d.getDate() + days);
-  return d.toISOString().split("T")[0];
+  const parts = dateStr.split("-").map((p) => Number(p));
+  const y = parts[0]!;
+  const m = parts[1]!;
+  const day = parts[2]!;
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(day)) return dateStr;
+  const d = new Date(y, m - 1, day + days);
+  const yy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
 }
 
 export function formatCurrency(amount: number): string {

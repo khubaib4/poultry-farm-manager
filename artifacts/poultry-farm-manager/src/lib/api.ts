@@ -85,6 +85,10 @@ import type {
   PaymentsSummary,
   ReceivableItem,
   PaymentAlert,
+  FlockPerformanceComparison,
+  FlockComparisonResult,
+  CustomerBalanceTransaction,
+  CustomerBalanceResult,
   SyncConfig,
   SyncStatus,
   SyncTestConnectionResult,
@@ -181,6 +185,62 @@ export const flocks = {
   delete: (id: number) => invoke(() => getApi()!.flocks.delete(id)),
 
   getStats: (id: number) => invoke(() => getApi()!.flocks.getStats(id)),
+
+  getPerformanceVsStandard: (flockId: string | number) =>
+    invoke<FlockPerformanceComparison | { error: string }>(() =>
+      getApi()!.flocks.getPerformanceVsStandard(flockId)
+    ),
+
+  compareFlocks: (flockIds: string[]) =>
+    invoke<FlockComparisonResult | { error: string }>(() =>
+      getApi()!.flocks.compareFlocks(flockIds)
+    ),
+};
+
+export const customerBalance = {
+  getBalance: (customerId: number) =>
+    invoke<CustomerBalanceResult | { error: string }>(() =>
+      getApi()!.customerBalance.getBalance(customerId)
+    ),
+  getTransactions: (customerId: number) =>
+    invoke<CustomerBalanceTransaction[] | { error: string }>(() =>
+      getApi()!.customerBalance.getTransactions(customerId)
+    ),
+  recordAdvancePayment: (data: {
+    farmId: number;
+    customerId: number;
+    amount: number;
+    paymentMethod: string;
+    date: string;
+    notes?: string;
+  }) =>
+    invoke<CustomerBalanceTransaction | { error: string }>(() =>
+      getApi()!.customerBalance.recordAdvancePayment(data)
+    ),
+  addAdjustment: (data: {
+    farmId: number;
+    customerId: number;
+    amount: number;
+    date: string;
+    notes: string;
+  }) =>
+    invoke<CustomerBalanceTransaction | { error: string }>(() =>
+      getApi()!.customerBalance.addAdjustment(data)
+    ),
+  applyToSale: (data: {
+    farmId: number;
+    customerId: number;
+    saleId: number;
+    amount: number;
+    date: string;
+  }) =>
+    invoke<CustomerBalanceTransaction | { error: string; currentBalance?: number }>(() =>
+      getApi()!.customerBalance.applyToSale(data)
+    ),
+  getBalancesForFarm: (farmId: number) =>
+    invoke<Record<number, number>>(() =>
+      getApi()!.customerBalance.getBalancesForFarm(farmId)
+    ),
 };
 
 export const dailyEntries = {

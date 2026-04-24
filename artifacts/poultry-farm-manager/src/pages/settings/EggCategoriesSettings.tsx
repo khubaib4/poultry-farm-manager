@@ -136,7 +136,7 @@ export default function EggCategoriesSettings(): React.ReactElement {
     setSaving(true);
     try {
       await eggCategories.delete(id);
-      toast.success("Category deleted");
+      toast.success("Category deactivated");
       setDeleteId(null);
       await load();
     } catch (err) {
@@ -151,8 +151,10 @@ export default function EggCategoriesSettings(): React.ReactElement {
     setSeeding(true);
     try {
       const res = await eggCategories.seedDefaults(farmId);
-      if (res.skipped) toast.success("Defaults already exist");
-      else toast.success(`Seeded ${res.seeded} categories`);
+      const msg = (res as any)?.message as string | undefined;
+      if (msg) toast.success(msg);
+      else if ((res as any)?.skipped) toast.success("Defaults already exist");
+      else toast.success(`Seeded ${(res as any)?.seeded ?? 0} categories`);
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to seed defaults");

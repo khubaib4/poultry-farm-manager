@@ -3,16 +3,18 @@ import { useNavigate } from "react-router-dom";
 import { Eye, Edit, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import type { Customer } from "@/types/electron";
 import CategoryBadge from "./CategoryBadge";
+import { formatCurrency } from "@/lib/utils";
 
 interface CustomerTableProps {
   customers: Customer[];
+  balances?: Record<number, number>;
   onDelete?: (customer: Customer) => void;
 }
 
 type SortKey = "name" | "category" | "phone" | "businessName" | "createdAt";
 type SortDir = "asc" | "desc";
 
-export default function CustomerTable({ customers, onDelete }: CustomerTableProps): React.ReactElement {
+export default function CustomerTable({ customers, balances, onDelete }: CustomerTableProps): React.ReactElement {
   const navigate = useNavigate();
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -80,12 +82,17 @@ export default function CustomerTable({ customers, onDelete }: CustomerTableProp
                   Category <SortIcon column="category" />
                 </div>
               </th>
+              <th className="text-right px-4 py-3 font-medium text-gray-600">Balance</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
               <th className="text-right px-4 py-3 font-medium text-gray-600">Actions</th>
             </tr>
           </thead>
           <tbody>
             {sorted.map((c) => (
+              (() => {
+                const balRaw = balances ? balances[c.id] : undefined;
+                const bal = typeof balRaw === "number" && Number.isFinite(balRaw) ? balRaw : null;
+                const balClass = bal === null ? "text-gray-400" : bal > 0 ? "text-emerald-700" : bal === 0 ? "text-gray-500" : "text-red-700";
               <tr
                 key={c.id}
                 className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
@@ -96,6 +103,9 @@ export default function CustomerTable({ customers, onDelete }: CustomerTableProp
                 <td className="px-4 py-3 text-gray-600">{c.phone || "—"}</td>
                 <td className="px-4 py-3">
                   <CategoryBadge category={c.category} />
+                </td>
+                <td className={`px-4 py-3 text-right font-medium ${balClass}`}>
+                  {bal === null ? "—" : formatCurrency(bal)}
                 </td>
                 <td className="px-4 py-3">
                   {c.isActive === 0 ? (
@@ -134,6 +144,7 @@ export default function CustomerTable({ customers, onDelete }: CustomerTableProp
                   </div>
                 </td>
               </tr>
+              })()
             ))}
           </tbody>
         </table>

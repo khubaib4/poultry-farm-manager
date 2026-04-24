@@ -85,8 +85,16 @@ export const eggCategorySchema = z.object({
   unit: z.enum(["tray", "dozen", "piece", "crate"]).optional().nullable(),
   isActive: z.number().int().optional().nullable(),
   sortOrder: z.number().int().optional().nullable(),
-  createdAt: isoDateString.optional().nullable(),
-  updatedAt: isoDateString.optional().nullable(),
+  createdAt: z
+    .union([isoDateString, z.date()])
+    .optional()
+    .nullable()
+    .transform((val) => (val instanceof Date ? val.toISOString() : val)),
+  updatedAt: z
+    .union([isoDateString, z.date()])
+    .optional()
+    .nullable()
+    .transform((val) => (val instanceof Date ? val.toISOString() : val)),
 });
 
 // Expenses
@@ -229,8 +237,16 @@ export const stockAdjustmentSchema = z.object({
   reason: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
   createdBy: z.string().optional().nullable(),
-  createdAt: isoDateString.optional().nullable(),
-  updatedAt: isoDateString.optional().nullable(),
+  createdAt: z
+    .union([isoDateString, z.date()])
+    .optional()
+    .nullable()
+    .transform((val) => (val instanceof Date ? val.toISOString() : val)),
+  updatedAt: z
+    .union([isoDateString, z.date()])
+    .optional()
+    .nullable()
+    .transform((val) => (val instanceof Date ? val.toISOString() : val)),
 });
 
 // Alerts

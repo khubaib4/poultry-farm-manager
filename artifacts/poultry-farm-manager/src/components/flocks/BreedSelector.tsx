@@ -1,14 +1,5 @@
-import React, { useState } from "react";
-
-const COMMON_BREEDS = [
-  "Lohmann Brown",
-  "Hy-Line Brown",
-  "ISA Brown",
-  "Bovans Brown",
-  "Novogen Brown",
-  "Dekalb White",
-  "Hy-Line W-36",
-];
+import React, { useMemo, useState } from "react";
+import { BREED_STANDARDS } from "@/data/breedStandards";
 
 interface BreedSelectorProps {
   value: string;
@@ -23,9 +14,17 @@ export default function BreedSelector({
   disabled,
   className,
 }: BreedSelectorProps): React.ReactElement {
-  const [isCustom, setIsCustom] = useState(
-    value !== "" && !COMMON_BREEDS.includes(value)
+  const options = useMemo(
+    () =>
+      BREED_STANDARDS.map((b) => ({
+        value: b.id,
+        label: b.name,
+      })),
+    []
   );
+
+  const isKnown = value === "" ? true : options.some((o) => o.value === value);
+  const [isCustom, setIsCustom] = useState(value !== "" && !isKnown);
 
   const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selected = e.target.value;
@@ -54,7 +53,7 @@ export default function BreedSelector({
           type="button"
           onClick={() => {
             setIsCustom(false);
-            onChange(COMMON_BREEDS[0]);
+            onChange("");
           }}
           disabled={disabled}
           className="shrink-0 rounded-md border border-slate-200 px-3 py-2 text-xs text-slate-500 hover:bg-slate-50"
@@ -72,10 +71,10 @@ export default function BreedSelector({
       disabled={disabled}
       className={className}
     >
-      <option value="">Select breed</option>
-      {COMMON_BREEDS.map((breed) => (
-        <option key={breed} value={breed}>
-          {breed}
+      <option value="">None / Not Set</option>
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
         </option>
       ))}
       <option value="__custom__">Custom breed...</option>

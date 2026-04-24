@@ -10,6 +10,7 @@ interface StatCardProps {
   iconColor: string;
   trend?: Trend;
   trendLabel?: string;
+  subtitle?: string;
   status?: PerformanceStatus;
   onClick?: () => void;
 }
@@ -26,7 +27,7 @@ const statusBorder: Record<PerformanceStatus, string> = {
   critical: "border-l-red-500",
 };
 
-export default function StatCard({ title, value, unit, icon, iconColor, trend, trendLabel, status, onClick }: StatCardProps): React.ReactElement {
+export default function StatCard({ title, value, unit, icon, iconColor, trend, trendLabel, subtitle, status, onClick }: StatCardProps): React.ReactElement {
   const trendColor = trend === "up" ? "text-green-600" : trend === "down" ? "text-red-600" : "text-gray-400";
 
   return (
@@ -42,6 +43,7 @@ export default function StatCard({ title, value, unit, icon, iconColor, trend, t
         <p className="text-3xl font-bold text-gray-900">{value}</p>
         {unit && <span className="text-sm text-gray-500">{unit}</span>}
       </div>
+      {subtitle && <p className="text-xs text-gray-500 mt-2">{subtitle}</p>}
       {trend && trendLabel && (
         <div className={`flex items-center gap-1 mt-2 text-xs ${trendColor}`}>
           {trendIcons[trend]}

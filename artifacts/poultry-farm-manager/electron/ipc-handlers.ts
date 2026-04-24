@@ -818,16 +818,22 @@ export function registerIpcHandlers(): void {
   // --------------------
   // Egg categories (sales)
   // --------------------
-  const DEFAULT_EGG_CATEGORIES: Array<{ name: string; unit: "tray" | "dozen" | "piece" | "crate"; sortOrder: number }> = [
-    { name: "Double", unit: "tray", sortOrder: 10 },
-    { name: "Large", unit: "tray", sortOrder: 20 },
-    { name: "Medium", unit: "tray", sortOrder: 30 },
-    { name: "Small", unit: "tray", sortOrder: 40 },
-    { name: "Pullat", unit: "tray", sortOrder: 50 },
-    { name: "Starter", unit: "tray", sortOrder: 60 },
-    { name: "Mela", unit: "tray", sortOrder: 70 },
-    { name: "Broken", unit: "tray", sortOrder: 80 },
-    { name: "Mixed", unit: "tray", sortOrder: 90 },
+  const DEFAULT_EGG_CATEGORIES: Array<{
+    name: string;
+    description: string;
+    defaultPrice: number;
+    unit: "tray" | "dozen" | "piece" | "crate";
+    sortOrder: number;
+  }> = [
+    { name: "Double", description: "Double yolk eggs", defaultPrice: 0, unit: "tray", sortOrder: 1 },
+    { name: "Large", description: "Large eggs", defaultPrice: 0, unit: "tray", sortOrder: 2 },
+    { name: "Medium", description: "Medium eggs", defaultPrice: 0, unit: "tray", sortOrder: 3 },
+    { name: "Small", description: "Small eggs", defaultPrice: 0, unit: "tray", sortOrder: 4 },
+    { name: "Pullat", description: "Pullet eggs", defaultPrice: 0, unit: "tray", sortOrder: 5 },
+    { name: "Starter", description: "Starter eggs", defaultPrice: 0, unit: "tray", sortOrder: 6 },
+    { name: "Mela", description: "Mixed/dirty eggs", defaultPrice: 0, unit: "tray", sortOrder: 7 },
+    { name: "Broken", description: "Broken eggs", defaultPrice: 0, unit: "tray", sortOrder: 8 },
+    { name: "Mixed", description: "Mixed grade eggs", defaultPrice: 0, unit: "tray", sortOrder: 9 },
   ];
 
   ipcMain.handle(
@@ -913,23 +919,53 @@ export function registerIpcHandlers(): void {
     "eggCategories:seedDefaults",
     wrapHandler((_e: unknown, farmId: number) => {
       requireFarmAccess(farmId);
-      const existing = db.select().from(schema.eggCategories).where(eq(schema.eggCategories.farmId, farmId)).limit(1).get();
-      if (existing) return { seeded: 0, skipped: true };
-      let seeded = 0;
-      for (const c of DEFAULT_EGG_CATEGORIES) {
-        db.insert(schema.eggCategories).values({
-          farmId,
-          name: c.name,
-          description: "",
-          defaultPrice: 0,
-          unit: c.unit,
-          isActive: 1,
-          sortOrder: c.sortOrder,
-          updatedAt: new Date().toISOString(),
-        }).run();
-        seeded += 1;
+      const names = DEFAULT_EGG_CATEGORIES.map((c) => c.name);
+      const existing = db
+        .select()
+        .from(schema.eggCategories)
+        .where(and(eq(schema.eggCategories.farmId, farmId), inArray(schema.eggCategories.name, names)))
+        .all();
+      const byName = new Map<string, (typeof schema.eggCategories.$inferSelect)>();
+      for (const c of existing) byName.set(String(c.name), c);
+
+      let created = 0;
+      let reactivated = 0;
+      const now = new Date().toISOString();
+
+      for (const def of DEFAULT_EGG_CATEGORIES) {
+        const found = byName.get(def.name);
+        if (!found) {
+          db.insert(schema.eggCategories)
+            .values({
+              farmId,
+              name: def.name,
+              description: def.description,
+              defaultPrice: def.defaultPrice,
+              unit: def.unit,
+              isActive: 1,
+              sortOrder: def.sortOrder,
+              updatedAt: now,
+            })
+            .run();
+          created += 1;
+          continue;
+        }
+
+        if (Number(found.isActive ?? 1) === 0) {
+          db.update(schema.eggCategories)
+            .set({ isActive: 1, updatedAt: now })
+            .where(eq(schema.eggCategories.id, found.id))
+            .run();
+          reactivated += 1;
+        }
       }
-      return { seeded, skipped: false };
+
+      const didAnything = created + reactivated > 0;
+      const message = didAnything
+        ? `Defaults updated: reactivated ${reactivated}, created ${created}`
+        : "All defaults are already active";
+
+      return { seeded: created, reactivated, skipped: !didAnything, message };
     })
   );
 

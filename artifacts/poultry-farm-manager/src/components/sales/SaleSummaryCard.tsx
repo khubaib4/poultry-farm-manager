@@ -5,6 +5,8 @@ interface SaleSummaryCardProps {
   subtotal: number;
   discountAmount: number;
   total: number;
+  balanceApplied?: number;
+  amountDue?: number;
   amountPaid?: number;
   balanceDue?: number;
 }
@@ -13,6 +15,8 @@ export default function SaleSummaryCard({
   subtotal,
   discountAmount,
   total,
+  balanceApplied,
+  amountDue,
   amountPaid,
   balanceDue,
 }: SaleSummaryCardProps): React.ReactElement {
@@ -37,6 +41,23 @@ export default function SaleSummaryCard({
           <span className="font-semibold text-gray-900">Total</span>
           <span className="font-bold text-gray-900 text-base">{formatCurrency(total)}</span>
         </div>
+
+        {balanceApplied != null && balanceApplied > 0 && (
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-500">Balance Applied</span>
+            <span className="font-medium text-emerald-700">-{formatCurrency(balanceApplied)}</span>
+          </div>
+        )}
+
+        {amountDue != null && (
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-500">Amount Due</span>
+            <span className="font-semibold text-gray-900">
+              {formatCurrency(Math.max(0, amountDue))}
+              {amountDue <= 0 && <span className="text-xs text-emerald-600 font-medium ml-2">(Covered by balance)</span>}
+            </span>
+          </div>
+        )}
 
         {amountPaid != null && (
           <div className="flex justify-between text-sm">

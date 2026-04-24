@@ -37,6 +37,7 @@ import {
   SaleModel,
   SaleItemModel,
   SalePaymentModel,
+  CustomerBalanceModel,
   StockAdjustmentModel,
   DismissedAlertModel,
   CounterModel,
@@ -83,6 +84,7 @@ import { generateOwnerReportMongo, type OwnerReportParams } from "./ownerReportM
 import { getAllSettings, updateSettings, resetSettings } from "./settings";
 import type { AppSettings } from "./settings";
 import { getDatabasePath } from "./database";
+import { getBreedStandard, getStandardForWeek } from "./data/breedStandards";
 
 interface SessionData {
   type: "owner" | "farm" | "user";
@@ -1076,6 +1078,431 @@ export function registerIpcHandlers(): void {
     })
   );
 
+  async function computeFlockWeeklyPerformance(flock: any): Promise<{
+    initialCount: number;
+    arrivalDate: string;
+    ageAtArrivalDays: number;
+    currentWeekAge: number | null;
+    weeklyData: Array<{
+      weekAge: number;
+      actualLayPercent: number | null;
+      actualFeedPerBird: number | null; // g/bird/day
+      actualEggCount: number;
+      actualDeaths: number;
+      cumulativeEggs: number;
+      cumulativeEggsPerHen: number;
+      cumulativeDeaths: number;
+      livabilityPercent: number;
+    }>;
+    summary: {
+      totalEggs: number;
+      avgLayPercent: number;
+      peakLayPercent: number;
+      peakLayWeek: number;
+      totalDeaths: number;
+      mortalityPercent: number;
+      avgFeedPerBird: number | null;
+    };
+  }> {
+    const initialCount = Number(flock?.initialCount ?? 0);
+    const arrivalDate = String(flock?.arrivalDate ?? "");
+    const ageAtArrivalDays = Number(flock?.ageAtArrivalDays ?? 0);
+
+    const parseYmd = (ymd: string): Date => new Date(`${ymd}T00:00:00`);
+    const arrival = arrivalDate ? parseYmd(arrivalDate) : new Date(NaN);
+
+    const entries = await DailyEntryModel.find({ flockId: Number(flock?.id) })
+      .sort({ entryDate: 1, id: 1 })
+      .lean();
+
+    type WeekAcc = {
+      weekAge: number;
+      eggsTotal: number;
+      deathsTotal: number;
+      layPercentSum: number;
+      layPercentDays: number;
+      feedPerBirdSum: number;
+      feedPerBirdDays: number;
+    };
+
+    const byWeek = new Map<number, WeekAcc>();
+    let cumulativeDeaths = 0;
+    let cumulativeEggs = 0;
+
+    for (const e of entries as any[]) {
+      const entryDate = String(e.entryDate ?? "");
+      const d = entryDate ? parseYmd(entryDate) : new Date(NaN);
+      const daysSinceArrival =
+        !Number.isNaN(arrival.getTime()) && !Number.isNaN(d.getTime())
+          ? Math.max(0, Math.floor((d.getTime() - arrival.getTime()) / 86400000))
+          : 0;
+      const daysSinceHatch = daysSinceArrival + Math.max(0, ageAtArrivalDays);
+      const weekAge = Math.floor(daysSinceHatch / 7) + 1;
+
+      const deathsToday = Math.max(0, Number(e.deaths ?? 0));
+      const eggsToday = Math.max(0, Number(e.totalEggs ?? 0));
+      const feedKg =
+        e.feedConsumedKg === null || e.feedConsumedKg === undefined ? null : Number(e.feedConsumedKg);
+
+      // Birds that died today should not be considered as laying today, so we include today's deaths
+      // in the "live birds" denominator. If lay% exceeds 100%, it usually indicates a data issue:
+      // - flock initialCount set too low
+      // - deaths over-counted (making live birds too low)
+      // - duplicate daily entries for the same day
+      // We cap at 100% to avoid confusing charts while the source data is corrected.
+      const currentLiveBirds = Math.max(0, initialCount - (cumulativeDeaths + deathsToday));
+      const layPercentRaw = currentLiveBirds > 0 ? (eggsToday / currentLiveBirds) * 100 : 0;
+      const layPercent = Math.min(layPercentRaw, 100);
+
+      const acc = byWeek.get(weekAge) ?? {
+        weekAge,
+        eggsTotal: 0,
+        deathsTotal: 0,
+        layPercentSum: 0,
+        layPercentDays: 0,
+        feedPerBirdSum: 0,
+        feedPerBirdDays: 0,
+      };
+
+      acc.eggsTotal += eggsToday;
+      acc.deathsTotal += deathsToday;
+      if (currentLiveBirds > 0) {
+        acc.layPercentSum += layPercent;
+        acc.layPercentDays += 1;
+      }
+      if (feedKg !== null && Number.isFinite(feedKg) && currentLiveBirds > 0) {
+        acc.feedPerBirdSum += (feedKg * 1000) / currentLiveBirds;
+        acc.feedPerBirdDays += 1;
+      }
+
+      byWeek.set(weekAge, acc);
+      cumulativeDeaths += deathsToday;
+      cumulativeEggs += eggsToday;
+    }
+
+    const weeksSorted = Array.from(byWeek.values()).sort((a, b) => a.weekAge - b.weekAge);
+    const currentWeekAge = weeksSorted.length ? weeksSorted[weeksSorted.length - 1].weekAge : null;
+
+    let runEggs = 0;
+    let runDeaths = 0;
+    const initialForPerHen = Math.max(1, initialCount || 1);
+
+    const weeklyData = weeksSorted.map((w) => {
+      runEggs += w.eggsTotal;
+      runDeaths += w.deathsTotal;
+
+      const actualLayPercent = w.layPercentDays > 0 ? w.layPercentSum / w.layPercentDays : null;
+      const actualFeedPerBird = w.feedPerBirdDays > 0 ? w.feedPerBirdSum / w.feedPerBirdDays : null;
+
+      const livabilityPercent =
+        initialCount > 0 ? ((initialCount - runDeaths) / initialCount) * 100 : 0;
+
+      return {
+        weekAge: w.weekAge,
+        actualLayPercent: actualLayPercent !== null ? Math.round(actualLayPercent * 10) / 10 : null,
+        actualFeedPerBird: actualFeedPerBird !== null ? Math.round(actualFeedPerBird * 10) / 10 : null,
+        actualEggCount: Math.round(w.eggsTotal),
+        actualDeaths: Math.round(w.deathsTotal),
+        cumulativeEggs: Math.round(runEggs),
+        cumulativeEggsPerHen: Math.round((runEggs / initialForPerHen) * 10) / 10,
+        cumulativeDeaths: Math.round(runDeaths),
+        livabilityPercent: Math.round(livabilityPercent * 10) / 10,
+      };
+    });
+
+    const totalEggs = weeklyData.length ? weeklyData[weeklyData.length - 1].cumulativeEggs : 0;
+    const totalDeaths = weeklyData.length ? weeklyData[weeklyData.length - 1].cumulativeDeaths : 0;
+
+    const avgLayPercent =
+      weeklyData.length > 0
+        ? weeklyData.reduce((s, w) => s + Number(w.actualLayPercent ?? 0), 0) / weeklyData.length
+        : 0;
+
+    const peak = weeklyData.reduce(
+      (best, w) => {
+        const v = w.actualLayPercent;
+        if (v === null) return best;
+        if (best.v === null || v > best.v) return { v, week: w.weekAge };
+        return best;
+      },
+      { v: null as number | null, week: 0 }
+    );
+
+    const feedWeeks = weeklyData.filter((w) => typeof w.actualFeedPerBird === "number");
+    const avgFeedPerBird =
+      feedWeeks.length > 0
+        ? Math.round(
+            (feedWeeks.reduce((s, w) => s + Number(w.actualFeedPerBird ?? 0), 0) / feedWeeks.length) * 10
+          ) / 10
+        : null;
+
+    const mortalityPercent = initialCount > 0 ? (totalDeaths / initialCount) * 100 : 0;
+
+    return {
+      initialCount,
+      arrivalDate,
+      ageAtArrivalDays,
+      currentWeekAge,
+      weeklyData,
+      summary: {
+        totalEggs: Math.round(totalEggs),
+        avgLayPercent: Math.round(avgLayPercent * 10) / 10,
+        peakLayPercent: peak.v !== null ? Math.round(peak.v * 10) / 10 : 0,
+        peakLayWeek: peak.v !== null ? peak.week : 0,
+        totalDeaths: Math.round(totalDeaths),
+        mortalityPercent: Math.round(mortalityPercent * 10) / 10,
+        avgFeedPerBird,
+      },
+    };
+  }
+
+  ipcMain.handle(
+    "flock:getPerformanceVsStandard",
+    wrapHandler(async (_e: unknown, flockIdRaw: unknown) => {
+      const flockId = Number(flockIdRaw);
+      if (!Number.isFinite(flockId)) throw new Error("Invalid flockId");
+
+      const flock = await FlockModel.findOne({ id: flockId }).lean();
+      if (!flock) throw new Error("Flock not found");
+      await requireFarmAccess(flock.farmId!);
+
+      const breedId = String((flock as any).breed ?? "").trim();
+      if (!breedId) return { error: "no-breed-set" as const };
+
+      const breed = getBreedStandard(breedId);
+      if (!breed) return { error: "unknown-breed" as const, breedId };
+
+      const perf = await computeFlockWeeklyPerformance({ ...flock, id: flockId });
+      const { initialCount, arrivalDate, ageAtArrivalDays } = perf;
+
+      if (!perf.weeklyData.length) {
+        const standardPeak = breed.productionData.reduce(
+          (best, r) => (r.layPercent > best.layPercent ? r : best),
+          breed.productionData[0]
+        );
+        return {
+          flock: {
+            id: (flock as any).id,
+            name: (flock as any).batchName,
+            breed: breedId,
+            arrivalDate,
+            ageAtArrivalDays,
+            initialCount,
+          },
+          breedName: breed.name,
+          weeklyComparison: [],
+          standardCurve: [],
+          summary: {
+            currentWeekAge: null,
+            totalActualEggs: 0,
+            totalStandardEggs: null,
+            avgActualLay: null,
+            avgStandardLay: null,
+            peakActualLay: null,
+            peakActualLayWeek: null,
+            standardPeakLay: standardPeak.layPercent,
+            standardPeakWeek: standardPeak.weekAge,
+            overallPerformancePercent: null,
+          },
+        };
+      }
+
+      const weeklyComparison = perf.weeklyData.map((w) => {
+        const standard = getStandardForWeek(breedId, w.weekAge);
+        const standardLayPercent = standard ? standard.layPercent : null;
+        return {
+          weekAge: w.weekAge,
+          actualLayPercent: w.actualLayPercent ?? 0,
+          actualEggCount: Math.round(w.actualEggCount),
+          actualDeaths: Math.round(w.actualDeaths),
+          actualFeedPerBird: w.actualFeedPerBird,
+          standardLayPercent,
+          standardEggWeight: standard ? standard.eggWeight : null,
+          standardFeedIntake: standard ? standard.feedIntakePerDay : null,
+          standardFCR: standard ? standard.feedConversionWeekly : null,
+          standardLivability: standard ? standard.livabilityPercent : null,
+          standardEggsCumPerHenHoused: standard ? Number(standard.eggsCumPerHenHoused ?? 0) : 0,
+          layVariance:
+            standardLayPercent !== null && w.actualLayPercent !== null
+              ? Math.round((w.actualLayPercent - standardLayPercent) * 10) / 10
+              : null,
+        };
+      });
+
+      const currentWeekAge = perf.currentWeekAge;
+      const latestStandard = currentWeekAge !== null ? getStandardForWeek(breedId, currentWeekAge) : undefined;
+      const totalStandardEggs =
+        latestStandard && Number.isFinite(Number(latestStandard.eggsCumPerHenHoused))
+          ? Math.round(Number(latestStandard.eggsCumPerHenHoused) * initialCount)
+          : null;
+
+      const standardPeak = breed.productionData.reduce(
+        (best, r) => (r.layPercent > best.layPercent ? r : best),
+        breed.productionData[0]
+      );
+
+      const weeksWithStandard = weeklyComparison.filter((w: any) => typeof w.standardLayPercent === "number");
+      const avgActualLay =
+        weeklyComparison.length > 0
+          ? weeklyComparison.reduce((s: number, w: any) => s + Number(w.actualLayPercent ?? 0), 0) / weeklyComparison.length
+          : null;
+      const avgStandardLay =
+        weeksWithStandard.length > 0
+          ? weeksWithStandard.reduce((s: number, w: any) => s + Number(w.standardLayPercent ?? 0), 0) / weeksWithStandard.length
+          : null;
+
+      const peakActual = weeklyComparison.reduce(
+        (best: { v: number | null; week: number | null }, w: any) => {
+          const v = typeof w.actualLayPercent === "number" ? w.actualLayPercent : null;
+          if (v === null) return best;
+          if (best.v === null || v > best.v) return { v, week: w.weekAge };
+          return best;
+        },
+        { v: null as number | null, week: null as number | null }
+      );
+
+      const overallPerformancePercent =
+        totalStandardEggs && totalStandardEggs > 0
+          ? Math.round(((perf.summary.totalEggs / totalStandardEggs) * 100) * 10) / 10
+          : null;
+
+      const standardCurve =
+        currentWeekAge !== null && currentWeekAge >= 18
+          ? Array.from({ length: currentWeekAge - 18 + 1 }, (_v, i) => 18 + i).map((weekAge) => {
+              const s = getStandardForWeek(breedId, weekAge);
+              return {
+                weekAge,
+                standardLayPercent: s ? s.layPercent : 0,
+                standardFeedIntake: s ? s.feedIntakePerDay : 0,
+                standardEggsCumPerHenHoused: s ? Number(s.eggsCumPerHenHoused ?? 0) : 0,
+                standardEggWeight: s ? s.eggWeight : 0,
+                standardLivability: s ? s.livabilityPercent : 0,
+              };
+            })
+          : [];
+
+      return {
+        flock: {
+          id: (flock as any).id,
+          name: (flock as any).batchName,
+          breed: breedId,
+          arrivalDate,
+          ageAtArrivalDays,
+          initialCount,
+        },
+        breedName: breed.name,
+        weeklyComparison,
+        standardCurve,
+        summary: {
+          currentWeekAge,
+          totalActualEggs: Math.round(perf.summary.totalEggs),
+          totalStandardEggs,
+          avgActualLay: avgActualLay !== null ? Math.round(avgActualLay * 10) / 10 : null,
+          avgStandardLay: avgStandardLay !== null ? Math.round(avgStandardLay * 10) / 10 : null,
+          peakActualLay: peakActual.v,
+          peakActualLayWeek: peakActual.week,
+          standardPeakLay: standardPeak.layPercent,
+          standardPeakWeek: standardPeak.weekAge,
+          overallPerformancePercent,
+        },
+      };
+    })
+  );
+
+  ipcMain.handle(
+    "flock:compareFlocks",
+    wrapHandler(async (_e: unknown, flockIdsRaw: unknown) => {
+      const raw = Array.isArray(flockIdsRaw) ? flockIdsRaw : [];
+      const flockIds = raw
+        .map((v) => Number(v))
+        .filter((n) => Number.isFinite(n))
+        .slice(0, 10);
+
+      const uniqueIds = Array.from(new Set(flockIds));
+      if (uniqueIds.length < 2 || uniqueIds.length > 4) {
+        return { error: "select-2-to-4-flocks" as const };
+      }
+
+      const flocks = await FlockModel.find({ id: { $in: uniqueIds } }).lean();
+      if (flocks.length !== uniqueIds.length) {
+        return { error: "flock-not-found" as const };
+      }
+
+      const farmIds = Array.from(new Set(flocks.map((f: any) => Number(f.farmId ?? 0)).filter((n) => n > 0)));
+      if (farmIds.length !== 1) {
+        return { error: "different-farms" as const };
+      }
+      await requireFarmAccess(farmIds[0]!);
+
+      const breeds = Array.from(
+        new Set(flocks.map((f: any) => String((f as any).breed ?? "").trim()).filter(Boolean))
+      );
+      if (breeds.length === 0) return { error: "no-breed-set" as const };
+      if (breeds.length > 1) return { error: "different-breeds" as const };
+      const breedId = breeds[0]!;
+
+      const breed = getBreedStandard(breedId);
+      if (!breed) return { error: "unknown-breed" as const, breedId };
+
+      const perfByFlock = await Promise.all(
+        flocks.map(async (flock: any) => {
+          const perf = await computeFlockWeeklyPerformance(flock);
+          return {
+            id: String(flock.id),
+            name: String(flock.batchName ?? flock.name ?? ""),
+            breed: breedId,
+            initialCount: Number(flock.initialCount ?? 0),
+            arrivalDate: String(flock.arrivalDate ?? ""),
+            ageAtArrivalDays: Number(flock.ageAtArrivalDays ?? 0),
+            currentWeekAge: perf.currentWeekAge ?? 0,
+            weeklyData: perf.weeklyData.map((w) => ({
+              weekAge: w.weekAge,
+              actualLayPercent: w.actualLayPercent,
+              actualFeedPerBird: w.actualFeedPerBird,
+              actualEggCount: w.actualEggCount,
+              cumulativeEggs: w.cumulativeEggs,
+              cumulativeEggsPerHen: w.cumulativeEggsPerHen,
+              cumulativeDeaths: w.cumulativeDeaths,
+              livabilityPercent: w.livabilityPercent,
+            })),
+            summary: {
+              totalEggs: perf.summary.totalEggs,
+              avgLayPercent: perf.summary.avgLayPercent,
+              peakLayPercent: perf.summary.peakLayPercent,
+              peakLayWeek: perf.summary.peakLayWeek,
+              totalDeaths: perf.summary.totalDeaths,
+              mortalityPercent: perf.summary.mortalityPercent,
+              avgFeedPerBird: perf.summary.avgFeedPerBird,
+            },
+          };
+        })
+      );
+
+      const maxWeekAge = Math.max(0, ...perfByFlock.map((f) => Number(f.currentWeekAge ?? 0)));
+      const standardCurve =
+        maxWeekAge >= 18
+          ? Array.from({ length: maxWeekAge - 18 + 1 }, (_v, i) => 18 + i).map((weekAge) => {
+              const s = getStandardForWeek(breedId, weekAge);
+              return {
+                weekAge,
+                standardLayPercent: s ? s.layPercent : 0,
+                standardFeedIntake: s ? s.feedIntakePerDay : 0,
+                standardEggsCumPerHenHoused: s ? Number(s.eggsCumPerHenHoused ?? 0) : 0,
+                standardEggWeight: s ? s.eggWeight : 0,
+                standardLivability: s ? s.livabilityPercent : 0,
+              };
+            })
+          : [];
+
+      return {
+        breedId,
+        breedName: breed.name,
+        flocks: perfByFlock,
+        standardCurve,
+      };
+    })
+  );
+
   // --------------------
   // Daily entries
   // --------------------
@@ -1324,39 +1751,64 @@ export function registerIpcHandlers(): void {
     })
   );
 
-  const DEFAULT_EGG_CATEGORIES: Array<{ name: string; unit: "tray" | "dozen" | "piece" | "crate"; sortOrder: number }> = [
-    { name: "Double", unit: "tray", sortOrder: 10 },
-    { name: "Large", unit: "tray", sortOrder: 20 },
-    { name: "Medium", unit: "tray", sortOrder: 30 },
-    { name: "Small", unit: "tray", sortOrder: 40 },
-    { name: "Pullat", unit: "tray", sortOrder: 50 },
-    { name: "Starter", unit: "tray", sortOrder: 60 },
-    { name: "Mela", unit: "tray", sortOrder: 70 },
-    { name: "Broken", unit: "tray", sortOrder: 80 },
-    { name: "Mixed", unit: "tray", sortOrder: 90 },
+  const DEFAULT_EGG_CATEGORIES: Array<{
+    name: string;
+    description: string;
+    defaultPrice: number;
+    unit: "tray" | "dozen" | "piece" | "crate";
+    sortOrder: number;
+  }> = [
+    { name: "Double", description: "Double yolk eggs", defaultPrice: 0, unit: "tray", sortOrder: 1 },
+    { name: "Large", description: "Large eggs", defaultPrice: 0, unit: "tray", sortOrder: 2 },
+    { name: "Medium", description: "Medium eggs", defaultPrice: 0, unit: "tray", sortOrder: 3 },
+    { name: "Small", description: "Small eggs", defaultPrice: 0, unit: "tray", sortOrder: 4 },
+    { name: "Pullat", description: "Pullet eggs", defaultPrice: 0, unit: "tray", sortOrder: 5 },
+    { name: "Starter", description: "Starter eggs", defaultPrice: 0, unit: "tray", sortOrder: 6 },
+    { name: "Mela", description: "Mixed/dirty eggs", defaultPrice: 0, unit: "tray", sortOrder: 7 },
+    { name: "Broken", description: "Broken eggs", defaultPrice: 0, unit: "tray", sortOrder: 8 },
+    { name: "Mixed", description: "Mixed grade eggs", defaultPrice: 0, unit: "tray", sortOrder: 9 },
   ];
 
   ipcMain.handle(
     "eggCategories:seedDefaults",
     wrapHandler(async (_e: unknown, farmId: number) => {
       await requireFarmAccess(farmId);
-      const existingCount = await EggCategoryModel.countDocuments({ farmId });
-      if (existingCount > 0) return { seeded: 0, skipped: true };
+      const names = DEFAULT_EGG_CATEGORIES.map((c) => c.name);
+      const existing = await EggCategoryModel.find({ farmId, name: { $in: names } }).lean();
+      const byName = new Map<string, any>();
+      for (const c of existing) byName.set(String((c as any).name), c as any);
 
-      let seeded = 0;
-      for (const c of DEFAULT_EGG_CATEGORIES) {
-        await createWithId("egg_categories", EggCategoryModel as any, {
-          farmId,
-          name: c.name,
-          description: "",
-          defaultPrice: 0,
-          unit: c.unit,
-          isActive: 1,
-          sortOrder: c.sortOrder,
-        });
-        seeded += 1;
+      let created = 0;
+      let reactivated = 0;
+
+      for (const def of DEFAULT_EGG_CATEGORIES) {
+        const found = byName.get(def.name);
+        if (!found) {
+          await createWithId("egg_categories", EggCategoryModel as any, {
+            farmId,
+            name: def.name,
+            description: def.description,
+            defaultPrice: def.defaultPrice,
+            unit: def.unit,
+            isActive: 1,
+            sortOrder: def.sortOrder,
+          });
+          created += 1;
+          continue;
+        }
+
+        if (Number(found.isActive ?? 1) === 0) {
+          await EggCategoryModel.updateOne({ id: Number(found.id) }, { $set: { isActive: 1 } });
+          reactivated += 1;
+        }
       }
-      return { seeded, skipped: false };
+
+      const didAnything = created + reactivated > 0;
+      const message = didAnything
+        ? `Defaults updated: reactivated ${reactivated}, created ${created}`
+        : "All defaults are already active";
+
+      return { seeded: created, reactivated, skipped: !didAnything, message };
     })
   );
 
@@ -2608,13 +3060,35 @@ export function registerIpcHandlers(): void {
       if (!payParsed.success) throw new Error(payParsed.error.message);
 
       const payment = await createWithId("sale_payments", SalePaymentModel as any, payParsed.data as any);
+      const totalAmount = Number(sale.totalAmount ?? 0);
       const newPaid = Number(sale.paidAmount ?? 0) + Number(data.amount ?? 0);
-      const balanceDue = Math.max(0, Number(sale.totalAmount ?? 0) - newPaid);
-      const paymentStatus = balanceDue <= 0 ? "paid" : newPaid > 0 ? "partial" : "unpaid";
-      await SaleModel.updateOne(
-        { id: data.saleId },
-        { paidAmount: newPaid, balanceDue, paymentStatus }
-      );
+      const overpayment =
+        sale.customerId && Number.isFinite(Number(sale.customerId)) && Number(sale.customerId) > 0 && newPaid > totalAmount
+          ? newPaid - totalAmount
+          : 0;
+
+      // Walk-in customers: any "overpayment" is treated as change given back, not balance.
+      if (overpayment > 0) {
+        const balanceId = await nextSequence("customer_balance");
+        await CustomerBalanceModel.create({
+          id: balanceId,
+          farmId: Number(sale.farmId),
+          customerId: Number(sale.customerId),
+          type: "overpayment",
+          amount: overpayment,
+          referenceType: "sale",
+          referenceId: Number(data.saleId),
+          paymentMethod: String(data.paymentMethod ?? "cash"),
+          date: new Date(),
+          notes: `Overpayment on invoice ${String((sale as any).invoiceNumber ?? data.saleId)}`,
+          createdBy: "farm",
+        } as any);
+      }
+
+      const paidAmountToStore = overpayment > 0 ? totalAmount : newPaid;
+      const balanceDue = Math.max(0, totalAmount - paidAmountToStore);
+      const paymentStatus = balanceDue <= 0 ? "paid" : paidAmountToStore > 0 ? "partial" : "unpaid";
+      await SaleModel.updateOne({ id: data.saleId }, { paidAmount: paidAmountToStore, balanceDue, paymentStatus });
       return toPlain<any>(payment);
     })
   );
@@ -2894,6 +3368,172 @@ export function registerIpcHandlers(): void {
       await requireFarmAccess(Number((adj as any).farmId));
       await StockAdjustmentModel.deleteOne({ id });
       return { success: true };
+    })
+  );
+
+  // --------------------
+  // Customer balance ledger
+  // --------------------
+  ipcMain.handle(
+    "customerBalance:getBalance",
+    wrapHandler(async (_e: unknown, customerId: number) => {
+      const cust = await CustomerModel.findOne({ id: customerId }).lean();
+      if (!cust) throw new Error("Customer not found");
+      await requireFarmAccess(Number((cust as any).farmId));
+
+      const agg = await CustomerBalanceModel.aggregate([
+        { $match: { customerId } },
+        { $group: { _id: null, balance: { $sum: "$amount" } } },
+      ]);
+      return { customerId, balance: Number(agg?.[0]?.balance ?? 0) };
+    })
+  );
+
+  ipcMain.handle(
+    "customerBalance:getTransactions",
+    wrapHandler(async (_e: unknown, customerId: number) => {
+      const cust = await CustomerModel.findOne({ id: customerId }).lean();
+      if (!cust) throw new Error("Customer not found");
+      await requireFarmAccess(Number((cust as any).farmId));
+
+      const txs = await CustomerBalanceModel.find({ customerId }).sort({ date: -1, id: -1 }).lean();
+      return txs;
+    })
+  );
+
+  ipcMain.handle(
+    "customerBalance:recordAdvancePayment",
+    wrapHandler(async (_e: unknown, data: any) => {
+      const farmId = Number(data?.farmId);
+      const customerId = Number(data?.customerId);
+      if (!Number.isFinite(farmId)) throw new Error("Invalid farmId");
+      if (!Number.isFinite(customerId)) throw new Error("Invalid customerId");
+      const session = await requireFarmAccess(farmId);
+
+      const cust = await CustomerModel.findOne({ id: customerId }).lean();
+      if (!cust) throw new Error("Customer not found");
+      if (Number((cust as any).farmId) !== farmId) throw new Error("Customer does not belong to this farm");
+
+      const amount = Number(data?.amount ?? 0);
+      if (!Number.isFinite(amount) || amount <= 0) throw new Error("Amount must be positive");
+      const paymentMethod = data?.paymentMethod ? String(data.paymentMethod) : "cash";
+      const dateStr = String(data?.date ?? "");
+      if (!dateStr) throw new Error("Invalid date");
+
+      const id = await nextSequence("customer_balance");
+      const tx = await CustomerBalanceModel.create({
+        id,
+        farmId,
+        customerId,
+        type: "advance_payment",
+        amount: Math.abs(amount),
+        referenceType: "manual",
+        referenceId: null,
+        paymentMethod,
+        notes: String(data?.notes ?? ""),
+        date: new Date(dateStr),
+        createdBy: session.type,
+      } as any);
+      return toPlain<any>(tx);
+    })
+  );
+
+  ipcMain.handle(
+    "customerBalance:addAdjustment",
+    wrapHandler(async (_e: unknown, data: any) => {
+      const farmId = Number(data?.farmId);
+      const customerId = Number(data?.customerId);
+      if (!Number.isFinite(farmId)) throw new Error("Invalid farmId");
+      if (!Number.isFinite(customerId)) throw new Error("Invalid customerId");
+      const session = await requireFarmAccess(farmId);
+
+      const cust = await CustomerModel.findOne({ id: customerId }).lean();
+      if (!cust) throw new Error("Customer not found");
+      if (Number((cust as any).farmId) !== farmId) throw new Error("Customer does not belong to this farm");
+
+      const notes = String(data?.notes ?? "").trim();
+      if (!notes) throw new Error("Notes are required for adjustments");
+      const amount = Number(data?.amount ?? 0);
+      if (!Number.isFinite(amount) || amount === 0) throw new Error("Invalid amount");
+      const dateStr = String(data?.date ?? "");
+      if (!dateStr) throw new Error("Invalid date");
+
+      const id = await nextSequence("customer_balance");
+      const tx = await CustomerBalanceModel.create({
+        id,
+        farmId,
+        customerId,
+        type: "adjustment",
+        amount,
+        referenceType: "manual",
+        referenceId: null,
+        paymentMethod: null,
+        notes,
+        date: new Date(dateStr),
+        createdBy: session.type,
+      } as any);
+      return toPlain<any>(tx);
+    })
+  );
+
+  ipcMain.handle(
+    "customerBalance:applyToSale",
+    wrapHandler(async (_e: unknown, data: any) => {
+      const farmId = Number(data?.farmId);
+      const customerId = Number(data?.customerId);
+      const saleId = Number(data?.saleId);
+      const amount = Number(data?.amount ?? 0);
+      const dateStr = String(data?.date ?? "");
+      if (!Number.isFinite(farmId)) throw new Error("Invalid farmId");
+      if (!Number.isFinite(customerId)) throw new Error("Invalid customerId");
+      if (!Number.isFinite(saleId)) throw new Error("Invalid saleId");
+      if (!Number.isFinite(amount) || amount <= 0) throw new Error("Amount must be positive");
+      if (!dateStr) throw new Error("Invalid date");
+
+      const session = await requireFarmAccess(farmId);
+
+      const cust = await CustomerModel.findOne({ id: customerId }).lean();
+      if (!cust) throw new Error("Customer not found");
+      if (Number((cust as any).farmId) !== farmId) throw new Error("Customer does not belong to this farm");
+
+      const balAgg = await CustomerBalanceModel.aggregate([
+        { $match: { customerId } },
+        { $group: { _id: null, balance: { $sum: "$amount" } } },
+      ]);
+      const currentBalance = Number(balAgg?.[0]?.balance ?? 0);
+      if (currentBalance < amount) return { error: "insufficient-balance" as const, currentBalance };
+
+      const id = await nextSequence("customer_balance");
+      const tx = await CustomerBalanceModel.create({
+        id,
+        farmId,
+        customerId,
+        type: "applied_to_sale",
+        amount: -Math.abs(amount),
+        referenceType: "sale",
+        referenceId: saleId,
+        paymentMethod: null,
+        notes: `Applied to sale #${saleId}`,
+        date: new Date(dateStr),
+        createdBy: session.type,
+      } as any);
+      return toPlain<any>(tx);
+    })
+  );
+
+  ipcMain.handle(
+    "customerBalance:getBalancesForFarm",
+    wrapHandler(async (_e: unknown, farmId: number) => {
+      await requireFarmAccess(farmId);
+      const balances = await CustomerBalanceModel.aggregate([
+        { $match: { farmId } },
+        { $group: { _id: "$customerId", balance: { $sum: "$amount" } } },
+      ]);
+      const map: Record<number, number> = {};
+      for (const b of balances as any[]) {
+        map[Number(b._id)] = Number(b.balance ?? 0);
+      }
+      return map;
     })
   );
 

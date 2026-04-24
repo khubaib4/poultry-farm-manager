@@ -7,7 +7,8 @@ const FlockMongooseSchema = new mongoose.Schema(
     id: { type: Number, index: true, unique: true, sparse: true },
     farmId: { type: Number, index: true },
     batchName: { type: String, required: true, trim: true, index: true },
-    breed: { type: String },
+    // Breed standard id (e.g. "bovans-white") for benchmarking.
+    breed: { type: String, default: null },
     initialCount: { type: Number, required: true },
     currentCount: { type: Number, required: true },
     arrivalDate: { type: String, required: true, index: true },

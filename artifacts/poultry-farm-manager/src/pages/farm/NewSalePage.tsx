@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { eggCategories as eggCategoriesApi, isElectron, customers as customersApi, sales as salesApi } from "@/lib/api";
+import { eggCategories as eggCategoriesApi, isElectron, customers as customersApi, sales as salesApi, customerBalance as customerBalanceApi } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { ArrowLeft, ShoppingCart } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
-import SaleItemsInput, { type SaleItemRow } from "@/components/sales/SaleItemsInput";
+import SaleItemsInput, { type CombinedSaleItemRow, type SaleItemRow } from "@/components/sales/SaleItemsInput";
 import DiscountInput from "@/components/sales/DiscountInput";
 import SaleSummaryCard from "@/components/sales/SaleSummaryCard";
+import BankTransferFields from "@/components/shared/BankTransferFields";
+import ChequeFields from "@/components/shared/ChequeFields";
 import {
   calculateSubtotal,
   calculateDiscount,
@@ -17,6 +19,7 @@ import {
 } from "@/lib/salesCalculations";
 import type { Customer, EggCategory } from "@/types/electron";
 import { useFarmId } from "@/hooks/useFarmId";
+import { formatCurrency } from "@/lib/utils";
 
 export default function NewSalePage(): React.ReactElement {
   const { user } = useAuth();
@@ -33,16 +36,28 @@ export default function NewSalePage(): React.ReactElement {
   const [walkInName, setWalkInName] = useState("");
   const [saleDate, setSaleDate] = useState(new Date().toISOString().split("T")[0]);
   const [dueDate, setDueDate] = useState("");
-  const [items, setItems] = useState<SaleItemRow[]>([
+  const [walkInItems, setWalkInItems] = useState<SaleItemRow[]>([
     { category: "", unitType: "tray", quantity: "", unitPrice: "" },
+  ]);
+  const [existingItems, setExistingItems] = useState<CombinedSaleItemRow[]>([
+    { category: "", petiQty: "", trayQty: "", pricePerPeti: "" },
   ]);
   const [discountType, setDiscountType] = useState<"none" | "percentage" | "fixed">("none");
   const [discountValue, setDiscountValue] = useState("");
   const [amountPaid, setAmountPaid] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [fromBank, setFromBank] = useState("");
+  const [toBank, setToBank] = useState("");
+  const [chequeNumber, setChequeNumber] = useState("");
+  const [chequeDate, setChequeDate] = useState("");
+  const [chequeBank, setChequeBank] = useState("");
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const [creditBalance, setCreditBalance] = useState<number>(0);
+  const [balanceApplyAmount, setBalanceApplyAmount] = useState<string>("0");
+  const [useFullBalance, setUseFullBalance] = useState(false);
 
   const selectedCustomer = customers.find(c => c.id === customerId);
 
@@ -57,7 +72,25 @@ export default function NewSalePage(): React.ReactElement {
       setCategories(cats);
       const active = cats.filter(c => (c.isActive ?? 1) !== 0).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
       if (active.length > 0) {
-        setItems((prev) => prev.map((i) => (i.category ? i : { ...i, category: active[0].name })));
+        const first = active[0]!;
+        setWalkInItems((prev) => prev.map((i) => (i.category ? i : { ...i, category: first.name })));
+        setExistingItems((prev) =>
+          prev.map((i) =>
+            i.category
+              ? i
+              : {
+                  ...i,
+                  category: first.name,
+                  pricePerPeti:
+                    i.pricePerPeti ||
+                    (first.unit === "tray" && Number(first.defaultPrice) > 0
+                      ? String(Number(first.defaultPrice) * 12)
+                      : Number(first.defaultPrice) > 0
+                        ? String(Number(first.defaultPrice))
+                        : ""),
+                }
+          )
+        );
       }
     }).catch(() => {});
   }, [farmId]);
@@ -82,18 +115,57 @@ export default function NewSalePage(): React.ReactElement {
     }
   }, [selectedCustomer, saleDate]);
 
-  const parsedItems = useMemo(() =>
-    items.map(i => ({
-      itemType: i.unitType,
-      grade: i.category,
-      unitType: i.unitType,
-      quantity: parseFloat(i.quantity) || 0,
-      unitPrice: parseFloat(i.unitPrice) || 0,
-      totalEggs:
-        (i.unitType === "peti" ? 360 : i.unitType === "tray" ? 30 : 1) *
-        (parseFloat(i.quantity) || 0),
-    })),
-  [items]);
+  const parsedItems = useMemo(() => {
+    if (customerType === "walkin") {
+      return walkInItems.map((i) => ({
+        itemType: i.unitType,
+        grade: i.category,
+        unitType: i.unitType,
+        quantity: parseFloat(i.quantity) || 0,
+        unitPrice: parseFloat(i.unitPrice) || 0,
+        totalEggs: (i.unitType === "peti" ? 360 : i.unitType === "tray" ? 30 : 1) * (parseFloat(i.quantity) || 0),
+      }));
+    }
+
+    const out: Array<{
+      itemType: string;
+      grade: string;
+      unitType: "egg" | "tray" | "peti";
+      quantity: number;
+      unitPrice: number;
+      totalEggs: number;
+    }> = [];
+
+    for (const row of existingItems) {
+      const petiQty = Math.max(0, Math.trunc(parseFloat(row.petiQty) || 0));
+      const trayQty = Math.max(0, Math.trunc(parseFloat(row.trayQty) || 0));
+      const pricePerPeti = Math.max(0, parseFloat(row.pricePerPeti) || 0);
+      const trayPrice = pricePerPeti > 0 ? pricePerPeti / 12 : 0;
+
+      if (petiQty > 0) {
+        out.push({
+          itemType: "peti",
+          grade: row.category,
+          unitType: "peti",
+          quantity: petiQty,
+          unitPrice: pricePerPeti,
+          totalEggs: petiQty * 360,
+        });
+      }
+      if (trayQty > 0) {
+        out.push({
+          itemType: "tray",
+          grade: row.category,
+          unitType: "tray",
+          quantity: trayQty,
+          unitPrice: trayPrice,
+          totalEggs: trayQty * 30,
+        });
+      }
+    }
+
+    return out;
+  }, [customerType, walkInItems, existingItems]);
 
   const subtotal = useMemo(() => calculateSubtotal(parsedItems), [parsedItems]);
   const discountAmount = useMemo(
@@ -102,7 +174,47 @@ export default function NewSalePage(): React.ReactElement {
   );
   const total = useMemo(() => calculateTotal(subtotal, discountAmount), [subtotal, discountAmount]);
   const paid = parseFloat(amountPaid) || 0;
-  const balance = useMemo(() => calculateBalanceDue(total, paid), [total, paid]);
+  const applied = Math.max(0, parseFloat(balanceApplyAmount) || 0);
+  const maxApplicable = Math.max(0, Math.min(creditBalance, total));
+  const balanceApplied = Math.min(applied, maxApplicable);
+  const amountDueAfterBalance = Math.max(0, total - balanceApplied);
+  const effectivePaid = paid + balanceApplied;
+  const balance = useMemo(() => calculateBalanceDue(total, effectivePaid), [total, effectivePaid]);
+
+  useEffect(() => {
+    if (customerType !== "existing" || !customerId) {
+      setCreditBalance(0);
+      setBalanceApplyAmount("0");
+      setUseFullBalance(false);
+      return;
+    }
+    customerBalanceApi
+      .getBalance(customerId as number)
+      .then((r: any) => setCreditBalance(Number(r?.balance ?? 0)))
+      .catch(() => setCreditBalance(0));
+  }, [customerType, customerId]);
+
+  useEffect(() => {
+    if (!useFullBalance) return;
+    setBalanceApplyAmount(String(Math.min(creditBalance, total)));
+  }, [useFullBalance, creditBalance, total]);
+
+  useEffect(() => {
+    if (paymentMethod !== "bank_transfer") {
+      setFromBank("");
+      setToBank("");
+    }
+  }, [paymentMethod]);
+
+  useEffect(() => {
+    if (paymentMethod === "cheque") {
+      setChequeDate((d) => d || new Date().toISOString().split("T")[0]);
+      return;
+    }
+    setChequeNumber("");
+    setChequeDate("");
+    setChequeBank("");
+  }, [paymentMethod]);
 
   const filteredCustomers = customerSearch
     ? customers.filter(c =>
@@ -121,6 +233,11 @@ export default function NewSalePage(): React.ReactElement {
     if (discountAmount > subtotal) errs.discount = "Discount cannot exceed subtotal";
     if (paid < 0) errs.amountPaid = "Amount paid cannot be negative";
     if (paid > total) errs.amountPaid = "Amount paid cannot exceed total";
+    if (customerType === "existing" && customerId && creditBalance > 0) {
+      const raw = Math.max(0, parseFloat(balanceApplyAmount) || 0);
+      const max = Math.max(0, Math.min(creditBalance, total));
+      if (raw > max) errs.balanceApplyAmount = `Cannot apply more than ${formatCurrency(max)}`;
+    }
     setErrors(errs);
     return Object.keys(errs).length === 0;
   }
@@ -133,6 +250,22 @@ export default function NewSalePage(): React.ReactElement {
     try {
       setIsSubmitting(true);
       const validItems = parsedItems.filter(i => i.grade && i.quantity > 0 && i.unitPrice > 0);
+      const bankNote =
+        paymentMethod === "bank_transfer" && (fromBank || toBank)
+          ? `Bank Transfer: From ${fromBank || "—"} → To ${toBank || "—"}`
+          : "";
+      const chequeNote =
+        paymentMethod === "cheque" && (chequeNumber || chequeDate || chequeBank)
+          ? [
+              chequeNumber ? `Cheque #${chequeNumber}` : "",
+              chequeBank ? `Bank: ${chequeBank}` : "",
+              chequeDate ? `Cash Date: ${chequeDate}` : "",
+            ]
+              .filter(Boolean)
+              .join(" | ")
+          : "";
+      const combinedNotes =
+        [notes.trim(), bankNote, chequeNote].filter(Boolean).join("\n") || undefined;
       const result = await salesApi.create({
         farmId,
         customerId: customerType === "existing" ? (customerId as number) : null,
@@ -149,8 +282,26 @@ export default function NewSalePage(): React.ReactElement {
         discountValue: discountType !== "none" ? parseFloat(discountValue) || 0 : undefined,
         amountPaid: paid > 0 ? paid : undefined,
         paymentMethod: paid > 0 ? paymentMethod : undefined,
-        notes: notes.trim() || undefined,
+        notes: combinedNotes,
       });
+
+      if (customerType === "existing" && customerId && balanceApplied > 0) {
+        await customerBalanceApi.applyToSale({
+          farmId,
+          customerId: customerId as number,
+          saleId: result.id,
+          amount: balanceApplied,
+          date: saleDate,
+        });
+        await salesApi.recordPayment({
+          saleId: result.id,
+          amount: balanceApplied,
+          paymentDate: saleDate,
+          paymentMethod: "credit_balance",
+          notes: "Applied customer credit balance",
+        } as any);
+      }
+
       toast.success("Sale created successfully");
       navigate(`/farm/sales/${result.id}`);
     } catch (err) {
@@ -257,6 +408,53 @@ export default function NewSalePage(): React.ReactElement {
                   <button type="button" onClick={() => { setCustomerId(""); setCustomerSearch(""); }} className="text-red-500 hover:text-red-700 ml-auto">Clear</button>
                 </div>
               )}
+
+              {selectedCustomer && creditBalance > 0 && (
+                <div className="mt-3 bg-emerald-50 border border-emerald-200 border-l-4 border-l-emerald-500 rounded-lg p-4">
+                  <p className="text-sm font-medium text-emerald-900">
+                    Customer has {formatCurrency(creditBalance)} credit balance
+                  </p>
+                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
+                    <div>
+                      <label className="block text-xs font-medium text-emerald-900/80 mb-1">Apply to this sale</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-700 text-xs font-medium">PKR</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={balanceApplyAmount}
+                          onChange={(e) => {
+                            setUseFullBalance(false);
+                            setBalanceApplyAmount(e.target.value);
+                          }}
+                          className={`w-full pl-12 pr-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white ${
+                            errors.balanceApplyAmount ? "border-red-300" : "border-emerald-200"
+                          }`}
+                        />
+                      </div>
+                      {errors.balanceApplyAmount && <p className="text-xs text-red-600 mt-1">{errors.balanceApplyAmount}</p>}
+                      <p className="text-xs text-emerald-800/70 mt-1">
+                        Balance after: {formatCurrency(Math.max(0, creditBalance - balanceApplied))}
+                      </p>
+                    </div>
+                    <label className="flex items-center gap-2 text-sm text-emerald-900 select-none">
+                      <input
+                        type="checkbox"
+                        checked={useFullBalance}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setUseFullBalance(checked);
+                          if (checked) setBalanceApplyAmount(String(Math.min(creditBalance, total)));
+                        }}
+                        className="h-4 w-4 accent-emerald-600"
+                      />
+                      Use full balance
+                    </label>
+                  </div>
+                </div>
+              )}
+
               <button type="button" onClick={() => navigate("/farm/customers/new")} className="text-xs text-emerald-600 hover:text-emerald-700 font-medium">
                 + Add New Customer
               </button>
@@ -316,7 +514,11 @@ export default function NewSalePage(): React.ReactElement {
               .
             </div>
           )}
-          <SaleItemsInput items={items} onChange={setItems} categories={categories} />
+          {customerType === "walkin" ? (
+            <SaleItemsInput mode="walkin" items={walkInItems} onChange={setWalkInItems} categories={categories} />
+          ) : (
+            <SaleItemsInput mode="existing" items={existingItems} onChange={setExistingItems} categories={categories} />
+          )}
           {errors.items && <p className="text-xs text-red-500 mt-2">{errors.items}</p>}
         </div>
 
@@ -363,12 +565,34 @@ export default function NewSalePage(): React.ReactElement {
                 </select>
               </div>
             )}
+
+            {paid > 0 && paymentMethod === "bank_transfer" && (
+              <BankTransferFields
+                fromBank={fromBank}
+                toBank={toBank}
+                onFromBankChange={setFromBank}
+                onToBankChange={setToBank}
+              />
+            )}
+
+            {paid > 0 && paymentMethod === "cheque" && (
+              <ChequeFields
+                chequeNumber={chequeNumber}
+                chequeDate={chequeDate}
+                chequeBank={chequeBank}
+                onChequeNumberChange={setChequeNumber}
+                onChequeDateChange={setChequeDate}
+                onChequeBankChange={setChequeBank}
+              />
+            )}
           </div>
 
           <SaleSummaryCard
             subtotal={subtotal}
             discountAmount={discountAmount}
             total={total}
+            balanceApplied={balanceApplied}
+            amountDue={amountDueAfterBalance}
             amountPaid={paid}
             balanceDue={balance}
           />

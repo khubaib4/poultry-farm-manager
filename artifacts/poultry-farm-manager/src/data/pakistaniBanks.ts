@@ -1,0 +1,32 @@
+export const PAKISTANI_BANKS = [
+  "Allied Bank (ABL)",
+  "Askari Bank",
+  "Bank Alfalah",
+  "Bank Al-Habib",
+  "Bank of Punjab (BOP)",
+  "BankIslami",
+  "Dubai Islamic Bank",
+  "Faysal Bank",
+  "First Women Bank",
+  "Habib Bank (HBL)",
+  "Habib Metropolitan Bank",
+  "JS Bank",
+  "MCB Bank",
+  "Meezan Bank",
+  "National Bank of Pakistan (NBP)",
+  "Samba Bank",
+  "Silk Bank",
+  "Soneri Bank",
+  "Standard Chartered Pakistan",
+  "Summit Bank",
+  "United Bank (UBL)",
+  "Zarai Taraqiati Bank (ZTBL)",
+  "JazzCash (Mobilink Bank)",
+  "Easypaisa (Telenor Bank)",
+  "SadaPay",
+  "NayaPay",
+  "Other",
+] as const;
+
+export type PakistaniBank = (typeof PAKISTANI_BANKS)[number];
+

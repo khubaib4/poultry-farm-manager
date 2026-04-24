@@ -18,6 +18,7 @@ import {
   DollarSign,
   Bell,
   Egg,
+  ArrowLeftRight,
   PanelLeftClose,
   PanelLeft,
   HardDrive,
@@ -61,6 +62,8 @@ const farmNavItems: NavItem[] = [
   { label: "Finances", path: "/farm/finances", icon: <DollarSign className="h-5 w-5" /> },
   { label: "Alerts", path: "/farm/alerts", icon: <Bell className="h-5 w-5" />, badgeKey: "alerts" },
   { label: "Reports", path: "/farm/reports", icon: <BarChart3 className="h-5 w-5" /> },
+  { label: "Performance", path: "/farm/performance", icon: <TrendingUp className="h-5 w-5" /> },
+  { label: "Compare", path: "/farm/compare", icon: <ArrowLeftRight className="h-5 w-5" /> },
   { label: "Backup", path: "/farm/backup", icon: <HardDrive className="h-5 w-5" /> },
   { label: "Settings", path: "/farm/settings", icon: <Settings className="h-5 w-5" /> },
 ];

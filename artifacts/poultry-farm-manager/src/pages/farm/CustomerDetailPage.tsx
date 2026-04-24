@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { isElectron, customers as customersApi, payments as paymentsApi, receivables as receivablesApi, alerts as alertsApi } from "@/lib/api";
+import { isElectron, customers as customersApi, payments as paymentsApi, receivables as receivablesApi, alerts as alertsApi, customerBalance as customerBalanceApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/ui/Toast";
 import {
   Users, Edit, Phone, MapPin, Building2, CreditCard, Clock,
   DollarSign, ShoppingCart, CalendarDays, FileDown,
+  Wallet, SlidersHorizontal,
 } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
@@ -15,7 +16,9 @@ import PaymentHistoryTable from "@/components/payments/PaymentHistoryTable";
 import RecordPaymentModal from "@/components/payments/RecordPaymentModal";
 import CustomerPaymentAlert from "@/components/alerts/CustomerPaymentAlert";
 import CustomerExportModal from "@/components/customers/CustomerExportModal";
-import type { CustomerWithStats, CustomerPayment, ReceivableItem, PaymentAlert } from "@/types/electron";
+import AdvancePaymentModal from "@/components/customers/AdvancePaymentModal";
+import BalanceAdjustmentModal from "@/components/customers/BalanceAdjustmentModal";
+import type { CustomerWithStats, CustomerPayment, ReceivableItem, PaymentAlert, CustomerBalanceTransaction } from "@/types/electron";
 import { useFarmId } from "@/hooks/useFarmId";
 
 function getPaymentTermsLabel(days: number | null): string {
@@ -36,9 +39,14 @@ export default function CustomerDetailPage(): React.ReactElement {
   const [customerPayments, setCustomerPayments] = useState<CustomerPayment[]>([]);
   const [outstandingInvoices, setOutstandingInvoices] = useState<ReceivableItem[]>([]);
   const [paymentTarget, setPaymentTarget] = useState<ReceivableItem | null>(null);
-  const [activeTab, setActiveTab] = useState<"overview" | "payments" | "outstanding">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "payments" | "outstanding" | "balance">("overview");
   const [customerAlerts, setCustomerAlerts] = useState<PaymentAlert[]>([]);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [creditBalance, setCreditBalance] = useState<number | null>(null);
+  const [balanceTxs, setBalanceTxs] = useState<CustomerBalanceTransaction[]>([]);
+  const [balanceLoading, setBalanceLoading] = useState(false);
+  const [showAdvanceModal, setShowAdvanceModal] = useState(false);
+  const [showAdjustmentModal, setShowAdjustmentModal] = useState(false);
 
   async function loadData() {
     if (!isElectron() || !id) return;
@@ -65,8 +73,27 @@ export default function CustomerDetailPage(): React.ReactElement {
     }
   }
 
+  async function loadBalance() {
+    if (!isElectron() || !id) return;
+    try {
+      setBalanceLoading(true);
+      const [b, txs] = await Promise.all([
+        customerBalanceApi.getBalance(id),
+        customerBalanceApi.getTransactions(id),
+      ]);
+      setCreditBalance(Number((b as any)?.balance ?? 0));
+      setBalanceTxs((txs as any) || []);
+    } catch {
+      setCreditBalance(0);
+      setBalanceTxs([]);
+    } finally {
+      setBalanceLoading(false);
+    }
+  }
+
   useEffect(() => {
     loadData();
+    loadBalance();
   }, [id, farmId]);
 
   if (!isElectron()) {
@@ -94,6 +121,21 @@ export default function CustomerDetailPage(): React.ReactElement {
                 Record Payment
               </button>
             )}
+            <button
+              onClick={() => setShowAdvanceModal(true)}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors"
+            >
+              <Wallet className="h-4 w-4" />
+              Record Advance Payment
+            </button>
+            <button
+              onClick={() => setShowAdjustmentModal(true)}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              title="Balance Adjustment"
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+              Adjust
+            </button>
             <button
               onClick={() => setShowExportModal(true)}
               className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors"
@@ -218,7 +260,7 @@ export default function CustomerDetailPage(): React.ReactElement {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-4 mb-6">
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <div className="flex items-center gap-2 mb-2">
             <ShoppingCart className="h-4 w-4 text-blue-500" />
@@ -244,6 +286,23 @@ export default function CustomerDetailPage(): React.ReactElement {
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <div className="flex items-center gap-2 mb-2">
+            <Wallet className="h-4 w-4 text-emerald-500" />
+            <p className="text-xs font-medium text-gray-500">Credit Balance</p>
+          </div>
+          {balanceLoading ? (
+            <p className="text-sm text-gray-400">Loading…</p>
+          ) : (
+            <p
+              className={`text-xl font-bold ${
+                (creditBalance ?? 0) > 0 ? "text-emerald-600" : (creditBalance ?? 0) === 0 ? "text-gray-500" : "text-red-600"
+              }`}
+            >
+              {formatCurrency(creditBalance ?? 0)}
+            </p>
+          )}
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex items-center gap-2 mb-2">
             <CalendarDays className="h-4 w-4 text-gray-500" />
             <p className="text-xs font-medium text-gray-500">Last Purchase</p>
           </div>
@@ -260,6 +319,7 @@ export default function CustomerDetailPage(): React.ReactElement {
               { key: "overview" as const, label: "Overview" },
               { key: "payments" as const, label: `Payments (${customerPayments.length})` },
               { key: "outstanding" as const, label: `Outstanding (${outstandingInvoices.length})` },
+              { key: "balance" as const, label: `Balance (${balanceTxs.length})` },
             ]).map(tab => (
               <button
                 key={tab.key}
@@ -361,6 +421,19 @@ export default function CustomerDetailPage(): React.ReactElement {
               )}
             </div>
           )}
+
+          {activeTab === "balance" && (
+            <div>
+              {balanceTxs.length === 0 ? (
+                <div className="text-center py-8">
+                  <Wallet className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                  <p className="text-sm text-gray-500">No balance transactions yet</p>
+                </div>
+              ) : (
+                <BalanceHistoryTable transactions={balanceTxs} />
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -384,6 +457,121 @@ export default function CustomerDetailPage(): React.ReactElement {
           onClose={() => setShowExportModal(false)}
         />
       )}
+
+      {showAdvanceModal && farmId && (
+        <AdvancePaymentModal
+          farmId={farmId}
+          customerId={customer.id}
+          customerName={customer.name}
+          onClose={() => setShowAdvanceModal(false)}
+          onSuccess={loadBalance}
+        />
+      )}
+
+      {showAdjustmentModal && farmId && (
+        <BalanceAdjustmentModal
+          farmId={farmId}
+          customerId={customer.id}
+          customerName={customer.name}
+          onClose={() => setShowAdjustmentModal(false)}
+          onSuccess={loadBalance}
+        />
+      )}
+    </div>
+  );
+}
+
+function BalanceHistoryTable({
+  transactions,
+}: {
+  transactions: CustomerBalanceTransaction[];
+}): React.ReactElement {
+  const sortedAsc = transactions
+    .slice()
+    .sort((a, b) => {
+      const da = new Date((a as any).date ?? "").getTime();
+      const db = new Date((b as any).date ?? "").getTime();
+      if (da !== db) return da - db;
+      return Number(a.id) - Number(b.id);
+    });
+
+  const runningById = new Map<number, number>();
+  let running = 0;
+  for (const t of sortedAsc) {
+    running += Number((t as any).amount ?? 0);
+    runningById.set(Number(t.id), running);
+  }
+
+  const sortedDesc = transactions
+    .slice()
+    .sort((a, b) => {
+      const da = new Date((a as any).date ?? "").getTime();
+      const db = new Date((b as any).date ?? "").getTime();
+      if (da !== db) return db - da;
+      return Number(b.id) - Number(a.id);
+    });
+
+  function badge(t: CustomerBalanceTransaction): { label: string; className: string } {
+    const type = t.type;
+    if (type === "advance_payment" || type === "overpayment") return { label: type === "advance_payment" ? "Advance" : "Overpayment", className: "bg-emerald-50 text-emerald-700" };
+    if (type === "adjustment") return { label: "Adjustment", className: "bg-blue-50 text-blue-700" };
+    if (type === "applied_to_sale") return { label: "Applied", className: "bg-orange-50 text-orange-700" };
+    if (type === "refund") return { label: "Refund", className: "bg-rose-50 text-rose-700" };
+    return { label: type, className: "bg-gray-100 text-gray-700" };
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-200">
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
+              <th className="text-right px-4 py-3 font-medium text-gray-600">Amount</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Reference</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Notes</th>
+              <th className="text-right px-4 py-3 font-medium text-gray-600">Running</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {sortedDesc.map((t) => {
+              const amt = Number((t as any).amount ?? 0);
+              const run = runningById.get(Number(t.id)) ?? 0;
+              const b = badge(t);
+              const ref =
+                t.referenceType === "sale" && t.referenceId
+                  ? `Sale #${t.referenceId}`
+                  : t.referenceType === "manual"
+                    ? "Manual"
+                    : "—";
+              return (
+                <tr key={t.id} className="hover:bg-gray-50/60">
+                  <td className="px-4 py-3 text-gray-700">
+                    {t.date ? new Date((t as any).date).toLocaleDateString() : "—"}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${b.className}`}>
+                      {b.label}
+                    </span>
+                  </td>
+                  <td className={`px-4 py-3 text-right font-medium ${amt >= 0 ? "text-emerald-700" : "text-red-700"}`}>
+                    {formatCurrency(amt)}
+                  </td>
+                  <td className="px-4 py-3 text-gray-600">{ref}</td>
+                  <td className="px-4 py-3 text-gray-600 max-w-[340px] truncate" title={t.notes || ""}>
+                    {t.notes || "—"}
+                  </td>
+                  <td className="px-4 py-3 text-right font-medium text-gray-900">{formatCurrency(run)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="px-4 py-3 text-xs text-gray-500 border-t border-gray-200">
+        Running balance is calculated from oldest to newest.
+      </p>
     </div>
   );
 }

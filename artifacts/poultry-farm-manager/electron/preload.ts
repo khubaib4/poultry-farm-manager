@@ -48,6 +48,24 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("flocks:changeStatus", id, status, date, notes),
     delete: (id: number) => ipcRenderer.invoke("flocks:delete", id),
     getStats: (id: number) => ipcRenderer.invoke("flocks:getStats", id),
+    getPerformanceVsStandard: (flockId: string | number) =>
+      ipcRenderer.invoke("flock:getPerformanceVsStandard", flockId),
+    compareFlocks: (flockIds: string[]) =>
+      ipcRenderer.invoke("flock:compareFlocks", flockIds),
+  },
+  customerBalance: {
+    getBalance: (customerId: number) =>
+      ipcRenderer.invoke("customerBalance:getBalance", customerId),
+    getTransactions: (customerId: number) =>
+      ipcRenderer.invoke("customerBalance:getTransactions", customerId),
+    recordAdvancePayment: (data: unknown) =>
+      ipcRenderer.invoke("customerBalance:recordAdvancePayment", data),
+    addAdjustment: (data: unknown) =>
+      ipcRenderer.invoke("customerBalance:addAdjustment", data),
+    applyToSale: (data: unknown) =>
+      ipcRenderer.invoke("customerBalance:applyToSale", data),
+    getBalancesForFarm: (farmId: number) =>
+      ipcRenderer.invoke("customerBalance:getBalancesForFarm", farmId),
   },
   dailyEntries: {
     create: (data: unknown) =>

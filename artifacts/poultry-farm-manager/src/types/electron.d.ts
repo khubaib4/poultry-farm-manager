@@ -28,6 +28,115 @@ export interface FlockData {
   notes?: string;
 }
 
+export interface FlockPerformanceComparison {
+  flock: {
+    id: number;
+    name: string;
+    breed: string;
+    arrivalDate: string;
+    ageAtArrivalDays: number;
+    initialCount: number;
+  };
+  breedName: string;
+  weeklyComparison: Array<{
+    weekAge: number;
+    actualLayPercent: number;
+    actualEggCount: number;
+    actualDeaths: number;
+    actualFeedPerBird: number | null;
+    standardLayPercent: number | null;
+    standardEggWeight: number | null;
+    standardFeedIntake: number | null;
+    standardFCR: number | null;
+    standardLivability: number | null;
+    standardEggsCumPerHenHoused: number;
+    layVariance: number | null;
+  }>;
+  standardCurve: StandardCurveEntry[];
+  summary: {
+    currentWeekAge: number | null;
+    totalActualEggs: number;
+    totalStandardEggs: number | null;
+    avgActualLay: number | null;
+    avgStandardLay: number | null;
+    peakActualLay: number | null;
+    peakActualLayWeek: number | null;
+    standardPeakLay: number;
+    standardPeakWeek: number;
+    overallPerformancePercent: number | null;
+  };
+}
+
+export interface StandardCurveEntry {
+  weekAge: number;
+  standardLayPercent: number;
+  standardFeedIntake: number;
+  standardEggsCumPerHenHoused: number;
+  standardEggWeight: number;
+  standardLivability: number;
+}
+
+export interface FlockComparisonResult {
+  breedId: string;
+  breedName: string;
+  flocks: FlockComparisonEntry[];
+  standardCurve: StandardCurveEntry[];
+}
+
+export interface FlockComparisonEntry {
+  id: string;
+  name: string;
+  breed: string;
+  initialCount: number;
+  arrivalDate: string;
+  ageAtArrivalDays: number;
+  currentWeekAge: number;
+  weeklyData: FlockWeeklyData[];
+  summary: FlockComparisonSummary;
+}
+
+export interface FlockWeeklyData {
+  weekAge: number;
+  actualLayPercent: number | null;
+  actualFeedPerBird: number | null;
+  actualEggCount: number;
+  cumulativeEggs: number;
+  cumulativeEggsPerHen: number;
+  cumulativeDeaths: number;
+  livabilityPercent: number;
+}
+
+export interface FlockComparisonSummary {
+  totalEggs: number;
+  avgLayPercent: number;
+  peakLayPercent: number;
+  peakLayWeek: number;
+  totalDeaths: number;
+  mortalityPercent: number;
+  avgFeedPerBird: number | null;
+}
+
+export interface CustomerBalanceTransaction {
+  id: number;
+  farmId: number;
+  customerId: number;
+  type: "advance_payment" | "overpayment" | "adjustment" | "applied_to_sale" | "refund";
+  amount: number;
+  referenceType: "sale" | "manual" | null;
+  referenceId: number | null;
+  paymentMethod: string | null;
+  notes: string;
+  date: string;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CustomerBalanceResult {
+  customerId: number;
+  balance: number;
+}
+
 export interface DailyEntryData {
   flockId: number;
   entryDate: string;
@@ -1266,6 +1375,35 @@ export interface ElectronAPI {
     changeStatus: (id: number, status: string, date: string, notes?: string) => Promise<IpcResponse>;
     delete: (id: number) => Promise<IpcResponse>;
     getStats: (id: number) => Promise<IpcResponse>;
+    getPerformanceVsStandard: (flockId: string | number) => Promise<IpcResponse<FlockPerformanceComparison | { error: string; breedId?: string }>>;
+    compareFlocks: (flockIds: string[]) => Promise<IpcResponse<FlockComparisonResult | { error: string; breedId?: string }>>;
+  };
+  customerBalance: {
+    getBalance: (customerId: number) => Promise<IpcResponse<CustomerBalanceResult>>;
+    getTransactions: (customerId: number) => Promise<IpcResponse<CustomerBalanceTransaction[]>>;
+    recordAdvancePayment: (data: {
+      farmId: number;
+      customerId: number;
+      amount: number;
+      paymentMethod: string;
+      date: string;
+      notes?: string;
+    }) => Promise<IpcResponse<CustomerBalanceTransaction>>;
+    addAdjustment: (data: {
+      farmId: number;
+      customerId: number;
+      amount: number;
+      date: string;
+      notes: string;
+    }) => Promise<IpcResponse<CustomerBalanceTransaction>>;
+    applyToSale: (data: {
+      farmId: number;
+      customerId: number;
+      saleId: number;
+      amount: number;
+      date: string;
+    }) => Promise<IpcResponse<CustomerBalanceTransaction | { error: "insufficient-balance"; currentBalance: number }>>;
+    getBalancesForFarm: (farmId: number) => Promise<IpcResponse<Record<number, number>>>;
   };
   dailyEntries: {
     create: (data: DailyEntryData) => Promise<IpcResponse>;

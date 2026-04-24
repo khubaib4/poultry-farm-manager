@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { isElectron, customers as customersApi } from "@/lib/api";
+import { isElectron, customers as customersApi, customerBalance as customerBalanceApi } from "@/lib/api";
 import { useCustomers } from "@/hooks/useCustomers";
 import { useToast } from "@/components/ui/Toast";
 import { Plus, Search, X, LayoutGrid, List, Users } from "lucide-react";
@@ -25,6 +25,15 @@ export default function CustomersPage(): React.ReactElement {
   const [searchInput, setSearchInput] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [balances, setBalances] = useState<Record<number, number>>({});
+
+  useEffect(() => {
+    if (!isElectron() || !farmId) return;
+    customerBalanceApi
+      .getBalancesForFarm(farmId)
+      .then((m) => setBalances(m || {}))
+      .catch(() => setBalances({}));
+  }, [farmId, isLoading]);
 
   if (!isElectron()) {
     return <div className="p-6 text-center text-gray-500">This feature is only available in the desktop app.</div>;
@@ -168,7 +177,7 @@ export default function CustomersPage(): React.ReactElement {
           ))}
         </div>
       ) : (
-        <CustomerTable customers={customers} onDelete={setDeleteTarget} />
+        <CustomerTable customers={customers} balances={balances} onDelete={setDeleteTarget} />
       )}
 
       <ConfirmDialog

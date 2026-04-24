@@ -54,6 +54,13 @@ export default function FarmDashboard(): React.ReactElement {
   const mortalityStatus = trends ? getPerformanceStatus(trends.dailyMortalityRate, THRESHOLDS.dailyMortality) : "good";
   const fcrStatus = trends ? getPerformanceStatus(trends.fcr, THRESHOLDS.fcr) : "good";
 
+  const totalLiveBirds = Number(stats?.totalBirds ?? 0);
+  const todayFeedKg = Number(stats?.todayFeed ?? 0);
+  const feedPerBirdSubtitle =
+    todayFeedKg > 0 && totalLiveBirds > 0
+      ? `${Math.round(((todayFeedKg * 1000) / totalLiveBirds) * 10) / 10} g/bird`
+      : "—";
+
   const statusColors: Record<string, string> = {
     paid: "text-green-700 bg-green-50",
     partial: "text-amber-700 bg-amber-50",
@@ -113,10 +120,10 @@ export default function FarmDashboard(): React.ReactElement {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard
                 title="Total Live Birds"
-                value={Number(stats?.totalBirds ?? 0).toLocaleString()}
+                value={totalLiveBirds.toLocaleString()}
                 icon={<Bird className="h-5 w-5" />}
                 iconColor="text-blue-600 bg-blue-50"
-                onClick={() => setSelectedStat({ type: "birds", currentValue: `${Number(stats?.totalBirds ?? 0).toLocaleString()} birds` })}
+                onClick={() => setSelectedStat({ type: "birds", currentValue: `${totalLiveBirds.toLocaleString()} birds` })}
               />
               <StatCard
                 title="Today's Eggs"
@@ -139,11 +146,12 @@ export default function FarmDashboard(): React.ReactElement {
               />
               <StatCard
                 title="Today's Feed"
-                value={Number(stats?.todayFeed ?? 0).toLocaleString()}
+                value={todayFeedKg.toLocaleString()}
                 unit="kg"
                 icon={<Wheat className="h-5 w-5" />}
                 iconColor="text-amber-600 bg-amber-50"
-                onClick={() => setSelectedStat({ type: "feed", currentValue: `${Number(stats?.todayFeed ?? 0).toLocaleString()} kg` })}
+                subtitle={feedPerBirdSubtitle}
+                onClick={() => setSelectedStat({ type: "feed", currentValue: `${todayFeedKg.toLocaleString()} kg` })}
               />
             </div>
           </div>
